@@ -4,18 +4,27 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.102"
+async-trait = "0.1.89"
+env_logger = "0.11.10"
+futures = "0.3.32"
+inventory = "0.3.24"
+isahc = { version = "1.8.2", features = ["cookies", "json"] }
+macros = { path = "src/macros" }
+once_cell = "1.21.4"
+qrcode = "0.14.1"
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
+wacore = { version = "0.6", default-features = false }
+waproto = "0.6"
 whatsapp-rust = { version = "0.6", default-features = false, features = [
-    "sqlite-storage",
-    "tokio-transport",
-    "tokio-runtime",
-    "ureq-client",
-    "tokio-native",
-    "signal",
-    "moka-cache",
+  "moka-cache",
+  "signal",
+  "sqlite-storage",
+  "tokio-native",
+  "tokio-runtime",
+  "tokio-transport",
+  "ureq-client",
 ] }
 whatsapp-rust-sqlite-storage = "0.6"
 whatsapp-rust-tokio-transport = "0.6"
 whatsapp-rust-ureq-http-client = "0.6"
-wacore = { version = "0.5", default-features = false }
-waproto = "0.6"
-tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
