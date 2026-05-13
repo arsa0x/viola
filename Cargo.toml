@@ -1,0 +1,21 @@
+[package]
+name = "viola"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+whatsapp-rust = { version = "0.6", default-features = false, features = [
+    "sqlite-storage",
+    "tokio-transport",
+    "tokio-runtime",
+    "ureq-client",
+    "tokio-native",
+    "signal",
+    "moka-cache",
+] }
+whatsapp-rust-sqlite-storage = "0.6"
+whatsapp-rust-tokio-transport = "0.6"
+whatsapp-rust-ureq-http-client = "0.6"
+wacore = { version = "0.5", default-features = false }
+waproto = "0.6"
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
