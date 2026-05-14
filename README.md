@@ -16,7 +16,7 @@ A modular and async WhatsApp bot built with Rust using [whatsapp-rust](https://g
 
 ## Installation
 
-```bash
+```sh
 git clone https://github.com/yourusername/viola.git
 cd viola
 
@@ -29,7 +29,7 @@ Scan the QR code from WhatsApp Linked Devices.
 
 ## Example Command
 
-```rust
+```rs
 use macros::command;
 
 use crate::framework::context::Context;
@@ -43,7 +43,7 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
 
 Usage:
 
-```text
+```txt
 .ping
 ```
 
@@ -51,16 +51,37 @@ Usage:
 
 ## Project Structure
 
-```text
+```sh
 .
+├── Cargo.lock
+├── Cargo.toml
+├── LICENSE
+├── README.md
 ├── src
-│   ├── commands
+│   ├── commands # all commands/plugins in here
+│   │   ├── mod.rs
+│   │   └── ping.rs
 │   ├── framework
+│   │   ├── command.rs
+│   │   ├── context.rs
+│   │   ├── mod.rs
+│   │   ├── router.rs
+│   │   └── state.rs
+│   ├── lib.rs
 │   ├── macros
+│   │   ├── Cargo.lock
+│   │   ├── Cargo.toml
 │   │   └── src
+│   │       └── lib.rs
+│   ├── main.rs
 │   ├── middlewares
+│   │   └── mod.rs
 │   └── utils
+│       └── mod.rs
 └── store
+    ├── whatsapp.db
+    ├── whatsapp.db-shm
+    └── whatsapp.db-wal
 ```
 
 ## License

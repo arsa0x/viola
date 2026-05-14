@@ -31,3 +31,6 @@ whatsapp-rust = { version = "0.6", default-features = false, features = [
 whatsapp-rust-sqlite-storage = "0.6"
 whatsapp-rust-tokio-transport = "0.6"
 whatsapp-rust-ureq-http-client = "0.6"
+
+[build-dependencies]
+walkdir = "2"
