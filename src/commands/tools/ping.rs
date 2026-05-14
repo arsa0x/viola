@@ -14,6 +14,6 @@ use crate::framework::context::Context;
 
 #[command(["ping", "p"])]
 async fn ping(ctx: Context) -> anyhow::Result<()> {
-    ctx.reply("pong").await?;
+    ctx.reply(&format!("pong\n{} ms", ctx.elapsed_ms())).await?;
     Ok(())
 }

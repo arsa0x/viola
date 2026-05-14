@@ -42,6 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     Event::Message(msg, info) => {
                         let ctx = Context::new(msg, info, client).parse_command(".");
+
                         if !ctx.command.is_empty() {
                             let router = Arc::clone(&router);
                             let cmd = ctx.command.clone();
