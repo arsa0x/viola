@@ -4,12 +4,12 @@ use std::{fs, path::PathBuf};
 
 const DEFAULT_CONFIG: &str = "[bot]\nname = \"viola\"\nprefix = \".\"\nowner = \"\"\n";
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     pub bot: BotConfig,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct BotConfig {
     pub name: String,
     pub prefix: String,

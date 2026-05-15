@@ -1,9 +1,8 @@
-use moka::future::Cache;
-use std::sync::Arc;
-use tokio::sync::Semaphore;
-
-/// to odo
-pub struct AppState {
-    pub cooldowns: Cache<String, bool>,
-    pub limiter: Arc<Semaphore>,
-}
+// pub struct AppState {
+//     pub cooldowns: Cache<String, bool>,
+//     pub config: Config,
+//     pub router: Arc<Router>,
+//     pub start_time: Instant,
+//     pub semaphore: Arc<Semaphore>,
+//     pub http: isahc::httpClient,
+// }

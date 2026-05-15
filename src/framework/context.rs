@@ -1,20 +1,23 @@
 use std::{sync::Arc, time::Instant};
 
+use anyhow::anyhow;
 use wacore::{proto_helpers::MessageExt, types::message::MessageInfo};
 use waproto::whatsapp;
 use whatsapp_rust::{Client, bot::MessageContext};
+
+use crate::utils::config::Config;
 
 // use crate::framework::state::AppState;
 
 #[derive(Clone)]
 pub struct Context {
-    pub msg_context: MessageContext,
+    pub msg: MessageContext,
     pub text: String,
     pub command: String,
     pub args: Vec<String>,
-    pub client: Arc<Client>,
     // pub state: Arc<AppState>,
     pub start: Instant,
+    pub config: Arc<Config>,
 }
 
 impl Context {
@@ -22,18 +25,19 @@ impl Context {
         message: &Arc<waproto::whatsapp::Message>,
         info: &Arc<MessageInfo>,
         client: Arc<Client>,
+        config: Arc<Config>,
     ) -> Self {
         Self {
-            msg_context: MessageContext::from_parts(message, info, Arc::clone(&client)),
+            msg: MessageContext::from_parts(message, info, client),
             text: String::new(),
-            client: client,
             command: String::new(),
             args: Vec::new(),
             start: Instant::now(),
+            config,
         }
     }
     pub async fn reply(&self, text: &str) -> anyhow::Result<()> {
-        let ctx_info = self.msg_context.build_quote_context();
+        let ctx_info = self.msg.build_quote_context();
         let reply = whatsapp::Message {
             extended_text_message: Some(Box::new(whatsapp::message::ExtendedTextMessage {
                 text: Some(text.to_string()),
@@ -43,10 +47,27 @@ impl Context {
             ..Default::default()
         };
 
-        if let Err(e) = self.msg_context.send_message(reply).await {
+        if let Err(e) = self.msg.send_message(reply).await {
             println!("failed to send message: {}", e);
         }
         Ok(())
+    }
+
+    pub fn sender(&self) -> anyhow::Result<String> {
+        let phone = self
+            .msg
+            .info
+            .source
+            .sender_alt
+            .as_ref()
+            .ok_or_else(|| anyhow!("Sender alternative info missing"))?
+            .user_base();
+
+        Ok(phone.to_string())
+    }
+
+    pub fn is_group(&self) -> bool {
+        self.msg.info.source.is_group
     }
 
     pub fn elapsed_ms(&self) -> u128 {
@@ -54,7 +75,7 @@ impl Context {
     }
 
     pub fn content(&self) -> Option<String> {
-        let msg = &self.msg_context.message;
+        let msg = &self.msg.message;
 
         if let Some(text) = msg.text_content() {
             return Some(text.to_string());

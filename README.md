@@ -20,8 +20,24 @@ cd viola
 cargo run
 ```
 
-## Example Command
+## Command / Plugin
+```rs
+use macros::command;
+use crate::framework::context::Context;
 
+#[command(
+    trigger = [""],
+    owner = false,
+    group_only = false,
+    description = ""
+)]
+async fn _test(ctx: Context) -> anyhow::Result<()> {
+    // do something
+    Ok(())
+}
+```
+
+Example
 ```rs
 use macros::command;
 
