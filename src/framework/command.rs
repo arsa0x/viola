@@ -1,16 +1,17 @@
-use futures::future::BoxFuture;
+use std::time::Duration;
 
 use crate::framework::context::Context;
-// use std::{future::Future, pin::Pin};
 
-// pub type CommandFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>>;
-
-// pub type CommandHandler = fn(Context) -> CommandFuture;
+use futures::future::BoxFuture;
 
 pub type CommandHandler = fn(Context) -> BoxFuture<'static, anyhow::Result<()>>;
 
 pub struct Command {
     pub triggers: &'static [&'static str],
+    pub description: &'static str,
+    pub cooldown: Duration,
+    pub owner: bool,
+    pub group_only: bool,
     pub handler: CommandHandler,
 }
 

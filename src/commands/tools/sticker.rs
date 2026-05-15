@@ -1,11 +1,11 @@
+use image::load_from_memory;
 use macros::command;
 use waproto::whatsapp::{self, message::StickerMessage};
-
-use crate::framework::context::Context;
-use image::load_from_memory;
 use webp::Encoder;
 
-#[command(["sticker", "s"])]
+use crate::framework::context::Context;
+
+#[command(trigger = ["sticker", "s"])]
 async fn sticker(ctx: Context) -> anyhow::Result<()> {
     if let Some(img_msg) = &ctx.msg_context.message.image_message {
         let webp = {
@@ -23,7 +23,6 @@ async fn sticker(ctx: Context) -> anyhow::Result<()> {
                 Default::default(),
             )
             .await?;
-
         let ctx_info = ctx.msg_context.build_quote_context();
         let reply = whatsapp::Message {
             sticker_message: Some(Box::new(StickerMessage {
