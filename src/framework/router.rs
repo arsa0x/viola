@@ -11,6 +11,10 @@ impl Router {
 
         for command in inventory::iter::<Command> {
             for trigger in command.triggers {
+                if commands.contains_key(trigger) {
+                    log::warn!("duplicate trigger detected: {}", trigger);
+                }
+
                 commands.insert(*trigger, command);
             }
         }
@@ -25,9 +29,9 @@ impl Router {
                 ctx.reply("command only works in groups").await?;
                 return Ok(());
             }
-            if command.owner && ctx.sender()? != ctx.config.bot.owner {
+            if command.owner && ctx.sender()? != ctx.state.config.bot.owner {
                 ctx.reply("owner only command").await?;
-                ctx.reply(&format!("owner: {}", ctx.config.bot.owner))
+                ctx.reply(&format!("owner: {}", ctx.state.config.bot.owner))
                     .await?;
                 return Ok(());
             }

@@ -20,7 +20,7 @@ use syn::{
 *   owner = bool,       // false
 *   group_only = bool,  // false
 *   cooldown u64,       // 0
-*   description = &str  // &str
+*   description = &str  // ""
 * )]
 * async fn function(ctx: Context) -> anyhow::Result<()> {
 *   Ok(())

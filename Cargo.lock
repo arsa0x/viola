@@ -2829,6 +2829,7 @@ name = "viola"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
  "chrono",
  "dirs",
  "env_logger",
@@ -2843,6 +2844,7 @@ dependencies = [
  "qrcode",
  "scraper",
  "serde",
+ "serde_json",
  "tokio",
  "toml 1.1.2+spec-1.1.0",
  "url",

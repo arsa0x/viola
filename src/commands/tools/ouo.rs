@@ -5,7 +5,10 @@ use macros::command;
 use scraper::{Html, Selector};
 use url::Url;
 
-pub async fn ouo_bypass(url: &str) -> anyhow::Result<Option<String>> {
+pub async fn ouo_bypass(
+    url: &str,
+    redirect: isahc::config::RedirectPolicy,
+) -> anyhow::Result<Option<String>> {
     let url_obj = Url::parse(url)?;
     let domain = url_obj.host_str().context("failed getting domain")?;
     let origin = format!("{}://{}", url_obj.scheme(), domain);
@@ -13,7 +16,7 @@ pub async fn ouo_bypass(url: &str) -> anyhow::Result<Option<String>> {
 
     let client = isahc::HttpClient::builder()
         .cookies()
-        .redirect_policy(isahc::config::RedirectPolicy::Follow)
+        .redirect_policy(redirect)
         .build()?;
 
     let mut init_res = client
@@ -81,9 +84,14 @@ pub async fn ouo_bypass(url: &str) -> anyhow::Result<Option<String>> {
         .await?;
 
     let final_html = post_res.text().await?;
-
     let final_doc = Html::parse_document(&final_html);
-    let a_selector = Selector::parse("div.row a").unwrap();
+
+    let a_selector = if redirect == isahc::config::RedirectPolicy::None {
+        Selector::parse("a").unwrap()
+    } else {
+        Selector::parse("div.row a").unwrap()
+    };
+
     let final_url = final_doc
         .select(&a_selector)
         .next()
@@ -95,32 +103,36 @@ pub async fn ouo_bypass(url: &str) -> anyhow::Result<Option<String>> {
 
 #[tokio::test]
 async fn ouo_bypass_test() {
-    let response = ouo_bypass("https://ouo.io/0ZuHXU2").await;
-    match response {
-        Ok(res) => match res {
-            Some(u) => {
-                println!("{}", u);
-            }
-            None => {
-                println!("none");
-            }
-        },
-        Err(r) => {
-            println!("{}", r);
-        }
-    }
+    let response = ouo_bypass(
+        "https://ouo.io/0ZuHXU2",
+        isahc::config::RedirectPolicy::None,
+    )
+    .await;
+    assert!(response.unwrap().is_some());
 }
 
 #[command(trigger = ["ouo"])]
 async fn ouo(ctx: Context) -> anyhow::Result<()> {
-    let Some(url) = ctx.args.first() else {
-        ctx.reply("usage: .ouo <url>").await?;
+    let use_redirect = ctx.args.iter().any(|a| a == "-r" || a == "--redirect");
+    let url = ctx.args.iter().find(|arg| {
+        arg.starts_with("https://") && (arg.contains("ouo.io") || arg.contains("ouo.press"))
+    });
+
+    let Some(url) = url else {
+        ctx.reply("usage: .ouo [-r] <ouo_url>").await?;
         return Ok(());
     };
 
-    match ouo_bypass(url).await? {
+    let redirect_policy = if use_redirect {
+        isahc::config::RedirectPolicy::Follow
+    } else {
+        isahc::config::RedirectPolicy::None
+    };
+
+    match ouo_bypass(url, redirect_policy).await? {
         Some(result) => {
-            ctx.reply(&format!("result: {}", result)).await?;
+            ctx.reply(&format!("result: {}\ntime: {}ms", result, ctx.elapsed_ms()))
+                .await?;
         }
         None => {
             ctx.reply("failed bypass").await?;

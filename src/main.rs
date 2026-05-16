@@ -1,7 +1,11 @@
 use qrcode::render::unicode;
 use std::{io::Write, sync::Arc};
 use viola::{
-    framework::{context::Context, router::Router},
+    framework::{
+        context::Context,
+        router::Router,
+        state::{AppState, SharedState},
+    },
     utils::config::{init_dir, load_config},
 };
 use whatsapp_rust::{TokioRuntime, bot::Bot, types::events::Event};
@@ -12,10 +16,17 @@ use whatsapp_rust_ureq_http_client::UreqHttpClient;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let router = Arc::new(Router::new());
-    // let semaphore = Arc::new(Semaphore::new(100));
 
     let dir = init_dir()?;
     let config = Arc::new(load_config(&dir.join("config.toml").to_string_lossy())?);
+
+    let client = Arc::new(isahc::HttpClient::new()?);
+
+    let state = SharedState::new(AppState::new(
+        Arc::clone(&config),
+        Arc::clone(&router),
+        client,
+    ));
 
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Info)
@@ -44,6 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .on_event(move |event, client| {
             let router = Arc::clone(&router);
             let config = Arc::clone(&config);
+            let state = Arc::clone(&state);
 
             async move {
                 match &*event {
@@ -60,14 +72,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     Event::Message(msg, info) => {
-                        let ctx = Context::new(msg, info, client, Arc::clone(&config))
+                        let ctx = Context::new(msg, info, client, state)
                             .parse_command(&config.bot.prefix);
 
                         if !ctx.command.is_empty() {
                             let router = Arc::clone(&router);
-                            let cmd = ctx.command.clone();
+
                             tokio::spawn(async move {
-                                if let Err(e) = router.execute(&cmd, ctx).await {
+                                if let Err(e) = router.execute(&ctx.command.clone(), ctx).await {
                                     log::error!("command failed: {}", e);
                                 }
                             });
