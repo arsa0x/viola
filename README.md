@@ -50,6 +50,27 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
 }
 ```
 
+## Configuration
+Viola automatically stores configuration files inside your system "data_dir" using the "dirs" crate.
+
+Config Location
+
+| OS      | Path                                                      |
+|---------|-----------------------------------------------------------|
+| Linux   | `~/.local/share/viola/config.toml`                        |
+| Windows | `C:\Users\<user>\AppData\Roaming\viola\config.toml`       |
+| macOS   | `~/Library/Application Support/viola/config.toml`         |
+
+The config file will be automatically generated on first run.
+
+Example Config
+```toml
+[bot]
+name = "viola"
+prefix = "."
+owner = "628123456789"
+```
+
 ## Project Structure
 
 ```sh
