@@ -77,6 +77,12 @@ impl Context {
 
         let len = &media_bytes.len();
 
+        let thumbnail_bytes = if media_type == MediaType::Image {
+            self.generate_jpeg_thumbnail(&media_bytes)
+        } else {
+            None
+        };
+
         let upload = self
             .msg
             .client
@@ -109,6 +115,7 @@ impl Context {
                     direct_path: Some(upload.direct_path.clone()),
                     file_length: Some(*len as u64),
                     context_info: Some(Box::new(ctx_info)),
+                    jpeg_thumbnail: thumbnail_bytes,
                     caption,
                     ..Default::default()
                 })),
@@ -123,6 +130,7 @@ impl Context {
                     mimetype: Some("image/webp".to_string()),
                     direct_path: Some(upload.direct_path.clone()),
                     file_length: Some(*len as u64),
+                    png_thumbnail: thumbnail_bytes,
                     context_info: Some(Box::new(ctx_info)),
                     ..Default::default()
                 })),
@@ -143,6 +151,13 @@ impl Context {
         }
 
         Ok(())
+    }
+    pub async fn get_media(&self) {} // to do
+    pub async fn get_media_url(&self) {} // to do
+
+    fn generate_jpeg_thumbnail(&self, _: &[u8]) -> Option<Vec<u8>> {
+        // to do
+        None
     }
 
     pub fn sender(&self) -> anyhow::Result<String> {

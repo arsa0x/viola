@@ -1,15 +1,3 @@
-use crate::framework::context::Context;
-use base64::{Engine as _, engine::general_purpose};
-use futures::AsyncReadExt;
-use isahc::{get_async, http::request::Builder, prelude::*};
-use macros::command;
-use serde::Deserialize;
-use url::Url;
-use waproto::whatsapp::{
-    self,
-    message::{AudioMessage, VideoMessage},
-};
-
 /*
  * Name: Tiktok Downloader
  * Creator: Ryza
@@ -18,6 +6,13 @@ use waproto::whatsapp::{
  * Sumber: https://whatsapp.com/channel/0029VbCHRSDAzNboLatr0W0o
  * Note: -
  */
+
+use crate::framework::context::{Context, MediaSource};
+use base64::{Engine as _, engine::general_purpose};
+use isahc::{http::request::Builder, prelude::*};
+use macros::command;
+use serde::Deserialize;
+use url::Url;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -64,79 +59,29 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
                 ctx.reply(&format!("failed\ntime: {}ms", ctx.elapsed_ms()))
                     .await?;
             } else {
-                let url = if audio_only {
+                if audio_only {
                     let bytes = general_purpose::STANDARD.decode(result.audio_id)?;
-                    String::from_utf8(bytes).expect("Invalid UTF-8")
+                    ctx.reply_media(
+                        MediaSource::Url(String::from_utf8(bytes)?),
+                        wacore::download::MediaType::Audio,
+                        Some(format!(
+                            "author: {}\ntime: {}ms",
+                            result.author,
+                            ctx.elapsed_ms()
+                        )),
+                    )
+                    .await?;
                 } else {
                     let bytes = general_purpose::STANDARD.decode(result.video_id)?;
-                    String::from_utf8(bytes).expect("Invalid UTF-8")
-                };
-
-                let mut resp = get_async(url).await?;
-                let mut media_bytes = Vec::new();
-                resp.body_mut().read_to_end(&mut media_bytes).await?;
-                let mtype = if audio_only {
-                    wacore::download::MediaType::Audio
-                } else {
-                    wacore::download::MediaType::Video
-                };
-
-                let len = &media_bytes.len();
-                let upload = ctx
-                    .msg
-                    .client
-                    .upload(media_bytes, mtype, Default::default())
-                    .await?;
-
-                let ctx_info = ctx.msg.build_quote_context();
-
-                let reply = if audio_only {
-                    whatsapp::Message {
-                        audio_message: Some(Box::new(AudioMessage {
-                            url: Some(upload.url.clone()),
-                            file_sha256: Some(upload.file_sha256_vec()),
-                            file_enc_sha256: Some(upload.file_enc_sha256_vec()),
-                            media_key: Some(upload.media_key_vec()),
-                            mimetype: Some("audio/mpeg".to_string()),
-                            direct_path: Some(upload.direct_path.clone()),
-                            file_length: Some(*len as u64),
-                            context_info: Some(Box::new(ctx_info)),
-
-                            ..Default::default()
-                        })),
-                        ..Default::default()
-                    }
-                } else {
-                    whatsapp::Message {
-                        video_message: Some(Box::new(VideoMessage {
-                            url: Some(upload.url.clone()),
-                            file_sha256: Some(upload.file_sha256_vec()),
-                            file_enc_sha256: Some(upload.file_enc_sha256_vec()),
-                            media_key: Some(upload.media_key_vec()),
-                            mimetype: Some("video/mp4".to_string()),
-                            direct_path: Some(upload.direct_path.clone()),
-                            file_length: Some(*len as u64),
-                            context_info: Some(Box::new(ctx_info)),
-                            caption: Some(format!(
-                                "author: {}\ntime: {}ms",
-                                result.author,
-                                ctx.elapsed_ms()
-                            )),
-                            ..Default::default()
-                        })),
-                        ..Default::default()
-                    }
-                };
-
-                if let Err(e) = ctx.msg.send_message(reply).await {
-                    log::error!("failed to send message: {}", e);
-                }
-                if audio_only {
-                    ctx.reply(&format!(
-                        "author: {}\ntime: {}ms",
-                        result.author,
-                        ctx.elapsed_ms()
-                    ))
+                    ctx.reply_media(
+                        MediaSource::Url(String::from_utf8(bytes)?),
+                        wacore::download::MediaType::Video,
+                        Some(format!(
+                            "author: {}\ntime: {}ms",
+                            result.author,
+                            ctx.elapsed_ms()
+                        )),
+                    )
                     .await?;
                 }
             }

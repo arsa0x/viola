@@ -4,11 +4,11 @@ use macros::command;
 use std::collections::HashMap;
 use url::Url;
 
-#[command(trigger = ["http"])]
+#[command(trigger = ["http", "fetch"])]
 async fn http_request(ctx: Context) -> anyhow::Result<()> {
     if ctx.args.len() < 2 {
         ctx.reply(
-            "usage:\n.http GET http://api.com -h \"Content-Type: application/json\" -q \"page=1\"",
+            "usage:\n.http GET http://example.com \n-h \"Content-Type: application/json\" \n-q \"page=1\"",
         )
         .await?;
         return Ok(());
