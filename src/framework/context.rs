@@ -53,9 +53,7 @@ impl Context {
             ..Default::default()
         };
 
-        if let Err(e) = self.msg.send_message(reply).await {
-            log::error!("failed to send message: {}", e);
-        }
+        self.msg.send_message(reply).await?;
         Ok(())
     }
 
@@ -146,9 +144,7 @@ impl Context {
             },
         };
 
-        if let Err(e) = self.msg.send_message(reply).await {
-            log::error!("failed to send message: {}", e);
-        }
+        self.msg.send_message(reply).await?;
 
         Ok(())
     }
@@ -181,32 +177,28 @@ impl Context {
         self.created_at.elapsed().as_millis()
     }
 
-    pub fn media_content(&self) -> Option<String> {
-        Some(String::new())
-    }
-
-    pub fn text_content(&self) -> Option<String> {
+    pub fn text_content(&self) -> Option<&str> {
         let msg = &self.msg.message;
 
         if let Some(text) = msg.text_content() {
-            return Some(text.to_string());
+            return Some(text);
         }
 
         if let Some(image) = &msg.image_message {
             if let Some(caption) = &image.caption {
-                return Some(caption.to_string());
+                return Some(caption);
             }
         }
 
         if let Some(video) = &msg.video_message {
             if let Some(caption) = &video.caption {
-                return Some(caption.to_string());
+                return Some(caption);
             }
         }
 
         if let Some(document) = &msg.document_message {
             if let Some(caption) = &document.caption {
-                return Some(caption.to_string());
+                return Some(caption);
             }
         }
 
@@ -241,16 +233,14 @@ impl Context {
     }
 
     pub fn parse_command(mut self, prefix: &str) -> Self {
-        if let Some(text) = self.text_content() {
-            self.text = text.to_string();
+        let text = self.text_content().map(str::to_owned);
+
+        if let Some(text) = text {
+            self.text = text.clone();
 
             if text.starts_with(prefix) {
                 let without_prefix = text.trim_start_matches(prefix);
 
-                // let parts: Vec<String> = without_prefix
-                //     .split_whitespace()
-                //     .map(|s| s.to_string())
-                //     .collect();
                 let parts = self.split_arguments(without_prefix);
 
                 if let Some((cmd, args)) = parts.split_first() {

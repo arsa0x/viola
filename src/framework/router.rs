@@ -1,8 +1,10 @@
 use crate::framework::{command::Command, context::Context};
-use std::collections::HashMap;
+use dashmap::DashMap;
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
 pub struct Router {
     commands: HashMap<&'static str, &'static Command>,
+    cooldowns: DashMap<(String, String), Instant>,
 }
 
 impl Router {
@@ -14,28 +16,54 @@ impl Router {
                 if commands.contains_key(trigger) {
                     log::warn!("duplicate trigger detected: {}", trigger);
                 }
-
                 commands.insert(*trigger, command);
             }
         }
 
-        Self { commands }
+        Self {
+            commands,
+            cooldowns: DashMap::new(),
+        }
     }
 
     pub async fn execute(&self, cmd: &str, ctx: Context) -> anyhow::Result<()> {
         let command = self.commands.get(cmd);
         if let Some(command) = command {
+            let semaphore = Arc::clone(&ctx.state.semaphore);
+            let _permit = semaphore.acquire().await?;
+
+            let sender = ctx.sender()?;
+            let cache_key = (sender, cmd.to_string());
+
+            if let Some(last_execution) = self.cooldowns.get(&cache_key) {
+                if last_execution.elapsed() < command.cooldown {
+                    let remaining = command.cooldown - last_execution.elapsed();
+                    ctx.reply(&format!(
+                        "wait {:.1} more seconds!",
+                        remaining.as_secs_f32()
+                    ))
+                    .await?;
+                    return Ok(());
+                }
+            }
+
             if command.group_only && !ctx.is_group() {
                 ctx.reply("command only works in groups").await?;
                 return Ok(());
             }
             if command.owner && ctx.sender()? != ctx.state.config.bot.owner {
                 ctx.reply("owner only command").await?;
-                ctx.reply(&format!("owner: {}", ctx.state.config.bot.owner))
-                    .await?;
                 return Ok(());
             }
-            (command.handler)(ctx).await?;
+
+            if let Err(e) = (command.handler)(ctx.clone()).await {
+                log::error!("command failed: {}", e);
+
+                let _ = ctx.reply(&format!("command failed: {}", e)).await;
+                return Err(e);
+            }
+
+            self.cooldowns.insert(cache_key, Instant::now());
         }
         Ok(())
     }

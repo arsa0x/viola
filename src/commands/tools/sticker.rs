@@ -1,4 +1,4 @@
-use image::load_from_memory;
+use image::{RgbaImage, imageops::overlay, load_from_memory};
 use macros::command;
 use webp::Encoder;
 
@@ -8,12 +8,22 @@ use crate::framework::context::Context;
 async fn sticker(ctx: Context) -> anyhow::Result<()> {
     if let Some(img_msg) = &ctx.msg.message.image_message {
         let webp = {
-            let img = load_from_memory(&ctx.msg.client.download(img_msg.as_ref()).await?)?;
+            let bytes = ctx.msg.client.download(img_msg.as_ref()).await?;
+            let img = load_from_memory(&bytes)?;
             let resized = img.thumbnail(512, 512);
-            let rgba = resized.to_rgba8();
-            let encoder = Encoder::from_rgba(rgba.as_raw(), rgba.width(), rgba.height());
+
+            let mut canvas = RgbaImage::new(512, 512);
+
+            let x = (512 - resized.width()) / 2;
+            let y = (512 - resized.height()) / 2;
+
+            overlay(&mut canvas, &resized.to_rgba8(), x.into(), y.into());
+
+            let encoder = Encoder::from_rgba(canvas.as_raw(), canvas.width(), canvas.height());
+
             encoder.encode(75.0).to_vec()
         };
+
         ctx.reply_media(
             crate::framework::context::MediaSource::Bytes(webp),
             wacore::download::MediaType::Sticker,
@@ -21,5 +31,6 @@ async fn sticker(ctx: Context) -> anyhow::Result<()> {
         )
         .await?;
     }
+
     Ok(())
 }

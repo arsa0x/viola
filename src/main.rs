@@ -1,3 +1,4 @@
+use mimalloc::MiMalloc;
 use qrcode::render::unicode;
 use std::{io::Write, sync::Arc};
 use viola::{
@@ -13,8 +14,11 @@ use whatsapp_rust_sqlite_storage::SqliteStore;
 use whatsapp_rust_tokio_transport::TokioWebSocketTransportFactory;
 use whatsapp_rust_ureq_http_client::UreqHttpClient;
 
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> anyhow::Result<()> {
     let router = Arc::new(Router::new());
 
     let dir = init_dir()?;
@@ -47,14 +51,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("SQLite backend initialized");
 
+    log::info!("Starting bot...");
+
     let mut bot = Bot::builder()
         .with_backend(backend)
         .with_transport_factory(TokioWebSocketTransportFactory::new())
         .with_http_client(UreqHttpClient::new())
         .with_runtime(TokioRuntime)
         .on_event(move |event, client| {
-            let router = Arc::clone(&router);
-            let config = Arc::clone(&config);
             let state = Arc::clone(&state);
 
             async move {
@@ -72,14 +76,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     Event::Message(msg, info) => {
-                        let ctx = Context::new(msg, info, client, state)
-                            .parse_command(&config.bot.prefix);
+                        let prefix = &state.config.bot.prefix;
+                        let ctx =
+                            Context::new(msg, info, client, state.clone()).parse_command(prefix);
 
                         if !ctx.command.is_empty() {
-                            let router = Arc::clone(&router);
-
+                            let state_handler = state.clone();
                             tokio::spawn(async move {
-                                if let Err(e) = router.execute(&ctx.command.clone(), ctx).await {
+                                let command = ctx.command.clone();
+                                if let Err(e) =
+                                    state_handler.router.execute(command.as_str(), ctx).await
+                                {
                                     log::error!("command failed: {}", e);
                                 }
                             });
@@ -93,6 +100,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .build()
         .await?;
-    log::info!("Starting bot...");
-    Ok(bot.run().await?.await?)
+
+    let mut bot_handle = bot.run().await?;
+
+    log::info!("bot is running. press ctrl+c to stop.");
+
+    // https://github.com/vrypt-cpp/sora-on-rust/blob/main/src/main.rs#L61
+    tokio::select! {
+        res = &mut bot_handle => {
+            match res {
+                Ok(_) => log::info!("bot stopped normally."),
+                Err(e) => log::error!("bot stopped with error: {:?}", e),
+            }
+        }
+        _ = tokio::signal::ctrl_c() => {
+            log::info!("SIGINT received, performing graceful shutdown...");
+            bot.client().disconnect().await;
+            let _ = bot_handle.await;
+            log::info!("shutdown complete. goodbye!");
+        }
+    }
+
+    Ok(())
 }
