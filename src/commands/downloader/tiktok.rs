@@ -26,7 +26,7 @@ pub struct TikTokData {
 #[command(trigger = ["tt", "tiktok", "tik"])]
 async fn tiktok(ctx: Context) -> anyhow::Result<()> {
     let Some(tiktok_url) = ctx.args.iter().find(|f| f.contains("https")) else {
-        ctx.reply("usage: .tiktok <tiktok_url>").await?;
+        ctx.reply("usage: .tiktok [-mp3] <tiktok_url>").await?;
         return Ok(());
     };
 

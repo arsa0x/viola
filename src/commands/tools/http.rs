@@ -98,7 +98,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
             };
 
             ctx.reply(&format!(
-                " *status:* {}\ntime: {}ms\n*body*:\n```{}\n```",
+                "status: {}\n\ntime: {}ms\n\nbody:\n```{}\n```",
                 status,
                 ctx.elapsed_ms(),
                 trimmed_body
