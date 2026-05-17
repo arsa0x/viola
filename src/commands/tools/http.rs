@@ -4,7 +4,7 @@ use macros::command;
 use std::collections::HashMap;
 use url::Url;
 
-#[command(trigger = ["http", "fetch"])]
+#[command(trigger = ["http", "https", "fetch"])]
 async fn http_request(ctx: Context) -> anyhow::Result<()> {
     if ctx.args.len() < 2 {
         ctx.reply(

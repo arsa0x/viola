@@ -1,24 +1,33 @@
 # Viola WhatsApp Bot
 
-Fast and modular WhatsApp bot built with Rust and [whatsapp-rust](https://github.com/oxidezap/whatsapp-rust) library.
+A fast and modular WhatsApp bot framework for Rust with procedural macro commands and inventory-based auto registration. Built with Rust and [whatsapp-rust](https://github.com/oxidezap/whatsapp-rust) library.
 
 ## Features
 
-- Fast async architecture with Tokio
-- Auto command module discovery
-- Low memory usage
-- Modular command architecture
+## Features
+
+- Tokio async runtime
+- Inventory-based automatic command registration
 - Procedural macro commands
-- Inventory-based auto registration
+- Middleware system
+- Low memory footprint
+- Native Rust performance
+- Modular command system
+- Auto-generated configuration
 
-## Installation
+## Getting Started
 
-```sh
-git clone https://github.com/yourusername/viola.git
+```bash
+git clone https://github.com/arsa0x/viola.git
 cd viola
 
 cargo run
 ```
+
+On first launch, Viola will:
+- generate configuration files
+- create storage directories
+- display a pairing QR code
 
 ## Command / Plugin
 ```rs
@@ -43,7 +52,10 @@ use macros::command;
 
 use crate::framework::context::Context;
 
-#[command(["ping", "p"])]
+#[command(
+    trigger = ["ping", "p"],
+    description = "Ping command"
+)]
 async fn ping(ctx: Context) -> anyhow::Result<()> {
     ctx.reply("pong").await?;
     Ok(())
