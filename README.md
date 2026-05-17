@@ -4,8 +4,6 @@ A fast and modular WhatsApp bot framework for Rust with procedural macro command
 
 ## Features
 
-## Features
-
 - Tokio async runtime
 - Inventory-based automatic command registration
 - Procedural macro commands
@@ -30,6 +28,7 @@ On first launch, Viola will:
 - display a pairing QR code
 
 ## Command / Plugin
+
 ```rs
 use macros::command;
 use crate::framework::context::Context;
@@ -47,6 +46,7 @@ async fn _test(ctx: Context) -> anyhow::Result<()> {
 ```
 
 Example
+
 ```rs
 use macros::command;
 
@@ -63,6 +63,7 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
 ```
 
 ## Configuration
+
 Viola automatically stores configuration files inside your system "data_dir" using the "dirs" crate.
 
 Config Location
