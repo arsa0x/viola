@@ -4,7 +4,49 @@ use macros::command;
 use std::collections::HashMap;
 use url::Url;
 
-#[command(trigger = ["http", "https", "fetch"])]
+const HELP: &str = r#"Send HTTP requests.
+
+USAGE:
+  .http <METHOD> <URL> [OPTIONS]
+
+METHODS:
+  GET
+  POST
+  PUT
+  PATCH
+  DELETE
+
+OPTIONS:
+  -h, --header "<KEY>: <VALUE>"
+      Add request header
+
+  -q, --query "<KEY>=<VALUE>"
+      Add query parameter
+
+  -d, --data "<BODY>"
+      Send request body
+
+EXAMPLES:
+
+  Simple GET request
+    .http GET https://httpbin.org/get
+
+  GET with query params
+    .http GET https://example.com \
+      -q "page=1" \
+      -q "limit=10"
+
+  POST JSON request
+    .http POST https://httpbin.org/post \
+      -h "Content-Type: application/json" \
+      -d "{\"name\":\"john\"}"
+
+  Custom Authorization header
+    .http GET https://api.example.com/me \
+      -h "Authorization: Bearer token"
+"#;
+
+#[command(trigger = ["http", "https", "fetch"], help = HELP, description = "http request")]
 async fn http_request(ctx: Context) -> anyhow::Result<()> {
     if ctx.args.len() < 2 {
         ctx.reply(

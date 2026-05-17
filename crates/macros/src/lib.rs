@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
-    Ident, ItemFn, LitBool, LitInt, LitStr, Token, bracketed, parse::Parse, parse_macro_input,
-    punctuated::Punctuated,
+    Expr, Ident, ItemFn, LitBool, LitInt, LitStr, Token, bracketed, parse::Parse,
+    parse_macro_input, punctuated::Punctuated,
 };
 
 /*
@@ -21,6 +21,7 @@ use syn::{
 *   group_only = bool,  // false
 *   cooldown u64,       // 0
 *   description = &str  // ""
+*   help = &str         // ""
 * )]
 * async fn function(ctx: Context) -> anyhow::Result<()> {
 *   Ok(())
@@ -29,7 +30,8 @@ use syn::{
 
 struct CommandConfig {
     triggers: Vec<LitStr>,
-    description: Option<LitStr>,
+    help: Option<syn::Expr>,
+    description: Option<syn::Expr>,
     cooldown: u64,
     owner: bool,
     group_only: bool,
@@ -40,6 +42,7 @@ impl Default for CommandConfig {
         CommandConfig {
             triggers: Vec::new(),
             description: None,
+            help: None,
             cooldown: 0,
             owner: false,
             group_only: false,
@@ -67,8 +70,12 @@ impl Parse for CommandConfig {
                     config.triggers = values.into_iter().collect();
                 }
                 "description" => {
-                    let value: LitStr = input.parse()?;
+                    let value: Expr = input.parse()?;
                     config.description = Some(value);
+                }
+                "help" => {
+                    let value: syn::Expr = input.parse()?;
+                    config.help = Some(value);
                 }
                 "cooldown" => {
                     let value: LitInt = input.parse()?;
@@ -120,9 +127,9 @@ pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let cooldown = config.cooldown;
 
-    let description = config
-        .description
-        .unwrap_or_else(|| syn::LitStr::new("", proc_macro2::Span::call_site()));
+    let description = config.description.unwrap_or_else(|| syn::parse_quote!(""));
+
+    let help = config.help.unwrap_or_else(|| syn::parse_quote!(""));
 
     let expanded = quote! {
         #function
@@ -131,6 +138,7 @@ pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
             crate::framework::command::Command {
                 triggers: &[#(#triggers),*],
                 description: #description,
+                help: #help,
                 cooldown: std::time::Duration::from_millis(#cooldown),
                 owner: #owner,
                 group_only: #group_only,

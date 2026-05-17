@@ -26,9 +26,39 @@ impl Router {
         }
     }
 
+    fn is_help_flag(&self, args: &[String]) -> bool {
+        args.iter().any(|arg| arg == "--help" || arg == "-h")
+    }
+
     pub async fn execute(&self, cmd: &str, ctx: Context) -> anyhow::Result<()> {
         let command = self.commands.get(cmd);
         if let Some(command) = command {
+            if self.is_help_flag(&ctx.args) {
+                let triggers = command
+                    .triggers
+                    .iter()
+                    .map(|f| format!(".{}", f))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let description = if command.description.is_empty() {
+                    "no description"
+                } else {
+                    command.description
+                };
+                let help = if command.help.is_empty() {
+                    "no help available"
+                } else {
+                    command.help
+                };
+
+                ctx.reply(&format!(
+                    "**{}**\n\naliases: {}\n\n{}",
+                    description, triggers, help
+                ))
+                .await?;
+                return Ok(());
+            }
+
             let semaphore = Arc::clone(&ctx.state.semaphore);
             let _permit = semaphore.acquire().await?;
 

@@ -9,6 +9,7 @@ pub type CommandHandler = fn(Context) -> BoxFuture<'static, anyhow::Result<()>>;
 pub struct Command {
     pub triggers: &'static [&'static str],
     pub description: &'static str,
+    pub help: &'static str,
     pub cooldown: Duration,
     pub owner: bool,
     pub group_only: bool,
