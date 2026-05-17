@@ -38,6 +38,7 @@ use crate::framework::context::Context;
     owner = false,
     group_only = false,
     description = ""
+    help = ""
 )]
 async fn _test(ctx: Context) -> anyhow::Result<()> {
     // do something
@@ -54,7 +55,13 @@ use crate::framework::context::Context;
 
 #[command(
     trigger = ["ping", "p"],
-    description = "Ping command"
+    description = "Ping command",
+    help = r#"USAGE:
+  .ping
+    
+EXAMPLE:
+  .ping
+  .p"#
 )]
 async fn ping(ctx: Context) -> anyhow::Result<()> {
     ctx.reply("pong").await?;
