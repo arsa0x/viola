@@ -27,7 +27,7 @@ impl Router {
     }
 
     fn is_help_flag(&self, args: &[String]) -> bool {
-        args.iter().any(|arg| arg == "--help" || arg == "-h")
+        args.iter().any(|arg| arg == "--help")
     }
 
     pub async fn execute(&self, cmd: &str, ctx: Context) -> anyhow::Result<()> {
@@ -52,7 +52,7 @@ impl Router {
                 };
 
                 ctx.reply(&format!(
-                    "**{}**\n\naliases: {}\n\n{}",
+                    "{}\n\nALIASES: {}\n\n{}",
                     description, triggers, help
                 ))
                 .await?;

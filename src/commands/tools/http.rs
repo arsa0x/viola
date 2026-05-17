@@ -4,9 +4,7 @@ use macros::command;
 use std::collections::HashMap;
 use url::Url;
 
-const HELP: &str = r#"Send HTTP requests.
-
-USAGE:
+const HELP: &str = r#"USAGE:
   .http <METHOD> <URL> [OPTIONS]
 
 METHODS:
@@ -43,10 +41,9 @@ EXAMPLES:
 
   Custom Authorization header
     .http GET https://api.example.com/me \
-      -h "Authorization: Bearer token"
-"#;
+      -h "Authorization: Bearer token""#;
 
-#[command(trigger = ["http", "https", "fetch"], help = HELP, description = "http request")]
+#[command(trigger = ["http", "https", "fetch"], help = HELP, description = "Send HTTP requests")]
 async fn http_request(ctx: Context) -> anyhow::Result<()> {
     if ctx.args.len() < 2 {
         ctx.reply(

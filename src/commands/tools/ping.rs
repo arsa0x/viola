@@ -2,21 +2,14 @@ use macros::command;
 
 use crate::framework::context::Context;
 
-const HELP: &str = r#"
-Check bot latency and response time.
-
-USAGE:
+const HELP: &str = r#"USAGE:
   .ping
 
-ALIASES:
-  .p
-
-EXAMPLES:
+EXAMPLE:
   .ping
-  .p
-"#;
+  .p"#;
 
-#[command(trigger = ["ping", "p"], help = HELP)]
+#[command(trigger = ["ping", "p"], help = HELP, description = "Check bot latency and response time")]
 async fn ping(ctx: Context) -> anyhow::Result<()> {
     ctx.reply(&format!("pong\ntime: {}ms", ctx.elapsed_ms()))
         .await?;
