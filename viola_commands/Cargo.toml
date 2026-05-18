@@ -1,0 +1,24 @@
+[package]
+name = "viola_commands"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow.workspace = true
+base64 = "0.22.1"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+inventory.workspace = true
+isahc.workspace = true
+scraper = "0.27.0"
+serde.workspace = true
+serde_json.workspace = true
+url = "2.5.8"
+viola_core.workspace = true
+viola_macros.workspace = true
+wacore.workspace = true
+waproto.workspace = true
+webp = "0.3.1"
+whatsapp-rust.workspace = true
+
+[build-dependencies]
+walkdir = "2"

@@ -1,10 +1,9 @@
 use crate::framework::{command::Command, context::Context};
-use dashmap::DashMap;
-use std::{collections::HashMap, sync::Arc, time::Instant};
+use std::{collections::HashMap, sync::Arc};
 
 pub struct Router {
     commands: HashMap<&'static str, &'static Command>,
-    cooldowns: DashMap<(String, String), Instant>,
+    // cooldowns: DashMap<(String, &'static str), Instant>,
 }
 
 impl Router {
@@ -22,7 +21,7 @@ impl Router {
 
         Self {
             commands,
-            cooldowns: DashMap::new(),
+            // cooldowns: DashMap::new(),
         }
     }
 
@@ -62,20 +61,20 @@ impl Router {
             let semaphore = Arc::clone(&ctx.state.semaphore);
             let _permit = semaphore.acquire().await?;
 
-            let sender = ctx.sender()?;
-            let cache_key = (sender, cmd.to_string());
+            // let sender = ctx.sender()?;
+            // let cache_key = (sender, cmd);
 
-            if let Some(last_execution) = self.cooldowns.get(&cache_key) {
-                if last_execution.elapsed() < command.cooldown {
-                    let remaining = command.cooldown - last_execution.elapsed();
-                    ctx.reply(&format!(
-                        "wait {:.1} more seconds!",
-                        remaining.as_secs_f32()
-                    ))
-                    .await?;
-                    return Ok(());
-                }
-            }
+            // if let Some(last_execution) = self.cooldowns.get(&cache_key) {
+            //     if last_execution.elapsed() < command.cooldown {
+            //         let remaining = command.cooldown - last_execution.elapsed();
+            //         ctx.reply(&format!(
+            //             "wait {:.1} more seconds!",
+            //             remaining.as_secs_f32()
+            //         ))
+            //         .await?;
+            //         return Ok(());
+            //     }
+            // }
 
             if command.group_only && !ctx.is_group() {
                 ctx.reply("command only works in groups").await?;
@@ -93,7 +92,7 @@ impl Router {
                 return Err(e);
             }
 
-            self.cooldowns.insert(cache_key, Instant::now());
+            // self.cooldowns.insert(cache_key, Instant::now());
         }
         Ok(())
     }

@@ -28,12 +28,9 @@ fn render_tree(tree: &ModuleTree, output: &mut String, depth: usize) {
 }
 
 fn main() {
-    println!("cargo:rerun-if-changed=src/commands");
+    println!("cargo:rerun-if-changed=src/");
     let mut root = ModuleTree::default();
-    for entry in WalkDir::new("src/commands")
-        .into_iter()
-        .filter_map(Result::ok)
-    {
+    for entry in WalkDir::new("src/").into_iter().filter_map(Result::ok) {
         let path = entry.path();
         if !path.is_file() {
             continue;
@@ -41,12 +38,12 @@ fn main() {
         if path.extension() != Some("rs".as_ref()) {
             continue;
         }
-        let relative = path.strip_prefix("src/commands").unwrap();
+        let relative = path.strip_prefix("src/").unwrap();
         let parts: Vec<String> = relative
             .iter()
             .map(|p| p.to_string_lossy().replace(".rs", ""))
             .collect();
-        if parts.last() == Some(&"mod".to_string()) {
+        if parts.last() == Some(&"lib".to_string()) {
             continue;
         }
         insert_path(&mut root, &parts);
@@ -54,5 +51,5 @@ fn main() {
     let mut output = String::new();
     output.push_str("// AUTO GENERATED\n\n");
     render_tree(&root, &mut output, 0);
-    fs::write(Path::new("src/commands/mod.rs"), output).unwrap();
+    fs::write(Path::new("src/lib.rs"), output).unwrap();
 }

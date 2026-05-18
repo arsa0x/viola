@@ -1,7 +1,7 @@
 use mimalloc::MiMalloc;
 use qrcode::render::unicode;
 use std::{io::Write, sync::Arc};
-use viola::{
+use viola_core::{
     framework::{
         context::Context,
         router::Router,
@@ -82,11 +82,9 @@ async fn main() -> anyhow::Result<()> {
 
                         if !ctx.command.is_empty() {
                             let state_handler = state.clone();
+                            let command = ctx.command.clone();
                             tokio::spawn(async move {
-                                let command = ctx.command.clone();
-                                if let Err(e) =
-                                    state_handler.router.execute(command.as_str(), ctx).await
-                                {
+                                if let Err(e) = state_handler.router.execute(&command, ctx).await {
                                     log::error!("command failed: {}", e);
                                 }
                             });

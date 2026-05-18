@@ -1,8 +1,8 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::Deserialize;
 use std::{fs, path::PathBuf};
 
-const DEFAULT_CONFIG: &str = include_str!("../../config.template.toml");
+const DEFAULT_CONFIG: &str = include_str!("../../../config.template.toml");
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {

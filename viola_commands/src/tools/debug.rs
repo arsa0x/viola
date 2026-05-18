@@ -1,10 +1,9 @@
 use anyhow::anyhow;
-use macros::command;
+use viola_core::framework::context::Context;
+use viola_macros::command;
 
-use crate::framework::context::Context;
-
-#[command(trigger = ["t"], owner = true)]
-async fn _test(ctx: Context) -> anyhow::Result<()> {
+#[command(trigger = ["d"], owner = true)]
+async fn debug(ctx: Context) -> anyhow::Result<()> {
     ctx.reply(&format!("{:?}", ctx.msg.message)).await?;
     ctx.reply(&format!("{:?}", ctx.msg.info)).await?;
     ctx.reply(&format!("{:?}", ctx.msg.message_key())).await?;

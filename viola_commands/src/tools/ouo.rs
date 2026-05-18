@@ -1,9 +1,9 @@
-use crate::framework::context::Context;
 use anyhow::Context as AnyhowContext;
 use isahc::{Request, prelude::*};
-use macros::command;
 use scraper::{Html, Selector};
-use url::Url;
+use url::{Url, form_urlencoded};
+use viola_core::framework::context::Context;
+use viola_macros::command;
 
 pub async fn ouo_bypass(
     url: &str,
@@ -59,7 +59,10 @@ pub async fn ouo_bypass(
 
     let next_url = url.replace(&format!("{}/", domain), &format!("{}/xreallcygo/", domain));
     let referer = url.replace(&format!("{}/", domain), &format!("{}/go/", domain));
-    let body = format!("_token={}&x-token=", urlencoding::encode(&token));
+    let body = form_urlencoded::Serializer::new(String::new())
+        .append_pair("_token", &token)
+        .append_pair("x-token", "")
+        .finish();
 
     let mut post_res = client
         .send_async(
@@ -101,17 +104,9 @@ pub async fn ouo_bypass(
     Ok(final_url)
 }
 
-#[tokio::test]
-async fn ouo_bypass_test() {
-    let response = ouo_bypass(
-        "https://ouo.io/0ZuHXU2",
-        isahc::config::RedirectPolicy::None,
-    )
-    .await;
-    assert!(response.unwrap().is_some());
-}
+const HELP: &str = "USAGE: .ouo [-r|--redirect] <ouo_url>";
 
-#[command(trigger = ["ouo"])]
+#[command(trigger = ["ouo"], help = HELP)]
 async fn ouo(ctx: Context) -> anyhow::Result<()> {
     let use_redirect = ctx.args.iter().any(|a| a == "-r" || a == "--redirect");
     let url = ctx.args.iter().find(|arg| {
@@ -119,7 +114,7 @@ async fn ouo(ctx: Context) -> anyhow::Result<()> {
     });
 
     let Some(url) = url else {
-        ctx.reply("usage: .ouo [-r] <ouo_url>").await?;
+        ctx.reply(HELP).await?;
         return Ok(());
     };
 

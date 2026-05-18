@@ -1,6 +1,5 @@
-use macros::command;
-
-use crate::framework::context::Context;
+use viola_core::framework::context::Context;
+use viola_macros::command;
 
 const HELP: &str = r#"USAGE:
   .ping

@@ -1,8 +1,8 @@
 use image::{RgbaImage, imageops::overlay, load_from_memory};
-use macros::command;
+use viola_macros::command;
 use webp::Encoder;
 
-use crate::framework::context::Context;
+use viola_core::framework::context::Context;
 
 #[command(trigger = ["sticker", "s"])]
 async fn sticker(ctx: Context) -> anyhow::Result<()> {
@@ -25,7 +25,7 @@ async fn sticker(ctx: Context) -> anyhow::Result<()> {
         };
 
         ctx.reply_media(
-            crate::framework::context::MediaSource::Bytes(webp),
+            viola_core::framework::context::MediaSource::Bytes(webp),
             wacore::download::MediaType::Sticker,
             None,
         )

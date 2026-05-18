@@ -40,7 +40,7 @@ use crate::framework::context::Context;
     description = ""
     help = ""
 )]
-async fn _test(ctx: Context) -> anyhow::Result<()> {
+async fn name(ctx: Context) -> anyhow::Result<()> {
     // do something
     Ok(())
 }

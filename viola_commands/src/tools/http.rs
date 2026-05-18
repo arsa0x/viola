@@ -1,8 +1,8 @@
-use crate::framework::context::Context;
 use isahc::{Request, prelude::*};
-use macros::command;
 use std::collections::HashMap;
 use url::Url;
+use viola_core::framework::context::Context;
+use viola_macros::command;
 
 const HELP: &str = r#"USAGE:
   .http <METHOD> <URL> [OPTIONS]
