@@ -95,16 +95,18 @@ owner = "628123456789"
 
 ```sh
 .
-├── crates
-│   └── macros
-│       └── src
-└── src
-    ├── commands # all commands/plugins in here
-    │   ├── downloader
-    │   └── tools
-    ├── framework
-    ├── middlewares
-    └── utils
+├── viola_commands # all commands in here
+│   └── src
+│       ├── anime
+│       ├── downloader
+│       └── tools
+├── viola_core
+│   └── src
+│       ├── framework
+│       ├── middlewares
+│       └── utils
+└── viola_macros
+    └── src
 ```
 
 ## License
