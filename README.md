@@ -97,7 +97,7 @@ owner = "628123456789"
 ```sh
 .
 ├── src                 # application entrypoint 
-├── viola_commands      # all commands in here
+├── viola_commands      # collection of all bot commands
 │   └── src
 │       ├── ai
 │       ├── anime
