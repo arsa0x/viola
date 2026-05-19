@@ -122,7 +122,7 @@ owner = "628123456789"
 ├── viola_core          # command system, router, context, config, and state
 ├── viola_macros        # procedural macros for command registration
 └── viola_plugin        # collection of all bot native and lua plugins
-    ├── lua             # will be moved to $data_dir/viola/plugins/
+    ├── lua             # will be moved to $data_dir/viola/plugins/ (WIP)
     │   ├── downloader
     │   └── tools
     └── src

@@ -8,9 +8,14 @@ EXAMPLE:
   .ping
   .p"#;
 
-#[command(trigger = ["ping", "p"], help = HELP, description = "Check bot latency and response time")]
+#[command(
+      trigger = ["ping", "p"],
+      help = HELP,
+      description = "Check bot latency and response time"
+  )]
 async fn ping(ctx: Context) -> anyhow::Result<()> {
-    ctx.reply(&format!("pong\ntime: {}ms", ctx.elapsed_ms()))
+    ctx.reply(&format!("pong\nreply took {:.6}ms", ctx.elapsed_ms_f64()))
         .await?;
+
     Ok(())
 }

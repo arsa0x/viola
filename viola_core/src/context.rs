@@ -172,8 +172,8 @@ impl Context {
         self.msg.info.source.is_group
     }
 
-    pub fn elapsed_ms(&self) -> u128 {
-        self.created_at.elapsed().as_millis()
+    pub fn elapsed_ms_f64(&self) -> f64 {
+        self.created_at.elapsed().as_secs_f64() * 1000.0
     }
 
     pub fn text_content(&self) -> Option<&str> {

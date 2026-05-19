@@ -15,6 +15,8 @@ impl UserData for LuaContext {
             Ok(())
         });
 
-        methods.add_method("elapsed_ms", |_, this, ()| Ok(this.ctx.elapsed_ms() as i64));
+        methods.add_method("elapsed_ms_f64", |_, this, ()| {
+            Ok(this.ctx.elapsed_ms_f64() as f64)
+        });
     }
 }
