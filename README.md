@@ -30,7 +30,7 @@ On first launch, Viola will:
 ## Native Command Example
 
 ```rs
-use viola_core::framework::context::Context;
+use viola_core::context::Context;
 use viola_macros::command;
 
 #[command(
@@ -50,7 +50,7 @@ async fn name(ctx: Context) -> anyhow::Result<()> {
 ### Example
 
 ```rs
-use viola_core::framework::context::Context;
+use viola_core::context::Context;
 use viola_macros::command;
 
 const HELP: &str = r#"USAGE:
