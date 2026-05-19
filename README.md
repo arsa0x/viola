@@ -30,8 +30,8 @@ On first launch, Viola will:
 ## Command / Plugin
 
 ```rs
-use macros::command;
-use crate::framework::context::Context;
+use viola_core::framework::context::Context;
+use viola_macros::command;
 
 #[command(
     trigger = [""],
@@ -49,19 +49,20 @@ async fn name(ctx: Context) -> anyhow::Result<()> {
 Example
 
 ```rs
-use macros::command;
+use viola_core::framework::context::Context;
+use viola_macros::command;
 
-use crate::framework::context::Context;
+const HELP: &str = r#"USAGE:
+.ping
+
+EXAMPLE:
+.ping
+.p"#;
 
 #[command(
     trigger = ["ping", "p"],
     description = "Ping command",
-    help = r#"USAGE:
-  .ping
-    
-EXAMPLE:
-  .ping
-  .p"#
+    help = HELP
 )]
 async fn ping(ctx: Context) -> anyhow::Result<()> {
     ctx.reply("pong").await?;
@@ -95,10 +96,13 @@ owner = "628123456789"
 
 ```sh
 .
+├── src
 ├── viola_commands # all commands in here
 │   └── src
+│       ├── ai
 │       ├── anime
 │       ├── downloader
+│       ├── group
 │       └── tools
 ├── viola_core
 │   └── src
