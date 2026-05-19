@@ -96,8 +96,8 @@ owner = "628123456789"
 
 ```sh
 .
-├── src
-├── viola_commands # all commands in here
+├── src                 # application entrypoint 
+├── viola_commands      # all commands in here
 │   └── src
 │       ├── ai
 │       ├── anime
@@ -106,10 +106,10 @@ owner = "628123456789"
 │       └── tools
 ├── viola_core
 │   └── src
-│       ├── framework
-│       ├── middlewares
-│       └── utils
-└── viola_macros
+│       ├── framework   # command system, router, context, and state
+│       ├── middlewares # middleware layers and interceptors
+│       └── utils       # shared helper utilities
+└── viola_macros        # procedural macros for command registration
     └── src
 ```
 
