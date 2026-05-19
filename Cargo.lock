@@ -1420,6 +1420,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
+name = "lexopt"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "803ec87c9cfb29b9d2633f20cba1f488db3fd53f2158b1024cbefb47ba05d413"
+
+[[package]]
 name = "libc"
 version = "0.2.186"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2914,42 +2920,21 @@ dependencies = [
  "futures",
  "inventory",
  "isahc",
+ "lexopt",
  "log",
  "mimalloc",
  "qrcode",
  "serde",
  "tokio",
  "toml 1.1.2+spec-1.1.0",
- "viola_commands",
  "viola_core",
+ "viola_plugin",
  "wacore",
  "waproto",
  "whatsapp-rust",
  "whatsapp-rust-sqlite-storage",
  "whatsapp-rust-tokio-transport",
  "whatsapp-rust-ureq-http-client",
-]
-
-[[package]]
-name = "viola_commands"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64",
- "image",
- "inventory",
- "isahc",
- "scraper",
- "serde",
- "serde_json",
- "url",
- "viola_core",
- "viola_macros",
- "wacore",
- "walkdir",
- "waproto",
- "webp",
- "whatsapp-rust",
 ]
 
 [[package]]
@@ -2978,6 +2963,28 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "viola_plugin"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "image",
+ "inventory",
+ "isahc",
+ "scraper",
+ "serde",
+ "serde_json",
+ "url",
+ "viola_core",
+ "viola_macros",
+ "wacore",
+ "walkdir",
+ "waproto",
+ "webp",
+ "whatsapp-rust",
 ]
 
 [[package]]

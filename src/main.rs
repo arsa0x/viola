@@ -1,7 +1,6 @@
 use mimalloc::MiMalloc;
 use qrcode::render::unicode;
 use std::{io::Write, sync::Arc};
-use viola_commands as _;
 use viola_core::{
     framework::{
         context::Context,
@@ -10,6 +9,7 @@ use viola_core::{
     },
     utils::config::{init_dir, load_config},
 };
+use viola_plugin as _;
 use whatsapp_rust::{TokioRuntime, bot::Bot, types::events::Event};
 use whatsapp_rust_sqlite_storage::SqliteStore;
 use whatsapp_rust_tokio_transport::TokioWebSocketTransportFactory;

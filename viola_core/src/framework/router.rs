@@ -1,4 +1,4 @@
-use crate::framework::{command::Command, context::Context, lua_context::LuaPlugin};
+use crate::framework::{command::Command, context::Context, lua_plugin::LuaPlugin};
 use std::{collections::HashMap, sync::Arc};
 
 pub enum PluginKind {
@@ -7,8 +7,6 @@ pub enum PluginKind {
 }
 
 pub struct Router {
-    // commands: HashMap<&'static str, &'static Command>,
-    // cooldowns: DashMap<(String, &'static str), Instant>,
     plugins: HashMap<String, PluginKind>,
 }
 
@@ -53,10 +51,10 @@ impl Router {
 
         match plugin {
             PluginKind::Lua(plugin) => {
-                plugin.execute(ctx.clone()).await?;
+                plugin.execute(ctx).await?;
             }
             PluginKind::Native(command) => {
-                (command.handler)(ctx.clone()).await?;
+                (command.handler)(ctx).await?;
             }
         }
         Ok(())
