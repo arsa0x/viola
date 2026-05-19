@@ -1,6 +1,11 @@
+[package]
+name = "viola"
+version = "0.1.0"
+edition = "2024"
+
 [workspace]
 resolver = "2"
-members = ["viola_commands/", "viola_core/", "viola_macros/"]
+members = [".", "viola_commands/", "viola_core/", "viola_macros/"]
 
 [workspace.dependencies]
 anyhow = "1.0.102"
@@ -9,6 +14,7 @@ dirs = "6.0.0"
 futures = "0.3.32"
 inventory = "0.3.24"
 isahc = { version = "1.8.2", features = ["cookies", "json"] }
+log = "0.4.29"
 moka = { version = "0.12.15", features = ["future"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
@@ -31,6 +37,28 @@ whatsapp-rust = { version = "0.6", default-features = false, features = [
 whatsapp-rust-sqlite-storage = "0.6"
 whatsapp-rust-tokio-transport = "0.6"
 whatsapp-rust-ureq-http-client = "0.6"
+
+[dependencies]
+anyhow.workspace = true
+dirs.workspace = true
+env_logger = "0.11.10"
+futures.workspace = true
+inventory.workspace = true
+isahc.workspace = true
+log.workspace = true
+mimalloc = "*"
+qrcode = "0.14.1"
+serde.workspace = true
+tokio.workspace = true
+toml.workspace = true
+viola_commands.workspace = true
+viola_core.workspace = true
+wacore.workspace = true
+waproto.workspace = true
+whatsapp-rust.workspace = true
+whatsapp-rust-sqlite-storage.workspace = true
+whatsapp-rust-tokio-transport.workspace = true
+whatsapp-rust-ureq-http-client.workspace = true
 
 [profile.release]
 opt-level = "z"

@@ -1,6 +1,7 @@
 use mimalloc::MiMalloc;
 use qrcode::render::unicode;
 use std::{io::Write, sync::Arc};
+use viola_commands as _;
 use viola_core::{
     framework::{
         context::Context,
