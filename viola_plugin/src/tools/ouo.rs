@@ -2,7 +2,7 @@ use anyhow::Context as AnyhowContext;
 use isahc::{Request, prelude::*};
 use scraper::{Html, Selector};
 use url::{Url, form_urlencoded};
-use viola_core::framework::context::Context;
+use viola_core::context::Context;
 use viola_macros::command;
 
 pub async fn ouo_bypass(

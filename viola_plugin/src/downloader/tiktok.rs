@@ -11,7 +11,7 @@ use base64::{Engine as _, engine::general_purpose};
 use isahc::{http::request::Builder, prelude::*};
 use serde::Deserialize;
 use url::Url;
-use viola_core::framework::context::{Context, MediaSource};
+use viola_core::context::{Context, MediaSource};
 use viola_macros::command;
 
 #[derive(Debug, Deserialize)]

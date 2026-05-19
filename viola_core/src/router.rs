@@ -1,4 +1,4 @@
-use crate::framework::{command::Command, context::Context, lua_plugin::LuaPlugin};
+use crate::{command::Command, context::Context, lua_plugin::LuaPlugin};
 use std::{collections::HashMap, sync::Arc};
 
 pub enum PluginKind {

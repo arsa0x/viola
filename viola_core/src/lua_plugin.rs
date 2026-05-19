@@ -1,4 +1,4 @@
-use crate::framework::{context::Context, lua_context::LuaContext};
+use crate::{context::Context, lua_context::LuaContext};
 use anyhow::anyhow;
 use mlua::{Function, Lua, RegistryKey, Table};
 use std::{

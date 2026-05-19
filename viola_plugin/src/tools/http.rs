@@ -1,7 +1,7 @@
 use isahc::{Request, prelude::*};
 use std::collections::HashMap;
 use url::Url;
-use viola_core::framework::context::Context;
+use viola_core::context::Context;
 use viola_macros::command;
 
 const HELP: &str = r#"USAGE:

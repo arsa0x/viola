@@ -1,7 +1,7 @@
 use mlua::UserData;
 use std::sync::Arc;
 
-use crate::framework::context::Context;
+use crate::context::Context;
 
 #[derive(Clone)]
 pub struct LuaContext {

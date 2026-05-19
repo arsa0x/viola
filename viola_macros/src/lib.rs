@@ -135,7 +135,7 @@ pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
         #function
 
         inventory::submit! {
-            viola_core::framework::command::Command {
+            viola_core::command::Command {
                 triggers: &[#(#triggers),*],
                 description: #description,
                 help: #help,

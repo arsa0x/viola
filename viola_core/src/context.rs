@@ -1,3 +1,4 @@
+use crate::state::AppState;
 use anyhow::anyhow;
 use futures::AsyncReadExt;
 use isahc::get_async;
@@ -9,15 +10,13 @@ use waproto::whatsapp::{
 };
 use whatsapp_rust::{Client, bot::MessageContext};
 
-use crate::framework::state::SharedState;
-
 #[derive(Clone)]
 pub struct Context {
     pub msg: MessageContext,
     pub text: String,
     pub command: String,
     pub args: Vec<String>,
-    pub state: SharedState,
+    pub state: Arc<AppState>,
     pub created_at: Instant,
 }
 
@@ -31,7 +30,7 @@ impl Context {
         message: &Arc<waproto::whatsapp::Message>,
         info: &Arc<MessageInfo>,
         client: Arc<Client>,
-        state: SharedState,
+        state: Arc<AppState>,
     ) -> Self {
         Self {
             msg: MessageContext::from_parts(message, info, client),
@@ -232,24 +231,35 @@ impl Context {
         tokens
     }
 
-    pub fn parse_command(mut self, prefix: &str) -> Self {
-        let text = self.text_content().map(str::to_owned);
-
-        if let Some(text) = text {
-            self.text = text.clone();
-
-            if text.starts_with(prefix) {
-                let without_prefix = text.trim_start_matches(prefix);
-
-                let parts = self.split_arguments(without_prefix);
-
-                if let Some((cmd, args)) = parts.split_first() {
-                    self.command = cmd.to_lowercase();
-                    self.args = args.to_vec();
-                }
-            }
+    pub fn parse_command(mut self, prefix: &str) -> Option<Self> {
+        let text = self.text_content()?.to_owned();
+        if !text.starts_with(prefix) {
+            return None;
         }
+        let without_prefix = text.trim_start_matches(prefix);
+        let parts = self.split_arguments(without_prefix);
 
-        self
+        let (cmd, args) = parts.split_first()?;
+
+        self.text = text;
+        self.command = cmd.to_lowercase();
+        self.args = args.to_vec();
+
+        // if let Some(text) = text {
+        //     self.text = text.clone();
+
+        //     if text.starts_with(prefix) {
+        //         let without_prefix = text.trim_start_matches(prefix);
+
+        //         let parts = self.split_arguments(without_prefix);
+
+        //         if let Some((cmd, args)) = parts.split_first() {
+        //             self.command = cmd.to_lowercase();
+        //             self.args = args.to_vec();
+        //         }
+        //     }
+        // }
+
+        Some(self)
     }
 }
