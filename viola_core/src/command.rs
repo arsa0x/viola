@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::framework::context::Context;
+use crate::context::Context;
 
 use futures::future::BoxFuture;
 

@@ -2,7 +2,7 @@ use anyhow::Context as AnyhowContext;
 use isahc::{Request, prelude::*};
 use scraper::{Html, Selector};
 use url::{Url, form_urlencoded};
-use viola_core::framework::context::Context;
+use viola_core::context::Context;
 use viola_macros::command;
 
 pub async fn ouo_bypass(
@@ -126,8 +126,12 @@ async fn ouo(ctx: Context) -> anyhow::Result<()> {
 
     match ouo_bypass(url, redirect_policy).await? {
         Some(result) => {
-            ctx.reply(&format!("result: {}\ntime: {}ms", result, ctx.elapsed_ms()))
-                .await?;
+            ctx.reply(&format!(
+                "result: {}\ntime: {:.3}ms",
+                result,
+                ctx.elapsed_ms_f64()
+            ))
+            .await?;
         }
         None => {
             ctx.reply("failed bypass").await?;

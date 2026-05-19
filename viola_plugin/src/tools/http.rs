@@ -1,7 +1,7 @@
 use isahc::{Request, prelude::*};
 use std::collections::HashMap;
 use url::Url;
-use viola_core::framework::context::Context;
+use viola_core::context::Context;
 use viola_macros::command;
 
 const HELP: &str = r#"USAGE:
@@ -137,9 +137,9 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
             };
 
             ctx.reply(&format!(
-                "status: {}\n\ntime: {}ms\n\nbody:\n```{}\n```",
+                "status: {}\n\ntime: {:.3}ms\n\nbody:\n```{}\n```",
                 status,
-                ctx.elapsed_ms(),
+                ctx.elapsed_ms_f64(),
                 trimmed_body
             ))
             .await?;

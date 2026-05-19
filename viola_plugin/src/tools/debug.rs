@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use viola_core::framework::context::Context;
+use viola_core::context::Context;
 use viola_macros::command;
 
 #[command(trigger = ["d"], owner = true)]

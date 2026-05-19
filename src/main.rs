@@ -1,15 +1,11 @@
 use mimalloc::MiMalloc;
 use qrcode::render::unicode;
 use std::{io::Write, sync::Arc};
-use viola_commands as _;
 use viola_core::{
-    framework::{
-        context::Context,
-        router::Router,
-        state::{AppState, SharedState},
-    },
-    utils::config::{init_dir, load_config},
+    config::{init_dir, load_config},
+    {context::Context, router::Router, state::AppState},
 };
+use viola_plugin as _;
 use whatsapp_rust::{TokioRuntime, bot::Bot, types::events::Event};
 use whatsapp_rust_sqlite_storage::SqliteStore;
 use whatsapp_rust_tokio_transport::TokioWebSocketTransportFactory;
@@ -27,7 +23,7 @@ async fn main() -> anyhow::Result<()> {
 
     let client = Arc::new(isahc::HttpClient::new()?);
 
-    let state = SharedState::new(AppState::new(
+    let state = Arc::new(AppState::new(
         Arc::clone(&config),
         Arc::clone(&router),
         client,
@@ -78,13 +74,15 @@ async fn main() -> anyhow::Result<()> {
                     }
                     Event::Message(msg, info) => {
                         let prefix = &state.config.bot.prefix;
-                        let ctx =
-                            Context::new(msg, info, client, state.clone()).parse_command(prefix);
 
-                        if !ctx.command.is_empty() {
+                        if let Some(ctx) =
+                            Context::new(msg, info, client, state.clone()).parse_command(prefix)
+                        {
                             let state_handler = state.clone();
-                            let command = ctx.command.clone();
+
                             tokio::spawn(async move {
+                                let command = ctx.command.clone();
+
                                 if let Err(e) = state_handler.router.execute(&command, ctx).await {
                                     log::error!("command failed: {}", e);
                                 }

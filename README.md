@@ -6,11 +6,11 @@ A fast and modular WhatsApp bot framework for Rust with procedural macro command
 
 - Tokio async runtime
 - Inventory-based automatic command registration
-- Procedural macro commands
-- Middleware system
+- Procedural macro command system
+- Lua plugin support
 - Low memory footprint
 - Native Rust performance
-- Modular command system
+- Modular plugin architecture
 - Auto-generated configuration
 
 ## Getting Started
@@ -27,29 +27,30 @@ On first launch, Viola will:
 - create storage directories
 - display a pairing QR code
 
-## Command / Plugin
+## Native Command Example
 
 ```rs
-use viola_core::framework::context::Context;
+use viola_core::context::Context;
 use viola_macros::command;
 
 #[command(
     trigger = [""],
     owner = false,
     group_only = false,
-    description = ""
+    description = "",
     help = ""
 )]
 async fn name(ctx: Context) -> anyhow::Result<()> {
     // do something
+
     Ok(())
 }
 ```
 
-Example
+### Example
 
 ```rs
-use viola_core::framework::context::Context;
+use viola_core::context::Context;
 use viola_macros::command;
 
 const HELP: &str = r#"USAGE:
@@ -66,15 +67,35 @@ EXAMPLE:
 )]
 async fn ping(ctx: Context) -> anyhow::Result<()> {
     ctx.reply("pong").await?;
+
     Ok(())
 }
+```
+
+## Lua Plugin Example
+
+```lua
+return {
+    triggers = { "ping", "p" },
+    description = "Ping command",
+
+    exec = function(ctx)
+        ctx:reply("pong from lua!")
+    end
+}
+```
+
+Lua plugins are automatically loaded from:
+
+```txt
+$data_dirs/viola/plugins/
 ```
 
 ## Configuration
 
 Viola automatically stores configuration files inside your system "data_dir" using the "dirs" crate.
 
-Config Location
+### Config Location
 
 | OS      | Path                                                      |
 |---------|-----------------------------------------------------------|
@@ -84,7 +105,8 @@ Config Location
 
 The config file will be automatically generated on first run.
 
-Example Config
+### Example Config
+
 ```toml
 [bot]
 name = "viola"
@@ -96,23 +118,18 @@ owner = "628123456789"
 
 ```sh
 .
-├── src                 # application entrypoint 
-├── viola_commands      # collection of all bot commands
-│   └── src
-│       ├── ai
-│       ├── anime
-│       ├── downloader
-│       ├── group
-│       └── tools
-├── viola_core
-│   └── src
-│       ├── framework   # command system, router, context, and state
-│       ├── middlewares # middleware layers and interceptors
-│       └── utils       # shared helper utilities
-└── viola_macros        # procedural macros for command registration
+├── src                 # bot entry point
+├── viola_core          # command system, router, context, config, and state
+├── viola_macros        # procedural macros for command registration
+└── viola_plugin        # collection of all bot native and lua plugins
+    ├── lua             # will be moved to $data_dir/viola/plugins/ (WIP)
+    │   ├── downloader
+    │   └── tools
     └── src
+        ├── downloader
+        └── tools
 ```
 
 ## License
-
-[MIT](https://github.com/arsa0x/viola/blob/main/LICENSE)
+Licensed under the MIT License.
+See [LICENSE](https://github.com/arsa0x/viola/blob/main/LICENSE) for more information.

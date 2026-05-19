@@ -5,7 +5,7 @@ edition = "2024"
 
 [workspace]
 resolver = "2"
-members = [".", "viola_commands/", "viola_core/", "viola_macros/"]
+members = [".", "viola_core/", "viola_macros/", "viola_plugin/"]
 
 [workspace.dependencies]
 anyhow = "1.0.102"
@@ -15,14 +15,21 @@ futures = "0.3.32"
 inventory = "0.3.24"
 isahc = { version = "1.8.2", features = ["cookies", "json"] }
 log = "0.4.29"
+mlua = { version = "0.11.6", features = [
+  "anyhow",
+  "async",
+  "lua55",
+  "send",
+  "serialize"
+] }
 moka = { version = "0.12.15", features = ["future"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
 toml = "1.1.2"
-viola_commands = { path = "viola_commands/" }
 viola_core = { path = "viola_core/" }
 viola_macros = { path = "viola_macros" }
+viola_plugin = { path = "viola_plugin/" }
 wacore = { version = "0.6", default-features = false }
 waproto = "0.6"
 whatsapp-rust = { version = "0.6", default-features = false, features = [
@@ -45,14 +52,15 @@ env_logger = "0.11.10"
 futures.workspace = true
 inventory.workspace = true
 isahc.workspace = true
+lexopt = "0.3.2"
 log.workspace = true
 mimalloc = "*"
 qrcode = "0.14.1"
 serde.workspace = true
 tokio.workspace = true
 toml.workspace = true
-viola_commands.workspace = true
 viola_core.workspace = true
+viola_plugin.workspace = true
 wacore.workspace = true
 waproto.workspace = true
 whatsapp-rust.workspace = true

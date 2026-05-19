@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow};
 use serde::Deserialize;
 use std::{fs, path::PathBuf};
 
-const DEFAULT_CONFIG: &str = include_str!("../../../config.template.toml");
+const DEFAULT_CONFIG: &str = include_str!("../../config.template.toml");
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
@@ -23,7 +23,7 @@ pub fn init_dir() -> Result<PathBuf> {
 
     fs::create_dir_all(&base)?;
 
-    for dir in ["cache", "store", "downloads"] {
+    for dir in ["cache", "store", "downloads", "plugins"] {
         fs::create_dir_all(base.join(dir))?;
     }
 
