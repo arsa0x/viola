@@ -6,12 +6,18 @@ edition = "2024"
 [dependencies]
 anyhow.workspace = true
 base64 = "0.22.1"
-image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+humansize = "2.1.3"
+image = {
+  version = "0.25",
+  default-features = false,
+  features = ["jpeg", "png"]
+}
 inventory.workspace = true
-isahc.workspace = true
+reqwest.workspace = true
 scraper = "0.27.0"
 serde.workspace = true
 serde_json.workspace = true
+sysinfo = "0.39.3"
 url = "2.5.8"
 viola_core.workspace = true
 viola_macros.workspace = true

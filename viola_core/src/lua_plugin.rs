@@ -8,6 +8,8 @@ use std::{
 };
 
 pub struct LuaPlugin {
+    pub name: String,
+
     pub triggers: Vec<String>,
     pub description: String,
 
@@ -77,12 +79,16 @@ impl LuaPlugin {
         for value in triggers_table.sequence_values::<String>() {
             triggers.push(value?);
         }
+
+        let name: String = table.get("name")?;
+
         let description: String = table.get("description").unwrap_or_default();
 
         let exec: Function = table.get("exec")?;
         let exec_key = lua.create_registry_value(exec)?;
 
         Ok(Self {
+            name,
             triggers,
             description,
             lua,
@@ -93,7 +99,9 @@ impl LuaPlugin {
     pub async fn execute(&self, ctx: Context) -> anyhow::Result<()> {
         let lua_ctx = LuaContext { ctx: Arc::new(ctx) };
         let exec: Function = self.lua.registry_value(&self.exec_key)?;
-        exec.call_async::<()>(lua_ctx).await?;
+        exec.call_async::<()>(lua_ctx)
+            .await
+            .map_err(|e| anyhow!("plugin {}: {}", self.name, e))?;
 
         Ok(())
     }

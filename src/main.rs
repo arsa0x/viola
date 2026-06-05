@@ -1,6 +1,7 @@
-use mimalloc::MiMalloc;
 use qrcode::render::unicode;
 use std::{io::Write, sync::Arc};
+#[cfg(not(target_env = "msvc"))]
+use tikv_jemallocator::Jemalloc;
 use viola_core::{
     config::{init_dir, load_config},
     {context::Context, router::Router, state::AppState},
@@ -11,8 +12,9 @@ use whatsapp_rust_sqlite_storage::SqliteStore;
 use whatsapp_rust_tokio_transport::TokioWebSocketTransportFactory;
 use whatsapp_rust_ureq_http_client::UreqHttpClient;
 
+#[cfg(not(target_env = "msvc"))]
 #[global_allocator]
-static GLOBAL: MiMalloc = MiMalloc;
+static GLOBAL: Jemalloc = Jemalloc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -21,12 +23,18 @@ async fn main() -> anyhow::Result<()> {
     let dir = init_dir()?;
     let config = Arc::new(load_config(&dir.join("config.toml").to_string_lossy())?);
 
-    let client = Arc::new(isahc::HttpClient::new()?);
+    let http_client = reqwest::Client::builder().cookie_store(true).build()?;
+
+    let http_no_redirect = reqwest::Client::builder()
+        .cookie_store(true)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
 
     let state = Arc::new(AppState::new(
         Arc::clone(&config),
         Arc::clone(&router),
-        client,
+        Arc::new(http_client),
+        Arc::new(http_no_redirect),
     ));
 
     env_logger::Builder::from_default_env()

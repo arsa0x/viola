@@ -1,7 +1,5 @@
 use crate::state::AppState;
 use anyhow::anyhow;
-use futures::AsyncReadExt;
-use isahc::get_async;
 use std::{sync::Arc, time::Instant};
 use wacore::{download::MediaType, proto_helpers::MessageExt, types::message::MessageInfo};
 use waproto::whatsapp::{
@@ -56,6 +54,10 @@ impl Context {
         Ok(())
     }
 
+    pub fn processing_ms(&self) -> f64 {
+        self.created_at.elapsed().as_secs_f64() * 1000.0
+    }
+
     pub async fn reply_media(
         &self,
         source: MediaSource,
@@ -65,10 +67,9 @@ impl Context {
         let media_bytes = match source {
             MediaSource::Bytes(b) => b,
             MediaSource::Url(url) => {
-                let mut response = get_async(url).await?;
-                let mut bytes = Vec::new();
-                response.body_mut().read_to_end(&mut bytes).await?;
-                bytes
+                let response = self.state.http.get(url).send().await?;
+                let bytes = response.bytes().await?;
+                bytes.to_vec()
             }
         };
 

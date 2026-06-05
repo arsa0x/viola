@@ -1,4 +1,4 @@
-use isahc::{Request, prelude::*};
+use reqwest::Method;
 use std::collections::HashMap;
 use url::Url;
 use viola_core::context::Context;
@@ -58,6 +58,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
 
     let mut headers = HashMap::new();
     let mut queries = Vec::new();
+    let mut body = None::<String>;
 
     let mut i = 2;
     while i < ctx.args.len() {
@@ -86,7 +87,12 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
                 }
             }
             "-d" | "--data" => {
-                // to do
+                if i + 1 < ctx.args.len() {
+                    body = Some(ctx.args[i + 1].clone());
+                    i += 2;
+                } else {
+                    i += 1;
+                }
             }
             _ => {
                 i += 1;
@@ -106,41 +112,44 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
         }
     }
 
-    let mut builder = Request::builder().method(method.as_str()).uri(&url_str);
-
-    for (key, val) in headers {
-        builder = builder.header(&key, &val);
-    }
-
-    let request = match builder.body(()) {
-        Ok(req) => req,
-        Err(e) => {
-            ctx.reply(&e.to_string()).await?;
+    let method = match Method::from_bytes(method.as_bytes()) {
+        Ok(m) => m,
+        Err(_) => {
+            ctx.reply("invalid http method").await?;
             return Ok(());
         }
     };
 
-    let client = isahc::HttpClient::new()?;
+    let mut request = ctx.state.http.request(method, &url_str);
 
-    match client.send_async(request).await {
-        Ok(mut res) => {
+    for (key, value) in headers {
+        request = request.header(key, value);
+    }
+
+    if let Some(body) = body {
+        request = request.body(body);
+    }
+
+    match request.send().await {
+        Ok(res) => {
             let status = res.status();
-            let body_text = res
-                .text()
-                .await
-                .unwrap_or_else(|_| "failed to read body".to_string());
 
-            let trimmed_body = if body_text.len() > 1500 {
-                format!("{}...", &body_text[..1500])
-            } else {
-                body_text
+            let body_text = match res.text().await {
+                Ok(text) => text,
+                Err(_) => "failed to read body".to_string(),
             };
+
+            // let trimmed_body = if body_text.len() > 1500 {
+            //     format!("{}...", &body_text[..1500])
+            // } else {
+            //     body_text
+            // };
 
             ctx.reply(&format!(
                 "status: {}\n\ntime: {:.3}ms\n\nbody:\n```{}\n```",
                 status,
                 ctx.elapsed_ms_f64(),
-                trimmed_body
+                body_text
             ))
             .await?;
         }

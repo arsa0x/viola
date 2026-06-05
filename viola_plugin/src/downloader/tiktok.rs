@@ -8,7 +8,6 @@
  */
 
 use base64::{Engine as _, engine::general_purpose};
-use isahc::{http::request::Builder, prelude::*};
 use serde::Deserialize;
 use url::Url;
 use viola_core::context::{Context, MediaSource};
@@ -40,55 +39,62 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
         uri = url_obj.to_string();
     }
 
-    let request = Builder::new()
-        .method("GET")
-        .header(
-            "User-Agent",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        )
-        .uri(&uri)
-        .body(())?;
+    if let Err(e) = async {
+        let response = ctx
+            .state
+            .http
+            .get(&uri)
+            .header(
+                reqwest::header::USER_AGENT,
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            )
+            .send()
+            .await?;
 
-    match ctx.state.http.send_async(request).await {
-        Ok(mut response) => {
-            let res = response.text().await?;
+        let res = response.text().await?;
 
-            let result: TikTokData = serde_json::from_str(&res)?;
+        let result: TikTokData = serde_json::from_str(&res)?;
 
-            if !result.status {
-                ctx.reply(&format!("failed\ntime: {:.3}ms", ctx.elapsed_ms_f64()))
-                    .await?;
-            } else {
-                if audio_only {
-                    let bytes = general_purpose::STANDARD.decode(result.audio_id)?;
-                    ctx.reply_media(
-                        MediaSource::Url(String::from_utf8(bytes)?),
-                        wacore::download::MediaType::Audio,
-                        Some(format!(
-                            "author: {}\ntime: {:.3}ms",
-                            result.author,
-                            ctx.elapsed_ms_f64()
-                        )),
-                    )
-                    .await?;
-                } else {
-                    let bytes = general_purpose::STANDARD.decode(result.video_id)?;
-                    ctx.reply_media(
-                        MediaSource::Url(String::from_utf8(bytes)?),
-                        wacore::download::MediaType::Video,
-                        Some(format!(
-                            "author: {}\ntime: {:.3}ms",
-                            result.author,
-                            ctx.elapsed_ms_f64()
-                        )),
-                    )
-                    .await?;
-                }
-            }
+        if !result.status {
+            ctx.reply(&format!("failed\ntime: {:.3}ms", ctx.elapsed_ms_f64()))
+                .await?;
+
+            return Ok::<(), anyhow::Error>(());
         }
-        Err(e) => {
-            ctx.reply(&e.to_string()).await?;
+
+        if audio_only {
+            let bytes = general_purpose::STANDARD.decode(result.audio_id)?;
+
+            ctx.reply_media(
+                MediaSource::Url(String::from_utf8(bytes)?),
+                wacore::download::MediaType::Audio,
+                Some(format!(
+                    "author: {}\ntime: {:.3}ms",
+                    result.author,
+                    ctx.elapsed_ms_f64()
+                )),
+            )
+            .await?;
+        } else {
+            let bytes = general_purpose::STANDARD.decode(result.video_id)?;
+
+            ctx.reply_media(
+                MediaSource::Url(String::from_utf8(bytes)?),
+                wacore::download::MediaType::Video,
+                Some(format!(
+                    "author: {}\ntime: {:.3}ms",
+                    result.author,
+                    ctx.elapsed_ms_f64()
+                )),
+            )
+            .await?;
         }
+
+        Ok(())
+    }
+    .await
+    {
+        ctx.reply(&e.to_string()).await?;
     }
 
     Ok(())
