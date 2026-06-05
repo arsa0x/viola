@@ -92,6 +92,12 @@ async fn main() -> anyhow::Result<()> {
                             let state_handler = state.clone();
 
                             tokio::spawn(async move {
+                                let _permit = state_handler
+                                    .semaphore
+                                    .acquire()
+                                    .await
+                                    .expect("semaphore closed");
+
                                 let command = ctx.command.clone();
 
                                 if let Err(e) = state_handler.router.execute(&command, ctx).await {

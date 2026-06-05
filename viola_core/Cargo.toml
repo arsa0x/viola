@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+ahash.workspace = true
 anyhow.workspace = true
 dirs.workspace = true
 futures.workspace = true

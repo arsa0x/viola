@@ -1,4 +1,3 @@
-use crate::{context::Context, lua_context::LuaContext};
 use anyhow::anyhow;
 use mlua::{Function, Lua, RegistryKey, Table};
 use std::{
@@ -8,12 +7,9 @@ use std::{
 };
 
 pub struct LuaPlugin {
-    pub name: String,
-
-    pub triggers: Vec<String>,
-    pub description: String,
-
-    pub lua: Arc<Lua>,
+    pub name: Box<str>,
+    pub triggers: Box<[Arc<str>]>,
+    pub description: Box<str>,
     pub exec_key: RegistryKey,
 }
 
@@ -33,12 +29,7 @@ impl LuaPlugin {
         Ok(())
     }
 
-    pub fn from_file(path: &Path) -> anyhow::Result<Self> {
-        let source = fs::read_to_string(path)?;
-        Self::from_source(source)
-    }
-
-    pub fn load_plugins() -> anyhow::Result<Vec<LuaPlugin>> {
+    pub fn load_plugins(lua: &Lua) -> anyhow::Result<Vec<LuaPlugin>> {
         let plugins_path = dirs::data_dir()
             .ok_or_else(|| anyhow!("failed to get data dir"))?
             .join("viola")
@@ -52,10 +43,11 @@ impl LuaPlugin {
 
         LuaPlugin::collect_lua_files(&plugins_path, &mut files)?;
 
-        let mut plugins = Vec::new();
+        let mut plugins = Vec::with_capacity(files.len());
 
         for file in files {
-            match LuaPlugin::from_file(&file) {
+            let source = fs::read_to_string(&file)?;
+            match LuaPlugin::from_source(lua, source) {
                 Ok(plugin) => {
                     log::info!("loaded lua plugin: {}", file.display());
                     plugins.push(plugin);
@@ -69,20 +61,32 @@ impl LuaPlugin {
         Ok(plugins)
     }
 
-    pub fn from_source(source: String) -> anyhow::Result<LuaPlugin> {
-        let lua = Arc::new(Lua::new());
+    pub fn from_source(lua: &Lua, source: String) -> anyhow::Result<LuaPlugin> {
+        let env = lua.create_table()?;
 
-        let table: Table = lua.load(&source).eval()?;
-        let triggers_table: mlua::Table = table.get("triggers")?;
+        let globals = lua.globals();
 
-        let mut triggers = Vec::new();
+        let _ = env.set_metatable(Some(lua.create_table_from([("__index", globals)])?));
+
+        let table: Table = lua.load(&source).set_environment(env.clone()).eval()?;
+
+        let triggers_table: Table = table
+            .get("triggers")
+            .map_err(|_| anyhow!("plugin missing 'triggers' table"))?;
+
+        let mut triggers_vec = Vec::with_capacity(triggers_table.raw_len());
+
         for value in triggers_table.sequence_values::<String>() {
-            triggers.push(value?);
+            let trigger_string: String = value?;
+            triggers_vec.push(Arc::from(trigger_string.into_boxed_str()));
         }
 
-        let name: String = table.get("name")?;
-
-        let description: String = table.get("description").unwrap_or_default();
+        let triggers = triggers_vec.into_boxed_slice();
+        let name: Box<str> = table.get::<String>("name")?.into_boxed_str();
+        let description: Box<str> = table
+            .get::<String>("description")
+            .unwrap_or_default()
+            .into_boxed_str();
 
         let exec: Function = table.get("exec")?;
         let exec_key = lua.create_registry_value(exec)?;
@@ -91,18 +95,7 @@ impl LuaPlugin {
             name,
             triggers,
             description,
-            lua,
             exec_key,
         })
-    }
-
-    pub async fn execute(&self, ctx: Context) -> anyhow::Result<()> {
-        let lua_ctx = LuaContext { ctx: Arc::new(ctx) };
-        let exec: Function = self.lua.registry_value(&self.exec_key)?;
-        exec.call_async::<()>(lua_ctx)
-            .await
-            .map_err(|e| anyhow!("plugin {}: {}", self.name, e))?;
-
-        Ok(())
     }
 }
