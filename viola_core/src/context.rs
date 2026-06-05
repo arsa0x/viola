@@ -11,6 +11,7 @@ use whatsapp_rust::{Client, bot::MessageContext};
 #[derive(Clone)]
 pub struct Context {
     pub msg: MessageContext,
+    pub client: Arc<Client>,
     pub text: String,
     pub command: String,
     pub args: Vec<String>,
@@ -30,7 +31,10 @@ impl Context {
         client: Arc<Client>,
         state: Arc<AppState>,
     ) -> Self {
+        let c = client.clone();
+
         Self {
+            client: c,
             msg: MessageContext::from_parts(message, info, client),
             text: String::new(),
             command: String::new(),
@@ -50,12 +54,32 @@ impl Context {
             ..Default::default()
         };
 
-        self.msg.send_message(reply).await?;
+        let jid = self.msg.info.source.chat.clone();
+        self.client.send_message(jid, reply).await?;
+
         Ok(())
     }
 
     pub fn processing_ms(&self) -> f64 {
         self.created_at.elapsed().as_secs_f64() * 1000.0
+    }
+
+    pub async fn send_reaction(&self) -> anyhow::Result<()> {
+        // self.msg.client.send_
+        // let t = '👍';
+        Ok(())
+    }
+
+    pub async fn reply_wait(&self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    pub async fn reply_success(&self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    pub async fn reply_failed(&self) -> anyhow::Result<()> {
+        Ok(())
     }
 
     pub async fn reply_media(

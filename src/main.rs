@@ -7,10 +7,13 @@ use viola_core::{
     {context::Context, router::Router, state::AppState},
 };
 use viola_plugin as _;
-use whatsapp_rust::{TokioRuntime, bot::Bot, types::events::Event};
-use whatsapp_rust_sqlite_storage::SqliteStore;
-use whatsapp_rust_tokio_transport::TokioWebSocketTransportFactory;
-use whatsapp_rust_ureq_http_client::UreqHttpClient;
+use whatsapp_rust::{
+    TokioRuntime,
+    bot::Bot,
+    store::SqliteStore,
+    transport::{TokioWebSocketTransportFactory, UreqHttpClient},
+    types::events::Event,
+};
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
