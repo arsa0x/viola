@@ -3,7 +3,7 @@ use anyhow::anyhow;
 use std::{sync::Arc, time::Instant};
 use wacore::{download::MediaType, proto_helpers::MessageExt, types::message::MessageInfo};
 use waproto::whatsapp::{
-    self,
+    self, MessageKey,
     message::{AudioMessage, StickerMessage, VideoMessage},
 };
 use whatsapp_rust::{Client, bot::MessageContext};
@@ -64,21 +64,35 @@ impl Context {
         self.created_at.elapsed().as_secs_f64() * 1000.0
     }
 
-    pub async fn send_reaction(&self) -> anyhow::Result<()> {
-        // self.msg.client.send_
-        // let t = '👍';
+    pub async fn send_reaction(&self, emoji: &str) -> anyhow::Result<()> {
+        let chat_jid = self.msg.info.source.chat.clone();
+        let jid = self.msg.info.source.sender.clone();
+
+        let target_key = MessageKey {
+            remote_jid: Some(chat_jid.to_string()),
+            from_me: Some(false),
+            id: Some(self.msg.info.id.to_string()),
+            participant: Some(jid.to_string()),
+        };
+        self.client
+            .send_reaction(&chat_jid, target_key, emoji)
+            .await?;
         Ok(())
     }
 
     pub async fn reply_wait(&self) -> anyhow::Result<()> {
+        self.send_reaction("⏳").await?;
         Ok(())
     }
 
     pub async fn reply_success(&self) -> anyhow::Result<()> {
+        self.send_reaction("✅️").await?;
         Ok(())
     }
 
     pub async fn reply_failed(&self) -> anyhow::Result<()> {
+        self.send_reaction("❌").await?;
+
         Ok(())
     }
 

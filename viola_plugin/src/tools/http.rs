@@ -45,7 +45,11 @@ EXAMPLES:
 
 #[command(trigger = ["http", "https", "fetch"], help = HELP, description = "Send HTTP requests")]
 async fn http_request(ctx: Context) -> anyhow::Result<()> {
+    ctx.reply_wait().await?;
+
     if ctx.args.len() < 2 {
+        ctx.reply_failed().await?;
+
         ctx.reply(
             "usage:\n.http GET http://example.com \n-h \"Content-Type: application/json\" \n-q \"page=1\"",
         )
@@ -115,6 +119,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
     let method = match Method::from_bytes(method.as_bytes()) {
         Ok(m) => m,
         Err(_) => {
+            ctx.reply_failed().await?;
             ctx.reply("invalid http method").await?;
             return Ok(());
         }
@@ -145,6 +150,8 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
             //     body_text
             // };
 
+            ctx.reply_success().await?;
+
             ctx.reply(&format!(
                 "status: {}\n\ntime: {:.3}ms\n\nbody:\n```{}\n```",
                 status,
@@ -155,6 +162,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
         }
         Err(e) => {
             ctx.reply(&format!("request failed: {}", e)).await?;
+            ctx.reply_failed().await?;
         }
     }
 

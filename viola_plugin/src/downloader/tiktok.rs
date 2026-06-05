@@ -24,7 +24,11 @@ pub struct TikTokData {
 
 #[command(trigger = ["tt", "tiktok", "tik"])]
 async fn tiktok(ctx: Context) -> anyhow::Result<()> {
+    ctx.reply_wait().await?;
+
     let Some(tiktok_url) = ctx.args.iter().find(|f| f.contains("https")) else {
+        ctx.reply_failed().await?;
+
         ctx.reply("usage: .tiktok [-mp3] <tiktok_url>").await?;
         return Ok(());
     };
@@ -58,12 +62,14 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
         if !result.status {
             ctx.reply(&format!("failed\ntime: {:.3}ms", ctx.elapsed_ms_f64()))
                 .await?;
+            ctx.reply_failed().await?;
 
             return Ok::<(), anyhow::Error>(());
         }
 
         if audio_only {
             let bytes = general_purpose::STANDARD.decode(result.audio_id)?;
+            ctx.reply_success().await?;
 
             ctx.reply_media(
                 MediaSource::Url(String::from_utf8(bytes)?),
@@ -77,6 +83,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
             .await?;
         } else {
             let bytes = general_purpose::STANDARD.decode(result.video_id)?;
+            ctx.reply_success().await?;
 
             ctx.reply_media(
                 MediaSource::Url(String::from_utf8(bytes)?),
@@ -94,6 +101,8 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
     }
     .await
     {
+        ctx.reply_failed().await?;
+
         ctx.reply(&e.to_string()).await?;
     }
 
