@@ -23,6 +23,7 @@ cargo run
 ```
 
 On first launch, Viola will:
+
 - generate configuration files
 - create storage directories
 - display a pairing QR code
@@ -97,11 +98,11 @@ Viola automatically stores configuration files inside your system "data_dir" usi
 
 ### Config Location
 
-| OS      | Path                                                      |
-|---------|-----------------------------------------------------------|
-| Linux   | `~/.local/share/viola/config.toml`                        |
-| Windows | `C:\Users\<user>\AppData\Roaming\viola\config.toml`       |
-| macOS   | `~/Library/Application Support/viola/config.toml`         |
+| OS      | Path                                                |
+| ------- | --------------------------------------------------- |
+| Linux   | `~/.local/share/viola/config.toml`                  |
+| Windows | `C:\Users\<user>\AppData\Roaming\viola\config.toml` |
+| macOS   | `~/Library/Application Support/viola/config.toml`   |
 
 The config file will be automatically generated on first run.
 
@@ -131,5 +132,6 @@ owner = "628123456789"
 ```
 
 ## License
+
 Licensed under the MIT License.
 See [LICENSE](https://github.com/arsa0x/viola/blob/main/LICENSE) for more information.

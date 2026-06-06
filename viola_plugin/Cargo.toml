@@ -5,25 +5,20 @@ edition = "2024"
 
 [dependencies]
 anyhow.workspace = true
-base64 = "0.22.1"
-humansize = "2.1.3"
-image = {
-  version = "0.25",
-  default-features = false,
-  features = ["jpeg", "png"]
-}
+astral-tl.workspace = true
+base64.workspace = true
+humansize.workspace = true
+image.workspace = true
 inventory.workspace = true
 reqwest.workspace = true
-scraper = "0.27.0"
 serde.workspace = true
 serde_json.workspace = true
-sysinfo = "0.39.3"
-url = "2.5.8"
+sysinfo.workspace = true
 viola_core.workspace = true
 viola_macros.workspace = true
 wacore.workspace = true
 waproto.workspace = true
-webp = "0.3.1"
+webp.workspace = true
 whatsapp-rust.workspace = true
 
 [build-dependencies]

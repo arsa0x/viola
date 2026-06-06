@@ -1,6 +1,5 @@
-use reqwest::Method;
+use reqwest::{Method, Url};
 use std::collections::HashMap;
-use url::Url;
 use viola_core::context::Context;
 use viola_macros::command;
 

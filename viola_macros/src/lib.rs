@@ -117,7 +117,9 @@ pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
     let config = parse_macro_input!(attr as CommandConfig);
     let function = parse_macro_input!(item as ItemFn);
 
-    let name = &function.sig.ident;
+    let ident = &function.sig.ident;
+
+    let name = &ident.to_string();
 
     let triggers = config.triggers;
 
@@ -136,13 +138,14 @@ pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         inventory::submit! {
             viola_core::command::Command {
+                name: #name,
                 triggers: &[#(#triggers),*],
                 description: #description,
                 help: #help,
                 cooldown: std::time::Duration::from_millis(#cooldown),
                 owner: #owner,
                 group_only: #group_only,
-                handler: |ctx| Box::pin(#name(ctx)),
+                handler: |ctx| Box::pin(#ident(ctx)),
             }
         }
     };

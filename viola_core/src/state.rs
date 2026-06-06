@@ -8,16 +8,16 @@ pub struct AppState {
     pub router: Arc<Router>,
     pub start_time: Instant,
     pub semaphore: Arc<Semaphore>,
-    pub http: Arc<Client>,
-    pub http_no_redirect: Arc<Client>,
+    pub http: Client,
+    pub http_no_redirect: Client,
 }
 
 impl AppState {
     pub fn new(
         config: Arc<Config>,
         router: Arc<Router>,
-        http_client: Arc<Client>,
-        http_no_redirect: Arc<Client>,
+        http_client: Client,
+        http_no_redirect: Client,
     ) -> Self {
         Self {
             config,

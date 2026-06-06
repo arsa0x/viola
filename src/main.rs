@@ -1,3 +1,5 @@
+mod client;
+
 use qrcode::render::unicode;
 use std::{io::Write, sync::Arc};
 #[cfg(not(target_env = "msvc"))]
@@ -8,10 +10,7 @@ use viola_core::{
 };
 use viola_plugin as _;
 use whatsapp_rust::{
-    TokioRuntime,
-    bot::Bot,
-    store::SqliteStore,
-    transport::{TokioWebSocketTransportFactory, UreqHttpClient},
+    TokioRuntime, bot::Bot, store::SqliteStore, transport::TokioWebSocketTransportFactory,
     types::events::Event,
 };
 
@@ -36,8 +35,8 @@ async fn main() -> anyhow::Result<()> {
     let state = Arc::new(AppState::new(
         Arc::clone(&config),
         Arc::clone(&router),
-        Arc::new(http_client),
-        Arc::new(http_no_redirect),
+        http_client,
+        http_no_redirect,
     ));
 
     env_logger::Builder::from_default_env()
@@ -64,7 +63,10 @@ async fn main() -> anyhow::Result<()> {
     let mut bot = Bot::builder()
         .with_backend(backend)
         .with_transport_factory(TokioWebSocketTransportFactory::new())
-        .with_http_client(UreqHttpClient::new())
+        .with_http_client(client::ReqwestHttpClient::new(
+            reqwest::Client::builder().build()?,
+        ))
+        // .with_http_client(UreqHttpClient::new())
         .with_runtime(TokioRuntime)
         .on_event(move |event, client| {
             let state = Arc::clone(&state);
@@ -90,20 +92,23 @@ async fn main() -> anyhow::Result<()> {
                             Context::new(msg, info, client, state.clone()).parse_command(prefix)
                         {
                             let state_handler = state.clone();
+                            if let Ok(permit) = state.semaphore.clone().try_acquire_owned() {
+                                tokio::spawn(async move {
+                                    let _permit = permit;
 
-                            tokio::spawn(async move {
-                                let _permit = state_handler
-                                    .semaphore
-                                    .acquire()
+                                    let command = ctx.command.clone();
+
+                                    if let Err(e) =
+                                        state_handler.router.execute(&command, ctx).await
+                                    {
+                                        log::error!("command failed: {}", e);
+                                    }
+                                });
+                            } else {
+                                ctx.reply("the server is busy")
                                     .await
-                                    .expect("semaphore closed");
-
-                                let command = ctx.command.clone();
-
-                                if let Err(e) = state_handler.router.execute(&command, ctx).await {
-                                    log::error!("command failed: {}", e);
-                                }
-                            });
+                                    .expect("failed to send message");
+                            };
                         }
                     }
                     Event::Connected(_) => log::info!("Bot connected!"),

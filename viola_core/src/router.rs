@@ -68,7 +68,9 @@ impl Router {
                     .map_err(|e| anyhow!("plugin {}: {}", plugin.name, e))?;
             }
             PluginKind::Native(command) => {
-                (command.handler)(ctx).await?;
+                (command.handler)(ctx)
+                    .await
+                    .map_err(|e| anyhow!("plugin {}: {}", command.name, e))?;
             }
         }
         Ok(())
