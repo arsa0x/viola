@@ -1,7 +1,7 @@
 use crate::state::AppState;
 use anyhow::anyhow;
 use std::{sync::Arc, time::Instant};
-use wacore::{download::MediaType, proto_helpers::MessageExt, types::message::MessageInfo};
+use wacore::{download::MediaType, proto_helpers::MessageExt};
 use waproto::whatsapp::{
     self, MessageKey,
     message::{AudioMessage, StickerMessage, VideoMessage},
@@ -12,8 +12,6 @@ use whatsapp_rust::{Client, bot::MessageContext};
 pub struct Context {
     pub msg: MessageContext,
     pub client: Arc<Client>,
-    pub text: String,
-    pub command: String,
     pub args: Vec<String>,
     pub state: Arc<AppState>,
     pub created_at: Instant,
@@ -25,24 +23,6 @@ pub enum MediaSource {
 }
 
 impl Context {
-    pub fn new(
-        message: &Arc<waproto::whatsapp::Message>,
-        info: &Arc<MessageInfo>,
-        client: Arc<Client>,
-        state: Arc<AppState>,
-    ) -> Self {
-        let c = client.clone();
-
-        Self {
-            client: c,
-            msg: MessageContext::from_parts(message, info, client),
-            text: String::new(),
-            command: String::new(),
-            args: Vec::new(),
-            state,
-            created_at: Instant::now(),
-        }
-    }
     pub async fn reply(&self, text: &str) -> anyhow::Result<()> {
         let ctx_info = self.msg.build_quote_context();
         let reply = whatsapp::Message {
@@ -186,8 +166,76 @@ impl Context {
 
         Ok(())
     }
-    pub async fn get_media(&self) {} // to do
-    pub async fn get_media_url(&self) {} // to do
+
+    pub async fn get_media(&self) -> anyhow::Result<Vec<u8>> {
+        let msg = &self.msg.message;
+
+        let (url, media_key, _file_sha256, _media_type) = if let Some(img) = &msg.image_message {
+            (
+                img.url.as_deref(),
+                img.media_key.as_ref(),
+                img.file_sha256.as_ref(),
+                MediaType::Image,
+            )
+        } else if let Some(vid) = &msg.video_message {
+            (
+                vid.url.as_deref(),
+                vid.media_key.as_ref(),
+                vid.file_sha256.as_ref(),
+                MediaType::Video,
+            )
+        } else if let Some(aud) = &msg.audio_message {
+            (
+                aud.url.as_deref(),
+                aud.media_key.as_ref(),
+                aud.file_sha256.as_ref(),
+                MediaType::Audio,
+            )
+        } else if let Some(doc) = &msg.document_message {
+            (
+                doc.url.as_deref(),
+                doc.media_key.as_ref(),
+                doc.file_sha256.as_ref(),
+                MediaType::Document,
+            )
+        } else if let Some(stk) = &msg.sticker_message {
+            (
+                stk.url.as_deref(),
+                stk.media_key.as_ref(),
+                stk.file_sha256.as_ref(),
+                MediaType::Sticker,
+            )
+        } else {
+            return Err(anyhow!("No downloadable media found in this message"));
+        };
+
+        let _url = url.ok_or_else(|| anyhow!("Media URL is missing"))?;
+        let _media_key = media_key.ok_or_else(|| anyhow!("Media key is missing"))?;
+
+        // let bytes = self.client.download(url, media_key, media_type).await?;
+
+        // Ok(bytes)
+        Ok(Vec::new())
+    }
+
+    pub async fn get_media_url(&self) -> anyhow::Result<String> {
+        let msg = &self.msg.message;
+
+        let url = if let Some(img) = &msg.image_message {
+            img.url.as_deref()
+        } else if let Some(vid) = &msg.video_message {
+            vid.url.as_deref()
+        } else if let Some(aud) = &msg.audio_message {
+            aud.url.as_deref()
+        } else if let Some(doc) = &msg.document_message {
+            doc.url.as_deref()
+        } else {
+            None
+        };
+
+        url.map(|u| u.to_string())
+            .ok_or_else(|| anyhow!("No media URL found"))
+    }
 
     fn generate_jpeg_thumbnail(&self, _: &[u8]) -> Option<Vec<u8>> {
         // to do
@@ -209,10 +257,6 @@ impl Context {
 
     pub fn is_group(&self) -> bool {
         self.msg.info.source.is_group
-    }
-
-    pub fn elapsed_ms_f64(&self) -> f64 {
-        self.created_at.elapsed().as_secs_f64() * 1000.0
     }
 
     pub fn text_content(&self) -> Option<&str> {
@@ -241,64 +285,5 @@ impl Context {
         }
 
         None
-    }
-
-    fn split_arguments(&self, input: &str) -> Vec<String> {
-        let mut tokens = Vec::new();
-        let mut current = String::new();
-        let mut in_quotes = false;
-
-        for c in input.chars() {
-            match c {
-                '"' => {
-                    in_quotes = !in_quotes;
-                }
-                ' ' | '\n' if !in_quotes => {
-                    if !current.is_empty() {
-                        tokens.push(current.clone());
-                        current.clear();
-                    }
-                }
-                _ => {
-                    current.push(c);
-                }
-            }
-        }
-        if !current.is_empty() {
-            tokens.push(current);
-        }
-        tokens
-    }
-
-    pub fn parse_command(mut self, prefix: &str) -> Option<Self> {
-        let text = self.text_content()?.to_owned();
-        if !text.starts_with(prefix) {
-            return None;
-        }
-        let without_prefix = text.trim_start_matches(prefix);
-        let parts = self.split_arguments(without_prefix);
-
-        let (cmd, args) = parts.split_first()?;
-
-        self.text = text;
-        self.command = cmd.to_lowercase();
-        self.args = args.to_vec();
-
-        // if let Some(text) = text {
-        //     self.text = text.clone();
-
-        //     if text.starts_with(prefix) {
-        //         let without_prefix = text.trim_start_matches(prefix);
-
-        //         let parts = self.split_arguments(without_prefix);
-
-        //         if let Some((cmd, args)) = parts.split_first() {
-        //             self.command = cmd.to_lowercase();
-        //             self.args = args.to_vec();
-        //         }
-        //     }
-        // }
-
-        Some(self)
     }
 }

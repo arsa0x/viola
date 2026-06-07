@@ -60,8 +60,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
         let result: TikTokData = serde_json::from_str(&res)?;
 
         if !result.status {
-            ctx.reply(&format!("failed\ntime: {:.3}ms", ctx.elapsed_ms_f64()))
-                .await?;
+            ctx.reply("failed").await?;
             ctx.reply_failed().await?;
 
             return Ok::<(), anyhow::Error>(());
@@ -74,11 +73,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
             ctx.reply_media(
                 MediaSource::Url(String::from_utf8(bytes)?),
                 wacore::download::MediaType::Audio,
-                Some(format!(
-                    "author: {}\ntime: {:.3}ms",
-                    result.author,
-                    ctx.elapsed_ms_f64()
-                )),
+                Some(format!("author: {}", result.author,)),
             )
             .await?;
         } else {
@@ -88,11 +83,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
             ctx.reply_media(
                 MediaSource::Url(String::from_utf8(bytes)?),
                 wacore::download::MediaType::Video,
-                Some(format!(
-                    "author: {}\ntime: {:.3}ms",
-                    result.author,
-                    ctx.elapsed_ms_f64()
-                )),
+                Some(format!("author: {}", result.author,)),
             )
             .await?;
         }

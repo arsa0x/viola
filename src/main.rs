@@ -1,7 +1,8 @@
 mod client;
+mod utils;
 
 use qrcode::render::unicode;
-use std::{io::Write, sync::Arc};
+use std::{io::Write, sync::Arc, time::Instant};
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
 use viola_core::{
@@ -10,7 +11,10 @@ use viola_core::{
 };
 use viola_plugin as _;
 use whatsapp_rust::{
-    TokioRuntime, bot::Bot, store::SqliteStore, transport::TokioWebSocketTransportFactory,
+    TokioRuntime,
+    bot::{Bot, MessageContext},
+    store::SqliteStore,
+    transport::TokioWebSocketTransportFactory,
     types::events::Event,
 };
 
@@ -86,17 +90,22 @@ async fn main() -> anyhow::Result<()> {
                         }
                     }
                     Event::Message(msg, info) => {
+                        let start_time = Instant::now();
                         let prefix = &state.config.bot.prefix;
 
-                        if let Some(ctx) =
-                            Context::new(msg, info, client, state.clone()).parse_command(prefix)
-                        {
+                        if let Some((command, args)) = utils::parse_command(prefix, &msg) {
                             let state_handler = state.clone();
+
                             if let Ok(permit) = state.semaphore.clone().try_acquire_owned() {
+                                let ctx = Context {
+                                    msg: MessageContext::from_parts(msg, info, client.clone()),
+                                    args,
+                                    client,
+                                    state,
+                                    created_at: start_time,
+                                };
                                 tokio::spawn(async move {
                                     let _permit = permit;
-
-                                    let command = ctx.command.clone();
 
                                     if let Err(e) =
                                         state_handler.router.execute(&command, ctx).await
@@ -105,9 +114,7 @@ async fn main() -> anyhow::Result<()> {
                                     }
                                 });
                             } else {
-                                ctx.reply("the server is busy")
-                                    .await
-                                    .expect("failed to send message");
+                                log::error!("server is busy");
                             };
                         }
                     }
