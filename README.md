@@ -88,8 +88,21 @@ return {
 
 Lua plugins are automatically loaded from:
 
-```txt
-$data_dirs/viola/plugins/
+|Platform | Example Path                    |
+| ------- | ------------------------------- |
+| Linux   | /home/username/viola/plugins    |
+| macOS   | /Users/UserName/viola/plugins   |
+| Windows | C:\Users\UserName\viola\plugins |
+
+Plugins structure directory:
+
+```sh
+plugins/
+├── bypass
+├── downloader
+├── resolver
+└── tools
+    └── ping.lua
 ```
 
 ## Configuration
@@ -98,11 +111,11 @@ Viola automatically stores configuration files inside your system "data_dir" usi
 
 ### Config Location
 
-| OS      | Path                                                |
-| ------- | --------------------------------------------------- |
-| Linux   | `~/.local/share/viola/config.toml`                  |
-| Windows | `C:\Users\<user>\AppData\Roaming\viola\config.toml` |
-| macOS   | `~/Library/Application Support/viola/config.toml`   |
+|Platform | Example Path                        |
+| ------- | ----------------------------------- |
+| Linux   | /home/username/viola/config.toml    |
+| macOS   | /Users/UserName/viola/config.toml   |
+| Windows | C:\Users\UserName\viola\config.toml |
 
 The config file will be automatically generated on first run.
 

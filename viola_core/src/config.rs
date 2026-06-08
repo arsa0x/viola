@@ -17,13 +17,13 @@ pub struct BotConfig {
 }
 
 pub fn init_dir() -> Result<PathBuf> {
-    let data = dirs::data_dir().ok_or_else(|| anyhow!("failed to get data dir"))?;
+    let data = dirs::home_dir().ok_or_else(|| anyhow!("failed to get data dir"))?;
 
     let base = data.join("viola");
 
     fs::create_dir_all(&base)?;
 
-    for dir in ["cache", "store", "downloads", "plugins"] {
+    for dir in ["cache", "store", "downloads", "plugins", "temp"] {
         fs::create_dir_all(base.join(dir))?;
     }
 

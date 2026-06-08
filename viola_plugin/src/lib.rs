@@ -10,5 +10,6 @@ pub mod tools {
    pub mod debug; 
    pub mod http; 
    pub mod ping; 
+   pub mod rvo; 
    pub mod sticker; 
 }

@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+// use wacore::net::StreamingHttpResponse;
 use whatsapp_rust::http::{HttpClient, HttpRequest, HttpResponse};
 
 pub struct ReqwestHttpClient {
@@ -34,4 +35,18 @@ impl HttpClient for ReqwestHttpClient {
             body,
         })
     }
+
+    // fn supports_streaming(&self) -> bool {
+    //     true
+    // }
+
+    // fn execute_streaming(
+    //     &self,
+    //     request: HttpRequest,
+    // ) -> Result<StreamingHttpResponse, anyhow::Error> {
+    //     Ok(StreamingHttpResponse {
+    //         status_code: response.status_code,
+    //         body: Box::new(response.body_reader),
+    //     })
+    // }
 }

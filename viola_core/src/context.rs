@@ -1,10 +1,10 @@
-use crate::state::AppState;
+use crate::{state::AppState, utils};
 use anyhow::anyhow;
-use std::{sync::Arc, time::Instant};
-use wacore::{download::MediaType, proto_helpers::MessageExt};
+use std::{io::Cursor, sync::Arc, time::Instant};
+use wacore::download::{Downloadable, MediaType};
 use waproto::whatsapp::{
-    self, MessageKey,
-    message::{AudioMessage, StickerMessage, VideoMessage},
+    self, Message, MessageKey,
+    message::{AudioMessage, ImageMessage, StickerMessage, VideoMessage},
 };
 use whatsapp_rust::{Client, bot::MessageContext};
 
@@ -76,6 +76,10 @@ impl Context {
         Ok(())
     }
 
+    pub async fn reply_voice_note(&self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     pub async fn reply_media(
         &self,
         source: MediaSource,
@@ -95,6 +99,20 @@ impl Context {
 
         let thumbnail_bytes = if media_type == MediaType::Image {
             self.generate_jpeg_thumbnail(&media_bytes)
+        } else if media_type == MediaType::Video {
+            let temp_path = self.state.dir.join("/temp").join(&format!(
+                "/thumb_{}.mp4",
+                std::time::Instant::now().elapsed().as_nanos()
+            ));
+
+            if std::fs::write(&temp_path, &media_bytes).is_ok() {
+                let res = utils::generate_video_thumbnail(&temp_path.to_string_lossy()).ok();
+                let _ = std::fs::remove_file(&temp_path);
+
+                res
+            } else {
+                None
+            }
         } else {
             None
         };
@@ -137,6 +155,21 @@ impl Context {
                 })),
                 ..Default::default()
             },
+            MediaType::Image => whatsapp::Message {
+                image_message: Some(Box::new(ImageMessage {
+                    url: Some(upload.url.clone()),
+                    file_sha256: Some(upload.file_sha256_vec()),
+                    file_enc_sha256: Some(upload.file_enc_sha256_vec()),
+                    media_key: Some(upload.media_key_vec()),
+                    mimetype: Some("image/jpeg".to_string()),
+                    direct_path: Some(upload.direct_path.clone()),
+                    file_length: Some(*len as u64),
+                    context_info: Some(Box::new(ctx_info)),
+                    jpeg_thumbnail: thumbnail_bytes,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
             MediaType::Sticker => whatsapp::Message {
                 sticker_message: Some(Box::new(StickerMessage {
                     url: Some(upload.url.clone()),
@@ -167,79 +200,61 @@ impl Context {
         Ok(())
     }
 
-    pub async fn get_media(&self) -> anyhow::Result<Vec<u8>> {
-        let msg = &self.msg.message;
+    fn generate_jpeg_thumbnail(&self, media_bytes: &[u8]) -> Option<Vec<u8>> {
+        let img = image::load_from_memory(media_bytes).ok()?;
+        let thumbnail = img.thumbnail(100, 100);
 
-        let (url, media_key, _file_sha256, _media_type) = if let Some(img) = &msg.image_message {
-            (
-                img.url.as_deref(),
-                img.media_key.as_ref(),
-                img.file_sha256.as_ref(),
-                MediaType::Image,
-            )
-        } else if let Some(vid) = &msg.video_message {
-            (
-                vid.url.as_deref(),
-                vid.media_key.as_ref(),
-                vid.file_sha256.as_ref(),
-                MediaType::Video,
-            )
-        } else if let Some(aud) = &msg.audio_message {
-            (
-                aud.url.as_deref(),
-                aud.media_key.as_ref(),
-                aud.file_sha256.as_ref(),
-                MediaType::Audio,
-            )
-        } else if let Some(doc) = &msg.document_message {
-            (
-                doc.url.as_deref(),
-                doc.media_key.as_ref(),
-                doc.file_sha256.as_ref(),
-                MediaType::Document,
-            )
-        } else if let Some(stk) = &msg.sticker_message {
-            (
-                stk.url.as_deref(),
-                stk.media_key.as_ref(),
-                stk.file_sha256.as_ref(),
-                MediaType::Sticker,
-            )
-        } else {
-            return Err(anyhow!("No downloadable media found in this message"));
-        };
+        let mut jpeg_bytes = Cursor::new(Vec::new());
 
-        let _url = url.ok_or_else(|| anyhow!("Media URL is missing"))?;
-        let _media_key = media_key.ok_or_else(|| anyhow!("Media key is missing"))?;
-
-        // let bytes = self.client.download(url, media_key, media_type).await?;
-
-        // Ok(bytes)
-        Ok(Vec::new())
+        thumbnail
+            .write_to(&mut jpeg_bytes, image::ImageFormat::Jpeg)
+            .ok()?;
+        Some(jpeg_bytes.into_inner())
     }
 
-    pub async fn get_media_url(&self) -> anyhow::Result<String> {
+    pub fn get_media<'a>(&'a self) -> anyhow::Result<(&'a dyn Downloadable, MediaType)> {
         let msg = &self.msg.message;
 
-        let url = if let Some(img) = &msg.image_message {
-            img.url.as_deref()
-        } else if let Some(vid) = &msg.video_message {
-            vid.url.as_deref()
-        } else if let Some(aud) = &msg.audio_message {
-            aud.url.as_deref()
-        } else if let Some(doc) = &msg.document_message {
-            doc.url.as_deref()
-        } else {
-            None
-        };
-
-        url.map(|u| u.to_string())
-            .ok_or_else(|| anyhow!("No media URL found"))
+        Self::extract_media_from_proto(msg)
     }
 
-    fn generate_jpeg_thumbnail(&self, _: &[u8]) -> Option<Vec<u8>> {
-        // to do
-        None
+    fn extract_media_from_proto(msg: &Message) -> anyhow::Result<(&dyn Downloadable, MediaType)> {
+        if let Some(ext) = &msg.extended_text_message {
+            if let Some(context_info) = &ext.context_info {
+                if let Some(quoted_msg) = &context_info.quoted_message {
+                    return Self::extract_media_from_proto(quoted_msg);
+                }
+            }
+            Err(anyhow::anyhow!(
+                "extended text message does not contain a quoted media message"
+            ))
+        } else if let Some(onc) = &msg.view_once_message {
+            if let Some(once_msg) = &onc.message {
+                return Self::extract_media_from_proto(once_msg);
+            }
+            Err(anyhow::anyhow!("cannot get media"))
+        } else if let Some(onc_v2) = &msg.view_once_message_v2 {
+            if let Some(once_msg) = &onc_v2.message {
+                return Self::extract_media_from_proto(once_msg);
+            }
+            Err(anyhow::anyhow!("cannot get media"))
+        } else {
+            if let Some(img) = &msg.image_message {
+                Ok((img.as_ref() as &dyn Downloadable, MediaType::Image))
+            } else if let Some(vid) = &msg.video_message {
+                Ok((vid.as_ref() as &dyn Downloadable, MediaType::Video))
+            } else if let Some(aud) = &msg.audio_message {
+                Ok((aud.as_ref() as &dyn Downloadable, MediaType::Audio))
+            } else if let Some(doc) = &msg.document_message {
+                Ok((doc.as_ref() as &dyn Downloadable, MediaType::Document))
+            } else if let Some(stk) = &msg.sticker_message {
+                Ok((stk.as_ref() as &dyn Downloadable, MediaType::Sticker))
+            } else {
+                Err(anyhow::anyhow!(
+                    "no downloadable media found in this message"
+                ))
+            }
+        }
     }
 
     pub fn sender(&self) -> anyhow::Result<String> {
@@ -260,30 +275,6 @@ impl Context {
     }
 
     pub fn text_content(&self) -> Option<&str> {
-        let msg = &self.msg.message;
-
-        if let Some(text) = msg.text_content() {
-            return Some(text);
-        }
-
-        if let Some(image) = &msg.image_message {
-            if let Some(caption) = &image.caption {
-                return Some(caption);
-            }
-        }
-
-        if let Some(video) = &msg.video_message {
-            if let Some(caption) = &video.caption {
-                return Some(caption);
-            }
-        }
-
-        if let Some(document) = &msg.document_message {
-            if let Some(caption) = &document.caption {
-                return Some(caption);
-            }
-        }
-
-        None
+        utils::get_text_content(&self.msg.message)
     }
 }

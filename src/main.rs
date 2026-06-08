@@ -29,20 +29,6 @@ async fn main() -> anyhow::Result<()> {
     let dir = init_dir()?;
     let config = Arc::new(load_config(&dir.join("config.toml").to_string_lossy())?);
 
-    let http_client = reqwest::Client::builder().cookie_store(true).build()?;
-
-    let http_no_redirect = reqwest::Client::builder()
-        .cookie_store(true)
-        .redirect(reqwest::redirect::Policy::none())
-        .build()?;
-
-    let state = Arc::new(AppState::new(
-        Arc::clone(&config),
-        Arc::clone(&router),
-        http_client,
-        http_no_redirect,
-    ));
-
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Info)
         .write_style(env_logger::WriteStyle::Always)
@@ -59,6 +45,12 @@ async fn main() -> anyhow::Result<()> {
 
     let store_path = dir.join("store").join("whatsapp.db");
     let backend = Arc::new(SqliteStore::new(&store_path.to_string_lossy()).await?);
+
+    let state = Arc::new(AppState::new(
+        Arc::clone(&config),
+        Arc::clone(&router),
+        Arc::new(dir),
+    ));
 
     log::info!("SQLite backend initialized");
 

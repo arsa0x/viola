@@ -1,4 +1,6 @@
-use crate::{command::Command, context::Context, lua_context::LuaContext, lua_plugin::LuaPlugin};
+use crate::{
+    command::Command, context::Context, lua::lua_context::LuaContext, lua::lua_plugin::LuaPlugin,
+};
 use ahash::AHashMap;
 use anyhow::anyhow;
 use mlua::{Function, Lua};
