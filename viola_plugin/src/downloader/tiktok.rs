@@ -68,7 +68,6 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
 
         if audio_only {
             let bytes = general_purpose::STANDARD.decode(result.audio_id)?;
-            ctx.reply_success().await?;
 
             ctx.reply_media(
                 MediaSource::Url(String::from_utf8(bytes)?),
@@ -76,9 +75,9 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
                 Some(format!("author: {}", result.author,)),
             )
             .await?;
+            ctx.reply_success().await?;
         } else {
             let bytes = general_purpose::STANDARD.decode(result.video_id)?;
-            ctx.reply_success().await?;
 
             ctx.reply_media(
                 MediaSource::Url(String::from_utf8(bytes)?),
@@ -86,6 +85,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
                 Some(format!("author: {}", result.author,)),
             )
             .await?;
+            ctx.reply_success().await?;
         }
 
         Ok(())
