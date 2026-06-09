@@ -4,6 +4,7 @@ use ffmpeg_next::media::Type;
 use ffmpeg_next::software::scaling::{self, Flags};
 use ffmpeg_next::util::frame::Video as VideoFrame;
 use std::io::Cursor;
+use wacore::download::MediaType;
 use wacore::proto_helpers::MessageExt;
 use waproto::whatsapp::Message;
 
@@ -110,4 +111,21 @@ pub fn generate_video_thumbnail(video_path: &str) -> anyhow::Result<Vec<u8>> {
     thumbnail.write_to(&mut jpeg_bytes, image::ImageFormat::Jpeg)?;
 
     Ok(jpeg_bytes.into_inner())
+}
+
+pub fn media_type_from_str(media_type: &str) -> Option<MediaType> {
+    match media_type {
+        "app_state" => Some(MediaType::AppState),
+        "audio" => Some(MediaType::Audio),
+        "document" => Some(MediaType::Document),
+        "history" => Some(MediaType::History),
+        "image" => Some(MediaType::Image),
+        "link_thumbnail" => Some(MediaType::LinkThumbnail),
+        "product_catalog_image" => Some(MediaType::ProductCatalogImage),
+        "sticker" => Some(MediaType::Sticker),
+        "sticker_pack" => Some(MediaType::StickerPack),
+        "sticker_pack_thumbnail" => Some(MediaType::StickerPackThumbnail),
+        "video" => Some(MediaType::Video),
+        _ => None,
+    }
 }

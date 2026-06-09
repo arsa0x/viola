@@ -1,13 +1,17 @@
 mod client;
 mod utils;
 
+use mlua::Lua;
 use qrcode::render::unicode;
 use std::{io::Write, sync::Arc, time::Instant};
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
 use viola_core::{
     config::{init_dir, load_config},
-    {context::Context, router::Router, state::AppState},
+    context::Context,
+    lua::lua_setup,
+    router::Router,
+    state::AppState,
 };
 use viola_plugin as _;
 use whatsapp_rust::{
@@ -24,8 +28,6 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let router = Arc::new(Router::new());
-
     let dir = init_dir()?;
     let config = Arc::new(load_config(&dir.join("config.toml").to_string_lossy())?);
 
@@ -46,10 +48,20 @@ async fn main() -> anyhow::Result<()> {
     let store_path = dir.join("store").join("whatsapp.db");
     let backend = Arc::new(SqliteStore::new(&store_path.to_string_lossy()).await?);
 
+    let http_client = reqwest::Client::builder()
+        .cookie_store(true)
+        .build()
+        .expect("failed to build reqwest client");
+
+    let lua = lua_setup::setup_lua_environment(Lua::new(), http_client.clone())?;
+
+    let router = Arc::new(Router::new(lua));
+
     let state = Arc::new(AppState::new(
         Arc::clone(&config),
         Arc::clone(&router),
         Arc::new(dir),
+        http_client,
     ));
 
     log::info!("SQLite backend initialized");

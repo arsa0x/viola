@@ -71,6 +71,7 @@ futures.workspace = true
 inventory.workspace = true
 lexopt = "0.3.2"
 log.workspace = true
+mlua.workspace = true
 qrcode = "0.14.1"
 reqwest.workspace = true
 serde.workspace = true

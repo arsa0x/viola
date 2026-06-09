@@ -14,12 +14,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(config: Arc<Config>, router: Arc<Router>, dir: Arc<PathBuf>) -> Self {
-        let http_client = reqwest::Client::builder()
-            .cookie_store(true)
-            .build()
-            .expect("failed to build reqwest client");
-
+    pub fn new(config: Arc<Config>, router: Arc<Router>, dir: Arc<PathBuf>, http: Client) -> Self {
         let http_no_redirect = reqwest::Client::builder()
             .cookie_store(true)
             .redirect(reqwest::redirect::Policy::none())
@@ -31,7 +26,7 @@ impl AppState {
             router,
             start_time: Instant::now(),
             semaphore: Arc::new(Semaphore::new(100)),
-            http: http_client,
+            http,
             http_no_redirect: http_no_redirect,
             dir,
         }

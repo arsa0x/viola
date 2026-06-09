@@ -3288,6 +3288,7 @@ dependencies = [
  "inventory",
  "lexopt",
  "log",
+ "mlua",
  "qrcode",
  "reqwest",
  "serde",

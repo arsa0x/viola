@@ -30,7 +30,7 @@ impl LuaPlugin {
     }
 
     pub fn load_plugins(lua: &Lua) -> anyhow::Result<Vec<LuaPlugin>> {
-        let plugins_path = dirs::data_dir()
+        let plugins_path = dirs::home_dir()
             .ok_or_else(|| anyhow!("failed to get data dir"))?
             .join("viola")
             .join("plugins");

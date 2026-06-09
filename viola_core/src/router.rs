@@ -1,5 +1,7 @@
 use crate::{
-    command::Command, context::Context, lua::lua_context::LuaContext, lua::lua_plugin::LuaPlugin,
+    command::Command,
+    context::Context,
+    lua::{lua_context::LuaContext, lua_plugin::LuaPlugin},
 };
 use ahash::AHashMap;
 use anyhow::anyhow;
@@ -17,11 +19,10 @@ pub struct Router {
 }
 
 impl Router {
-    pub fn new() -> Self {
+    pub fn new(lua: Lua) -> Self {
         let mut plugins = AHashMap::new();
-        let lua_vm = Lua::new();
 
-        if let Ok(lua_plugins) = LuaPlugin::load_plugins(&lua_vm) {
+        if let Ok(lua_plugins) = LuaPlugin::load_plugins(&lua) {
             for plugin in lua_plugins {
                 let plugin = Arc::new(plugin);
 
@@ -47,7 +48,10 @@ impl Router {
 
         plugins.shrink_to_fit();
 
-        Self { plugins, lua_vm }
+        Self {
+            plugins,
+            lua_vm: lua,
+        }
     }
 
     fn _is_help_flag(&self, args: &[String]) -> bool {
