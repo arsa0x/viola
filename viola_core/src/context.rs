@@ -100,15 +100,14 @@ impl Context {
         let thumbnail_bytes = if media_type == MediaType::Image {
             self.generate_jpeg_thumbnail(&media_bytes)
         } else if media_type == MediaType::Video {
-            let temp_path = self.state.dir.join("/temp").join(&format!(
-                "/thumb_{}.mp4",
+            let temp_path = self.state.dir.join("cache").join(&format!(
+                "thumb_{}.mp4",
                 std::time::Instant::now().elapsed().as_nanos()
             ));
 
             if std::fs::write(&temp_path, &media_bytes).is_ok() {
                 let res = utils::generate_video_thumbnail(&temp_path.to_string_lossy()).ok();
                 let _ = std::fs::remove_file(&temp_path);
-
                 res
             } else {
                 None
