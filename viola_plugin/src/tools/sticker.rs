@@ -2,8 +2,8 @@ use bytes::Bytes;
 use image::{RgbaImage, imageops::overlay, load_from_memory};
 use viola_core::context::Context;
 use viola_macros::command;
-use wacore::download::MediaType;
 use webp::Encoder;
+use whatsapp_rust::download::MediaType;
 
 #[command(trigger = ["sticker", "s"])]
 async fn sticker(ctx: Context) -> anyhow::Result<()> {
@@ -29,8 +29,8 @@ async fn sticker(ctx: Context) -> anyhow::Result<()> {
             };
 
             ctx.reply_media(
-                viola_core::context::MediaSource::Bytes(webp),
-                wacore::download::MediaType::Sticker,
+                viola_core::context::MediaSource::Bytes(webp.to_vec()),
+                MediaType::Sticker,
                 None,
             )
             .await?;

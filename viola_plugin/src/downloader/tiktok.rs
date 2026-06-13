@@ -12,6 +12,7 @@ use reqwest::Url;
 use serde::Deserialize;
 use viola_core::context::{Context, MediaSource};
 use viola_macros::command;
+use whatsapp_rust::download::MediaType;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -71,7 +72,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
 
             ctx.reply_media(
                 MediaSource::Url(String::from_utf8(bytes)?),
-                wacore::download::MediaType::Audio,
+                MediaType::Audio,
                 Some(format!("author: {}", result.author,)),
             )
             .await?;
@@ -81,7 +82,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
 
             ctx.reply_media(
                 MediaSource::Url(String::from_utf8(bytes)?),
-                wacore::download::MediaType::Video,
+                MediaType::Video,
                 Some(format!("author: {}", result.author,)),
             )
             .await?;

@@ -1,5 +1,5 @@
 use compact_str::CompactString;
-use waproto::whatsapp::Message;
+use whatsapp_rust::waproto::whatsapp::Message;
 
 fn split_arguments(input: &str) -> Vec<CompactString> {
     let mut result = Vec::with_capacity(4);

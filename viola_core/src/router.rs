@@ -4,9 +4,10 @@ use crate::{
 };
 use ahash::AHashMap;
 use anyhow::anyhow;
+use unicase::UniCase;
 
 pub struct Router {
-    plugins: AHashMap<&'static str, &'static Command>,
+    plugins: AHashMap<UniCase<&'static str>, &'static Command>,
 }
 
 impl Router {
@@ -15,10 +16,11 @@ impl Router {
 
         for command in COMMANDS {
             for trigger in command.triggers {
-                if plugins.contains_key(trigger) {
+                let t = UniCase::new(*trigger);
+                if plugins.contains_key(&t) {
                     log::warn!("duplicate trigger detected: {}", trigger);
                 }
-                plugins.insert(*trigger, command);
+                plugins.insert(UniCase::new(*trigger), command);
             }
         }
 
@@ -32,7 +34,7 @@ impl Router {
     }
 
     pub async fn execute(&self, cmd: &str, ctx: Context) -> anyhow::Result<()> {
-        let Some(plugin) = self.plugins.get(&cmd) else {
+        let Some(plugin) = self.plugins.get(&UniCase::new(cmd)) else {
             return Ok(());
         };
 

@@ -5,8 +5,7 @@ use ffmpeg_next::software::scaling::{self, Flags};
 use ffmpeg_next::util::frame::Video as VideoFrame;
 use std::io::Cursor;
 use std::sync::OnceLock;
-use wacore::proto_helpers::MessageExt;
-use waproto::whatsapp::Message;
+use whatsapp_rust::{wacore::proto_helpers::MessageExt, waproto::whatsapp::Message};
 
 static FFMPEG_INIT: OnceLock<()> = OnceLock::new();
 
@@ -51,7 +50,7 @@ pub fn get_text_content(msg: &Message) -> Option<&str> {
 pub fn generate_video_thumbnail(video_path: &str) -> anyhow::Result<Vec<u8>> {
     init_ffmpeg();
 
-    let mut ictx = input(video_path)?;
+    let mut ictx = input(&video_path)?;
 
     let input_stream = ictx
         .streams()
@@ -65,9 +64,8 @@ pub fn generate_video_thumbnail(video_path: &str) -> anyhow::Result<Vec<u8>> {
     let mut decoder = context_decoder.decoder().video()?;
 
     let mut rgb_buffer = Vec::new();
-
-    let thumb_w = 480;
-    let thumb_h = 480;
+    let mut width = 0;
+    let mut height = 0;
 
     'packet_loop: for (stream, packet) in ictx.packets() {
         if stream.index() == video_stream_index {
@@ -76,34 +74,23 @@ pub fn generate_video_thumbnail(video_path: &str) -> anyhow::Result<Vec<u8>> {
             let mut decoded_frame = VideoFrame::empty();
 
             if decoder.receive_frame(&mut decoded_frame).is_ok() {
-                let width = decoded_frame.width();
-                let height = decoded_frame.height();
+                width = decoded_frame.width();
+                height = decoded_frame.height();
 
                 let mut scaler = scaling::context::Context::get(
                     decoder.format(),
                     width,
                     height,
                     Pixel::RGB24,
-                    thumb_w,
-                    thumb_w,
+                    width,
+                    height,
                     Flags::BILINEAR,
                 )?;
 
                 let mut rgb_frame = VideoFrame::empty();
                 scaler.run(&decoded_frame, &mut rgb_frame)?;
 
-                let stride = rgb_frame.stride(0);
-
-                let row_bytes = (width * 3) as usize;
-
-                rgb_buffer = Vec::with_capacity((height as usize) * row_bytes);
-
-                for y in 0..height as usize {
-                    let start = y * stride;
-                    let end = start + row_bytes;
-
-                    rgb_buffer.extend_from_slice(&rgb_frame.data(0)[start..end]);
-                }
+                rgb_buffer = rgb_frame.data(0).to_vec();
 
                 break 'packet_loop;
             }
@@ -114,7 +101,7 @@ pub fn generate_video_thumbnail(video_path: &str) -> anyhow::Result<Vec<u8>> {
         return Err(anyhow::anyhow!("failed to get frame from video"));
     }
 
-    let img_buffer = image::RgbImage::from_raw(thumb_w, thumb_h, rgb_buffer)
+    let img_buffer = image::RgbImage::from_raw(width, height, rgb_buffer)
         .ok_or_else(|| anyhow::anyhow!("failed to create buffer image from raw rgb"))?;
 
     let dynamic_img = image::DynamicImage::ImageRgb8(img_buffer);

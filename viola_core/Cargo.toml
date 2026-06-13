@@ -18,6 +18,5 @@ reqwest.workspace = true
 serde.workspace = true
 tokio.workspace = true
 toml.workspace = true
-wacore.workspace = true
-waproto.workspace = true
+unicase = "2.9.0"
 whatsapp-rust.workspace = true

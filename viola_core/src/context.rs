@@ -1,14 +1,16 @@
 use crate::{state::AppState, utils};
 use anyhow::anyhow;
-use bytes::Bytes;
 use compact_str::CompactString;
 use std::{io::Cursor, sync::Arc, time::Instant};
-use wacore::download::{Downloadable, MediaType};
-use waproto::whatsapp::{
-    self, Message, MessageKey,
-    message::{AudioMessage, ImageMessage, StickerMessage, VideoMessage},
+use whatsapp_rust::{
+    Client,
+    bot::MessageContext,
+    wacore::download::{Downloadable, MediaType},
+    waproto::whatsapp::{
+        self, Message, MessageKey,
+        message::{AudioMessage, ImageMessage, StickerMessage, VideoMessage},
+    },
 };
-use whatsapp_rust::{Client, bot::MessageContext};
 
 #[derive(Clone)]
 pub struct Context {
@@ -21,7 +23,7 @@ pub struct Context {
 
 pub enum MediaSource {
     Url(String),
-    Bytes(Bytes),
+    Bytes(Vec<u8>),
 }
 
 impl Context {
@@ -93,7 +95,7 @@ impl Context {
             MediaSource::Url(url) => {
                 let response = self.state.http.get(url).send().await?;
                 let bytes = response.bytes().await?;
-                bytes
+                bytes.to_vec()
             }
         };
 

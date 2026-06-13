@@ -17,8 +17,6 @@ serde_json = "1.0.149"
 sysinfo.workspace = true
 viola_core.workspace = true
 viola_macros.workspace = true
-wacore.workspace = true
-waproto.workspace = true
 webp.workspace = true
 whatsapp-rust.workspace = true
 

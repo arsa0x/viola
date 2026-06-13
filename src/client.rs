@@ -28,7 +28,7 @@ impl HttpClient for ReqwestHttpClient {
 
         let response = req_builder.send().await?;
         let status = response.status();
-        let body = response.bytes().await?;
+        let body = response.bytes().await?.to_vec();
 
         Ok(HttpResponse {
             status_code: status.as_u16(),
