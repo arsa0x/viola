@@ -1,8 +1,7 @@
-use std::time::Duration;
-
 use crate::context::Context;
-
 use futures::future::BoxFuture;
+use linkme::distributed_slice;
+use std::time::Duration;
 
 pub type CommandHandler = fn(Context) -> BoxFuture<'static, anyhow::Result<()>>;
 
@@ -17,4 +16,5 @@ pub struct Command {
     pub handler: CommandHandler,
 }
 
-inventory::collect!(Command);
+#[distributed_slice]
+pub static COMMANDS: [Command];

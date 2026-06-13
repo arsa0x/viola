@@ -23,7 +23,7 @@ pub fn init_dir() -> Result<PathBuf> {
 
     fs::create_dir_all(&base)?;
 
-    for dir in ["cache", "store", "downloads", "plugins"] {
+    for dir in ["cache", "store", "downloads"] {
         fs::create_dir_all(base.join(dir))?;
     }
 

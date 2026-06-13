@@ -1,15 +1,11 @@
 mod client;
 mod utils;
 
-use mlua::Lua;
 use qrcode::render::unicode;
 use std::{io::Write, sync::Arc, time::Instant};
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
 use viola_core::{
     config::{init_dir, load_config},
     context::Context,
-    lua::lua_setup,
     router::Router,
     state::AppState,
 };
@@ -21,10 +17,6 @@ use whatsapp_rust::{
     transport::TokioWebSocketTransportFactory,
     types::events::Event,
 };
-
-#[cfg(not(target_env = "msvc"))]
-#[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -46,16 +38,14 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let store_path = dir.join("store").join("whatsapp.db");
-    let backend = Arc::new(SqliteStore::new(&store_path.to_string_lossy()).await?);
+    let backend = SqliteStore::new(&store_path.to_string_lossy()).await?;
 
     let http_client = reqwest::Client::builder()
         .cookie_store(true)
         .build()
         .expect("failed to build reqwest client");
 
-    let lua = lua_setup::setup_lua_environment(Lua::new(), http_client.clone())?;
-
-    let router = Arc::new(Router::new(lua));
+    let router = Arc::new(Router::new());
 
     let state = Arc::new(AppState::new(
         Arc::clone(&config),
@@ -68,13 +58,12 @@ async fn main() -> anyhow::Result<()> {
 
     log::info!("Starting bot...");
 
-    let mut bot = Bot::builder()
+    let bot = Bot::builder()
         .with_backend(backend)
         .with_transport_factory(TokioWebSocketTransportFactory::new())
         .with_http_client(client::ReqwestHttpClient::new(
             reqwest::Client::builder().build()?,
         ))
-        // .with_http_client(UreqHttpClient::new())
         .with_runtime(TokioRuntime)
         .on_event(move |event, client| {
             let state = Arc::clone(&state);
@@ -131,25 +120,26 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .await?;
 
-    let mut bot_handle = bot.run().await?;
+    //let mut bot_handle =
+    bot.run().await;
 
     log::info!("bot is running. press ctrl+c to stop.");
 
     // https://github.com/vrypt-cpp/sora-on-rust/blob/main/src/main.rs#L61
-    tokio::select! {
-        res = &mut bot_handle => {
-            match res {
-                Ok(_) => log::info!("bot stopped normally."),
-                Err(e) => log::error!("bot stopped with error: {:?}", e),
-            }
-        }
-        _ = tokio::signal::ctrl_c() => {
-            log::info!("SIGINT received, performing graceful shutdown...");
-            bot.client().disconnect().await;
-            let _ = bot_handle.await;
-            log::info!("shutdown complete. goodbye!");
-        }
-    }
+    // tokio::select! {
+    //     res = &mut bot_handle => {
+    //         match res {
+    //             Ok(_) => log::info!("bot stopped normally."),
+    //             Err(e) => log::error!("bot stopped with error: {:?}", e),
+    //         }
+    //     }
+    //     _ = tokio::signal::ctrl_c() => {
+    //         log::info!("SIGINT received, performing graceful shutdown...");
+    //         bot.client().disconnect().await;
+    //         let _ = bot_handle.await;
+    //         log::info!("shutdown complete. goodbye!");
+    //     }
+    // }
 
     Ok(())
 }

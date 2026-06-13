@@ -1,5 +1,7 @@
 use crate::{state::AppState, utils};
 use anyhow::anyhow;
+use bytes::Bytes;
+use compact_str::CompactString;
 use std::{io::Cursor, sync::Arc, time::Instant};
 use wacore::download::{Downloadable, MediaType};
 use waproto::whatsapp::{
@@ -12,14 +14,14 @@ use whatsapp_rust::{Client, bot::MessageContext};
 pub struct Context {
     pub msg: MessageContext,
     pub client: Arc<Client>,
-    pub args: Vec<String>,
+    pub args: Vec<CompactString>,
     pub state: Arc<AppState>,
     pub created_at: Instant,
 }
 
 pub enum MediaSource {
     Url(String),
-    Bytes(Vec<u8>),
+    Bytes(Bytes),
 }
 
 impl Context {
@@ -91,7 +93,7 @@ impl Context {
             MediaSource::Url(url) => {
                 let response = self.state.http.get(url).send().await?;
                 let bytes = response.bytes().await?;
-                bytes.to_vec()
+                bytes
             }
         };
 
@@ -127,9 +129,10 @@ impl Context {
             MediaType::Audio => whatsapp::Message {
                 audio_message: Some(Box::new(AudioMessage {
                     url: Some(upload.url.clone()),
-                    file_sha256: Some(upload.file_sha256_vec()),
-                    file_enc_sha256: Some(upload.file_enc_sha256_vec()),
-                    media_key: Some(upload.media_key_vec()),
+                    file_sha256: Some(upload.file_sha256.to_vec()),
+                    file_enc_sha256: Some(upload.file_enc_sha256.to_vec()),
+                    media_key: Some(upload.media_key.to_vec()),
+                    media_key_timestamp: Some(upload.media_key_timestamp),
                     mimetype: Some("audio/mpeg".to_string()),
                     direct_path: Some(upload.direct_path.clone()),
                     file_length: Some(*len as u64),
@@ -141,9 +144,10 @@ impl Context {
             MediaType::Video => whatsapp::Message {
                 video_message: Some(Box::new(VideoMessage {
                     url: Some(upload.url.clone()),
-                    file_sha256: Some(upload.file_sha256_vec()),
-                    file_enc_sha256: Some(upload.file_enc_sha256_vec()),
-                    media_key: Some(upload.media_key_vec()),
+                    file_sha256: Some(upload.file_sha256.to_vec()),
+                    file_enc_sha256: Some(upload.file_enc_sha256.to_vec()),
+                    media_key: Some(upload.media_key.to_vec()),
+                    media_key_timestamp: Some(upload.media_key_timestamp),
                     mimetype: Some("video/mp4".to_string()),
                     direct_path: Some(upload.direct_path.clone()),
                     file_length: Some(*len as u64),
@@ -157,9 +161,10 @@ impl Context {
             MediaType::Image => whatsapp::Message {
                 image_message: Some(Box::new(ImageMessage {
                     url: Some(upload.url.clone()),
-                    file_sha256: Some(upload.file_sha256_vec()),
-                    file_enc_sha256: Some(upload.file_enc_sha256_vec()),
-                    media_key: Some(upload.media_key_vec()),
+                    file_sha256: Some(upload.file_sha256.to_vec()),
+                    file_enc_sha256: Some(upload.file_enc_sha256.to_vec()),
+                    media_key: Some(upload.media_key.to_vec()),
+                    media_key_timestamp: Some(upload.media_key_timestamp),
                     mimetype: Some("image/jpeg".to_string()),
                     direct_path: Some(upload.direct_path.clone()),
                     file_length: Some(*len as u64),
@@ -172,9 +177,10 @@ impl Context {
             MediaType::Sticker => whatsapp::Message {
                 sticker_message: Some(Box::new(StickerMessage {
                     url: Some(upload.url.clone()),
-                    file_sha256: Some(upload.file_sha256_vec()),
-                    file_enc_sha256: Some(upload.file_enc_sha256_vec()),
-                    media_key: Some(upload.media_key_vec()),
+                    file_sha256: Some(upload.file_sha256.to_vec()),
+                    file_enc_sha256: Some(upload.file_enc_sha256.to_vec()),
+                    media_key: Some(upload.media_key.to_vec()),
+                    media_key_timestamp: Some(upload.media_key_timestamp),
                     mimetype: Some("image/webp".to_string()),
                     direct_path: Some(upload.direct_path.clone()),
                     file_length: Some(*len as u64),

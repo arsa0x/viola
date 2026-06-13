@@ -121,6 +121,11 @@ pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let name = &ident.to_string();
 
+    let cmd_name = syn::Ident::new(
+        &format!("{}_COMMAND", name.to_uppercase()),
+        proc_macro2::Span::call_site(),
+    );
+
     let triggers = config.triggers;
 
     let owner = config.owner;
@@ -133,21 +138,37 @@ pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let help = config.help.unwrap_or_else(|| syn::parse_quote!(""));
 
+    // let expanded = quote! {
+    //     #function
+
+    //     inventory::submit! {
+    //         viola_core::command::Command {
+    //             name: #name,
+    //             triggers: &[#(#triggers),*],
+    //             description: #description,
+    //             help: #help,
+    //             cooldown: std::time::Duration::from_millis(#cooldown),
+    //             owner: #owner,
+    //             group_only: #group_only,
+    //             handler: |ctx| Box::pin(#ident(ctx)),
+    //         }
+    //     }
+    // };
+
     let expanded = quote! {
         #function
 
-        inventory::submit! {
-            viola_core::command::Command {
-                name: #name,
-                triggers: &[#(#triggers),*],
-                description: #description,
-                help: #help,
-                cooldown: std::time::Duration::from_millis(#cooldown),
-                owner: #owner,
-                group_only: #group_only,
-                handler: |ctx| Box::pin(#ident(ctx)),
-            }
-        }
+        #[linkme::distributed_slice(viola_core::command::COMMANDS)]
+        static #cmd_name: viola_core::command::Command = viola_core::command::Command {
+            name: #name,
+            triggers: &[#(#triggers),*],
+            description: #description,
+            help: #help,
+            cooldown: std::time::Duration::from_millis(#cooldown),
+            owner: #owner,
+            group_only: #group_only,
+            handler: |ctx| Box::pin( async move { #ident(ctx).await }),
+        };
     };
     TokenStream::from(expanded)
 }

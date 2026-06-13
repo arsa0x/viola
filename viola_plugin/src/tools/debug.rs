@@ -15,11 +15,7 @@ async fn debug(ctx: Context) -> anyhow::Result<()> {
         .await?;
     ctx.reply(&format!(
         "lid: \n\n```{:#?}```",
-        ctx.msg
-            .client
-            .get_lid()
-            .await
-            .ok_or_else(|| anyhow!("error"))?
+        ctx.msg.client.get_lid().ok_or_else(|| anyhow!("error"))?
     ))
     .await?;
     Ok(())

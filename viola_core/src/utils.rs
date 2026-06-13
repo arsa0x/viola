@@ -4,43 +4,44 @@ use ffmpeg_next::media::Type;
 use ffmpeg_next::software::scaling::{self, Flags};
 use ffmpeg_next::util::frame::Video as VideoFrame;
 use std::io::Cursor;
-use wacore::download::MediaType;
+use std::sync::OnceLock;
 use wacore::proto_helpers::MessageExt;
 use waproto::whatsapp::Message;
 
+static FFMPEG_INIT: OnceLock<()> = OnceLock::new();
+
+pub fn init_ffmpeg() {
+    FFMPEG_INIT.get_or_init(|| ffmpeg::init().expect("failed to init ffmpeg"));
+}
+
 pub fn get_text_content(msg: &Message) -> Option<&str> {
     if let Some(once) = &msg.view_once_message {
-        if let Some(once_msg) = &once.message {
-            return get_text_content(&once_msg);
-        }
-        return None;
-    } else if let Some(once_v2) = &msg.view_once_message_v2 {
-        if let Some(once_msg) = &once_v2.message {
-            return get_text_content(&once_msg);
-        } else {
-            return None;
-        }
-    } else {
-        if let Some(text) = &msg.text_content() {
-            return Some(text);
-        }
+        return once.message.as_deref().and_then(get_text_content);
+    }
 
-        if let Some(image) = &msg.image_message {
-            if let Some(caption) = &image.caption {
-                return Some(caption);
-            }
-        }
+    if let Some(once_v2) = &msg.view_once_message_v2 {
+        return once_v2.message.as_deref().and_then(get_text_content);
+    }
 
-        if let Some(video) = &msg.video_message {
-            if let Some(caption) = &video.caption {
-                return Some(caption);
-            }
-        }
+    if let Some(text) = &msg.text_content() {
+        return Some(text);
+    }
 
-        if let Some(document) = &msg.document_message {
-            if let Some(caption) = &document.caption {
-                return Some(caption);
-            }
+    if let Some(image) = &msg.image_message {
+        if let Some(caption) = &image.caption {
+            return Some(caption);
+        }
+    }
+
+    if let Some(video) = &msg.video_message {
+        if let Some(caption) = &video.caption {
+            return Some(caption);
+        }
+    }
+
+    if let Some(document) = &msg.document_message {
+        if let Some(caption) = &document.caption {
+            return Some(caption);
         }
     }
 
@@ -48,9 +49,9 @@ pub fn get_text_content(msg: &Message) -> Option<&str> {
 }
 
 pub fn generate_video_thumbnail(video_path: &str) -> anyhow::Result<Vec<u8>> {
-    ffmpeg::init()?;
+    init_ffmpeg();
 
-    let mut ictx = input(&video_path)?;
+    let mut ictx = input(video_path)?;
 
     let input_stream = ictx
         .streams()
@@ -64,8 +65,9 @@ pub fn generate_video_thumbnail(video_path: &str) -> anyhow::Result<Vec<u8>> {
     let mut decoder = context_decoder.decoder().video()?;
 
     let mut rgb_buffer = Vec::new();
-    let mut width = 0;
-    let mut height = 0;
+
+    let thumb_w = 480;
+    let thumb_h = 480;
 
     'packet_loop: for (stream, packet) in ictx.packets() {
         if stream.index() == video_stream_index {
@@ -74,23 +76,34 @@ pub fn generate_video_thumbnail(video_path: &str) -> anyhow::Result<Vec<u8>> {
             let mut decoded_frame = VideoFrame::empty();
 
             if decoder.receive_frame(&mut decoded_frame).is_ok() {
-                width = decoded_frame.width();
-                height = decoded_frame.height();
+                let width = decoded_frame.width();
+                let height = decoded_frame.height();
 
                 let mut scaler = scaling::context::Context::get(
                     decoder.format(),
                     width,
                     height,
                     Pixel::RGB24,
-                    width,
-                    height,
+                    thumb_w,
+                    thumb_w,
                     Flags::BILINEAR,
                 )?;
 
                 let mut rgb_frame = VideoFrame::empty();
                 scaler.run(&decoded_frame, &mut rgb_frame)?;
 
-                rgb_buffer = rgb_frame.data(0).to_vec();
+                let stride = rgb_frame.stride(0);
+
+                let row_bytes = (width * 3) as usize;
+
+                rgb_buffer = Vec::with_capacity((height as usize) * row_bytes);
+
+                for y in 0..height as usize {
+                    let start = y * stride;
+                    let end = start + row_bytes;
+
+                    rgb_buffer.extend_from_slice(&rgb_frame.data(0)[start..end]);
+                }
 
                 break 'packet_loop;
             }
@@ -101,7 +114,7 @@ pub fn generate_video_thumbnail(video_path: &str) -> anyhow::Result<Vec<u8>> {
         return Err(anyhow::anyhow!("failed to get frame from video"));
     }
 
-    let img_buffer = image::RgbImage::from_raw(width, height, rgb_buffer)
+    let img_buffer = image::RgbImage::from_raw(thumb_w, thumb_h, rgb_buffer)
         .ok_or_else(|| anyhow::anyhow!("failed to create buffer image from raw rgb"))?;
 
     let dynamic_img = image::DynamicImage::ImageRgb8(img_buffer);
@@ -111,21 +124,4 @@ pub fn generate_video_thumbnail(video_path: &str) -> anyhow::Result<Vec<u8>> {
     thumbnail.write_to(&mut jpeg_bytes, image::ImageFormat::Jpeg)?;
 
     Ok(jpeg_bytes.into_inner())
-}
-
-pub fn media_type_from_str(media_type: &str) -> Option<MediaType> {
-    match media_type {
-        "app_state" => Some(MediaType::AppState),
-        "audio" => Some(MediaType::Audio),
-        "document" => Some(MediaType::Document),
-        "history" => Some(MediaType::History),
-        "image" => Some(MediaType::Image),
-        "link_thumbnail" => Some(MediaType::LinkThumbnail),
-        "product_catalog_image" => Some(MediaType::ProductCatalogImage),
-        "sticker" => Some(MediaType::Sticker),
-        "sticker_pack" => Some(MediaType::StickerPack),
-        "sticker_pack_thumbnail" => Some(MediaType::StickerPackThumbnail),
-        "video" => Some(MediaType::Video),
-        _ => None,
-    }
 }

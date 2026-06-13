@@ -1,16 +1,13 @@
 # Viola WhatsApp Bot
 
-A fast and modular WhatsApp bot framework for Rust with procedural macro commands and inventory-based auto registration. Built with Rust and [whatsapp-rust](https://github.com/oxidezap/whatsapp-rust) library.
+A fast and modular WhatsApp bot framework for Rust with procedural macro commands and auto registration. Built with Rust and [whatsapp-rust](https://github.com/oxidezap/whatsapp-rust) library.
 
 ## Features
 
 - Tokio async runtime
-- Inventory-based automatic command registration
 - Procedural macro command system
-- Lua plugin support
 - Low memory footprint
 - Native Rust performance
-- Modular plugin architecture
 - Auto-generated configuration
 
 ## Getting Started
@@ -73,41 +70,9 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
 }
 ```
 
-## Lua Plugin Example
-
-```lua
-return {
-    triggers = { "ping", "p" },
-    description = "Ping command",
-
-    exec = function(ctx)
-        ctx:reply("pong from lua!")
-    end
-}
-```
-
-Lua plugins are automatically loaded from:
-
-|Platform | Example Path                    |
-| ------- | ------------------------------- |
-| Linux   | /home/username/viola/plugins    |
-| macOS   | /Users/UserName/viola/plugins   |
-| Windows | C:\Users\UserName\viola\plugins |
-
-Plugins structure directory:
-
-```sh
-plugins/
-├── bypass
-├── downloader
-├── resolver
-└── tools
-    └── ping.lua
-```
-
 ## Configuration
 
-Viola automatically stores configuration files inside your system "data_dir" using the "dirs" crate.
+Viola automatically stores configuration files inside your system home directory.
 
 ### Config Location
 
@@ -136,9 +101,6 @@ owner = "628123456789"
 ├── viola_core          # command system, router, context, config, and state
 ├── viola_macros        # procedural macros for command registration
 └── viola_plugin        # collection of all bot native and lua plugins
-    ├── lua             # will be moved to $data_dir/viola/plugins/ (WIP)
-    │   ├── downloader
-    │   └── tools
     └── src
         ├── downloader
         └── tools

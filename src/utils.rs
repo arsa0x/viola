@@ -1,33 +1,46 @@
+use compact_str::CompactString;
 use waproto::whatsapp::Message;
 
-fn split_arguments(input: &str) -> Vec<String> {
-    let mut tokens = Vec::with_capacity(4);
-    let mut current = String::with_capacity(32);
+fn split_arguments(input: &str) -> Vec<CompactString> {
+    let mut result = Vec::with_capacity(4);
 
     let mut in_quotes = false;
+    let mut start = None;
 
-    for c in input.chars() {
-        match c {
+    for (idx, ch) in input.char_indices() {
+        match ch {
             '"' => {
+                if in_quotes {
+                    if let Some(s) = start {
+                        result.push(CompactString::from(&input[s..idx]));
+                    }
+                    start = None;
+                } else {
+                    start = Some(idx + 1);
+                }
+
                 in_quotes = !in_quotes;
             }
             ' ' | '\n' if !in_quotes => {
-                if !current.is_empty() {
-                    tokens.push(std::mem::take(&mut current));
+                if let Some(s) = start {
+                    result.push(CompactString::from(&input[s..idx]));
+                    start = None;
                 }
             }
             _ => {
-                current.push(c);
+                if start.is_none() {
+                    start = Some(idx);
+                }
             }
         }
     }
-    if !current.is_empty() {
-        tokens.push(current);
+    if let Some(s) = start {
+        result.push(CompactString::from(&input[s..]));
     }
-    tokens
+    result
 }
 
-pub fn parse_command(prefix: &str, msg: &Message) -> Option<(String, Vec<String>)> {
+pub fn parse_command(prefix: &str, msg: &Message) -> Option<(CompactString, Vec<CompactString>)> {
     let text = viola_core::utils::get_text_content(msg)?;
 
     if !text.starts_with(prefix) {
@@ -35,9 +48,8 @@ pub fn parse_command(prefix: &str, msg: &Message) -> Option<(String, Vec<String>
     }
 
     let without_prefix = text.trim_start_matches(prefix);
-    let mut parts: Vec<String> = split_arguments(without_prefix);
+    let parts = self::split_arguments(without_prefix);
+    let (cmd, args) = parts.split_first()?;
 
-    let cmd = parts.remove(0).to_lowercase();
-
-    Some((cmd, parts))
+    Some((cmd.clone(), args.to_vec()))
 }

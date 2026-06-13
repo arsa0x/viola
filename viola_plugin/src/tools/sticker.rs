@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use image::{RgbaImage, imageops::overlay, load_from_memory};
 use viola_core::context::Context;
 use viola_macros::command;
@@ -8,7 +9,7 @@ use webp::Encoder;
 async fn sticker(ctx: Context) -> anyhow::Result<()> {
     if let Ok((img_msg, media_type)) = ctx.get_media() {
         if media_type == MediaType::Image {
-            let webp = {
+            let webp: Bytes = {
                 let bytes = ctx.msg.client.download(img_msg).await?;
                 let img = load_from_memory(&bytes)?;
                 let resized = img.thumbnail(512, 512);
@@ -22,7 +23,9 @@ async fn sticker(ctx: Context) -> anyhow::Result<()> {
 
                 let encoder = Encoder::from_rgba(canvas.as_raw(), canvas.width(), canvas.height());
 
-                encoder.encode(75.0).to_vec()
+                let webp_memory = encoder.encode(75.0);
+
+                Bytes::copy_from_slice(&webp_memory)
             };
 
             ctx.reply_media(

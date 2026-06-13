@@ -5,14 +5,15 @@ edition = "2024"
 
 [dependencies]
 anyhow.workspace = true
-astral-tl.workspace = true
 base64.workspace = true
+bytes.workspace = true
 humansize.workspace = true
 image.workspace = true
-inventory.workspace = true
+linkme.workspace = true
 reqwest.workspace = true
+scraper = { version = "0.27.0" }
 serde.workspace = true
-serde_json.workspace = true
+serde_json = "1.0.149"
 sysinfo.workspace = true
 viola_core.workspace = true
 viola_macros.workspace = true
