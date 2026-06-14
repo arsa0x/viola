@@ -1,14 +1,24 @@
 use async_trait::async_trait;
-// use wacore::net::StreamingHttpResponse;
-use whatsapp_rust::http::{HttpClient, HttpRequest, HttpResponse};
+use whatsapp_rust::{
+    http::{HttpClient, HttpRequest, HttpResponse},
+    wacore::net::{StreamingHttpResponse, UploadBody},
+};
 
 pub struct ReqwestHttpClient {
-    pub client: reqwest::Client,
+    pub async_client: reqwest::Client,
+    pub blocking_client: reqwest::blocking::Client,
 }
 
 impl ReqwestHttpClient {
-    pub fn new(client: reqwest::Client) -> Self {
-        Self { client }
+    pub fn new() -> Self {
+        Self {
+            async_client: reqwest::Client::builder()
+                .build()
+                .expect("failed to build async client"),
+            blocking_client: reqwest::blocking::Client::builder()
+                .build()
+                .expect("failed to build blocking client"),
+        }
     }
 }
 
@@ -16,7 +26,7 @@ impl ReqwestHttpClient {
 impl HttpClient for ReqwestHttpClient {
     async fn execute(&self, request: HttpRequest) -> anyhow::Result<HttpResponse> {
         let method = request.method.parse::<reqwest::Method>()?;
-        let mut req_builder = self.client.request(method, request.url);
+        let mut req_builder = self.async_client.request(method, request.url);
 
         for (key, value) in request.headers {
             req_builder = req_builder.header(key, value);
@@ -36,17 +46,60 @@ impl HttpClient for ReqwestHttpClient {
         })
     }
 
-    // fn supports_streaming(&self) -> bool {
-    //     true
-    // }
+    fn supports_streaming(&self) -> bool {
+        true
+    }
 
-    // fn execute_streaming(
-    //     &self,
-    //     request: HttpRequest,
-    // ) -> Result<StreamingHttpResponse, anyhow::Error> {
-    //     Ok(StreamingHttpResponse {
-    //         status_code: response.status_code,
-    //         body: Box::new(response.body_reader),
-    //     })
-    // }
+    fn execute_streaming(&self, request: HttpRequest) -> anyhow::Result<StreamingHttpResponse> {
+        let method = request.method.parse::<reqwest::Method>()?;
+        let mut req_builder = self.blocking_client.request(method, request.url);
+
+        for (key, value) in request.headers {
+            req_builder = req_builder.header(key, value);
+        }
+
+        if let Some(body) = request.body {
+            req_builder = req_builder.body(body.to_vec());
+        }
+
+        let response = req_builder.send()?;
+        let status = response.status();
+
+        Ok(StreamingHttpResponse {
+            status_code: status.as_u16(),
+            body: Box::new(response),
+        })
+    }
+
+    fn supports_upload_streaming(&self) -> bool {
+        true
+    }
+
+    fn execute_upload(
+        &self,
+        request: HttpRequest,
+        body: UploadBody,
+        content_length: u64,
+    ) -> anyhow::Result<HttpResponse> {
+        let method = request.method.parse::<reqwest::Method>()?;
+        let mut req_builder = self.blocking_client.request(method, request.url);
+
+        for (key, value) in request.headers {
+            req_builder = req_builder.header(key, value);
+        }
+
+        req_builder = req_builder.header(reqwest::header::CONTENT_LENGTH, content_length);
+
+        let req_body = reqwest::blocking::Body::sized(body, content_length);
+        req_builder = req_builder.body(req_body);
+
+        let response = req_builder.send()?;
+        let status = response.status();
+        let resp_body = response.bytes()?.to_vec();
+
+        Ok(HttpResponse {
+            status_code: status.as_u16(),
+            body: resp_body,
+        })
+    }
 }

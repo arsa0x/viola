@@ -60,7 +60,7 @@ futures.workspace = true
 lexopt = "0.3.2"
 log.workspace = true
 qrcode = "0.14.1"
-reqwest.workspace = true
+reqwest = { workspace = true, features = ["blocking"] }
 serde.workspace = true
 tokio.workspace = true
 toml.workspace = true

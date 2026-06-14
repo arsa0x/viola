@@ -1,3 +1,4 @@
+mod backend;
 mod client;
 mod utils;
 
@@ -61,9 +62,7 @@ async fn main() -> anyhow::Result<()> {
     let bot = Bot::builder()
         .with_backend(backend)
         .with_transport_factory(TokioWebSocketTransportFactory::new())
-        .with_http_client(client::ReqwestHttpClient::new(
-            reqwest::Client::builder().build()?,
-        ))
+        .with_http_client(client::ReqwestHttpClient::new())
         .with_runtime(TokioRuntime)
         .on_event(move |event, client| {
             let state = Arc::clone(&state);
