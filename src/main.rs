@@ -2,6 +2,7 @@ mod client;
 mod store;
 mod utils;
 
+use crate::{client::IsahcClient, store::redb_store::RedbStore};
 use qrcode::render::unicode;
 use std::{io::Write, sync::Arc, time::Instant};
 use viola_core::{
@@ -17,8 +18,6 @@ use whatsapp_rust::{
     transport::TokioWebSocketTransportFactory,
     types::events::Event,
 };
-
-use crate::store::redb_store::RedbStore;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -42,18 +41,15 @@ async fn main() -> anyhow::Result<()> {
     let store_path = dir.join("store.redb");
     let backend = RedbStore::new(&store_path.to_string_lossy())?;
 
-    let http_client = reqwest::Client::builder()
-        .cookie_store(true)
-        .build()
-        .expect("failed to build reqwest client");
-
     let router = Arc::new(Router::new());
+
+    let isahc_client = isahc::HttpClient::builder().build()?;
 
     let state = Arc::new(AppState::new(
         Arc::clone(&config),
         Arc::clone(&router),
         Arc::new(dir),
-        http_client,
+        isahc_client.clone(),
     ));
 
     log::info!("SQLite backend initialized");
@@ -63,7 +59,7 @@ async fn main() -> anyhow::Result<()> {
     let bot = Bot::builder()
         .with_backend(backend)
         .with_transport_factory(TokioWebSocketTransportFactory::new())
-        .with_http_client(client::ReqwestHttpClient::new())
+        .with_http_client(IsahcClient::new(isahc_client))
         .with_runtime(TokioRuntime)
         .on_event(move |event, client| {
             let state = Arc::clone(&state);
@@ -91,9 +87,8 @@ async fn main() -> anyhow::Result<()> {
 
                             if let Ok(permit) = state.semaphore.clone().try_acquire_owned() {
                                 let ctx = Context {
-                                    msg: MessageContext::from_parts(msg, info, client.clone()),
+                                    msg_ctx: MessageContext::from_parts(msg, info, client.clone()),
                                     args,
-                                    client,
                                     state,
                                     created_at: start_time,
                                 };
@@ -120,26 +115,9 @@ async fn main() -> anyhow::Result<()> {
         .build()
         .await?;
 
-    //let mut bot_handle =
     bot.run().await;
 
     log::info!("bot is running. press ctrl+c to stop.");
-
-    // https://github.com/vrypt-cpp/sora-on-rust/blob/main/src/main.rs#L61
-    // tokio::select! {
-    //     res = &mut bot_handle => {
-    //         match res {
-    //             Ok(_) => log::info!("bot stopped normally."),
-    //             Err(e) => log::error!("bot stopped with error: {:?}", e),
-    //         }
-    //     }
-    //     _ = tokio::signal::ctrl_c() => {
-    //         log::info!("SIGINT received, performing graceful shutdown...");
-    //         bot.client().disconnect().await;
-    //         let _ = bot_handle.await;
-    //         log::info!("shutdown complete. goodbye!");
-    //     }
-    // }
 
     Ok(())
 }

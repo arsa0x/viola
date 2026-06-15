@@ -64,7 +64,7 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
         platform,
         uptime
     );
-    ctx.reply(&text).await?;
+    ctx.reply_text(&text).await?;
 
     Ok(())
 }

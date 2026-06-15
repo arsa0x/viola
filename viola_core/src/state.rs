@@ -1,6 +1,6 @@
 use crate::{config::Config, router::Router};
-use reqwest::Client;
-use std::{path::PathBuf, sync::Arc, time::Instant};
+use isahc::AsyncBody;
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Instant};
 use tokio::sync::Semaphore;
 
 pub struct AppState {
@@ -8,27 +8,72 @@ pub struct AppState {
     pub router: Arc<Router>,
     pub start_time: Instant,
     pub semaphore: Arc<Semaphore>,
-    pub http: Client,
-    pub http_no_redirect: Client,
+    pub http: isahc::HttpClient,
     pub dir: Arc<PathBuf>,
 }
 
 impl AppState {
-    pub fn new(config: Arc<Config>, router: Arc<Router>, dir: Arc<PathBuf>, http: Client) -> Self {
-        let http_no_redirect = reqwest::Client::builder()
-            .cookie_store(true)
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .expect("failed to build reqwest client with no redirect");
-
+    pub fn new(
+        config: Arc<Config>,
+        router: Arc<Router>,
+        dir: Arc<PathBuf>,
+        client: isahc::HttpClient,
+    ) -> Self {
         Self {
             config,
             router,
             start_time: Instant::now(),
             semaphore: Arc::new(Semaphore::new(100)),
-            http,
-            http_no_redirect: http_no_redirect,
             dir,
+            http: client,
         }
+    }
+
+    pub fn request(&self, method: impl Into<String>, url: impl Into<String>) -> HttpRequestBuilder {
+        HttpRequestBuilder::new(method, url)
+    }
+
+    pub async fn send(
+        &self,
+        req: HttpRequestBuilder,
+    ) -> anyhow::Result<isahc::Response<AsyncBody>> {
+        let mut builder = isahc::Request::builder()
+            .method(req.method.as_str())
+            .uri(req.url.as_str());
+
+        for (key, value) in req.headers {
+            builder = builder.header(key, value);
+        }
+        let request = builder.body(req.body.unwrap_or_default())?;
+
+        Ok(self.http.send_async(request).await?)
+    }
+}
+
+pub struct HttpRequestBuilder {
+    method: String,
+    url: String,
+    headers: HashMap<String, String>,
+    body: Option<String>,
+}
+
+impl HttpRequestBuilder {
+    pub fn new(method: impl Into<String>, url: impl Into<String>) -> Self {
+        Self {
+            method: method.into(),
+            url: url.into(),
+            headers: HashMap::new(),
+            body: None,
+        }
+    }
+
+    pub fn header(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.headers.insert(key.into(), value.into());
+        self
+    }
+
+    pub fn body(mut self, body: impl Into<String>) -> Self {
+        self.body = Some(body.into());
+        self
     }
 }

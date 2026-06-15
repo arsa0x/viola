@@ -22,16 +22,12 @@ image = {
   default-features = false,
   features = ["jpeg", "png"]
 }
-isahc = "2.0.0"
+isahc = { version = "2.0.0", features = ["cookies"] }
 linkme = "0.3"
 log = "0.4.29"
-reqwest = {
-  version = "0.13.4",
-  default-features = false,
-  features = ["http2", "rustls"]
-}
 serde = { version = "1.0.228", features = ["derive"] }
 sysinfo = "0.39.3"
+tempfile = "3"
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
 toml = "1.1.2"
 viola_core = { path = "viola_core/" }
@@ -40,7 +36,7 @@ viola_plugin = { path = "viola_plugin/" }
 webp = "0.3.1"
 whatsapp-rust = {
   git = "https://github.com/oxidezap/whatsapp-rust",
-  rev = "908d6cf",
+  rev = "a725074",
   default-features = false,
   features = [
     "signal",
@@ -59,11 +55,11 @@ compact_str.workspace = true
 dirs.workspace = true
 env_logger = "0.11.10"
 futures.workspace = true
+isahc.workspace = true
 lexopt = "0.3.2"
 log.workspace = true
 qrcode = "0.14.1"
 redb = "4.1.0"
-reqwest = { workspace = true, features = ["blocking"] }
 serde.workspace = true
 tokio.workspace = true
 toml.workspace = true

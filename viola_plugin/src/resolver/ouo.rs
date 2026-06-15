@@ -1,144 +1,152 @@
-// use anyhow::Context as AnyhowContext;
-// use reqwest::Url;
-// use viola_core::context::Context;
-// use viola_macros::command;
+use anyhow::Context as AnyhowContext;
+use isahc::{
+    AsyncReadResponseExt,
+    config::{Configurable, RedirectPolicy},
+};
+use url::{Url, form_urlencoded};
+use viola_core::context::Context;
+use viola_macros::command;
 
-// pub async fn ouo_bypass(
-//     client: &reqwest::Client,
-//     url: &str,
-//     follow_redirect: bool,
-// ) -> anyhow::Result<Option<String>> {
-//     let url_obj = Url::parse(url)?;
-//     let domain = url_obj.host_str().context("failed getting domain")?;
-//     println!("start resolver: {}", url);
-//     let origin = format!("{}://{}", url_obj.scheme(), domain);
-//     let user_agent = "Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0";
+const UA: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0";
+const HEADERS: [(&str, &str); 5] = [
+    ("User-Agent", UA),
+    (
+        "Accept",
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    ),
+    ("Accept-Language", "en-US,en;q=0.9"),
+    ("Upgrade-Insecure-Requests", "1"),
+    ("Sec-Fetch-Site", "same-origin"),
+];
 
-//     let init_res = client
-//         .get(url)
-//         .header("User-Agent", user_agent)
-//         .header(
-//             "Accept",
-//             "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-//         )
-//         .header("Accept-Language", "en-US,en;q=0.9")
-//         .header("Upgrade-Insecure-Requests", "1")
-//         .header("Sec-Fetch-Site", "same-origin")
-//         .send()
-//         .await?;
+pub async fn ouo_bypass(ctx: &Context, url: &str) -> anyhow::Result<Option<String>> {
+    let url_obj = Url::parse(url)?;
+    let domain = url_obj.host_str().context("failed getting domain")?;
 
-//     println!("status: {}", init_res.status());
+    let origin = format!("{}://{}", url_obj.scheme(), domain);
 
-//     if !init_res.status().is_success() {
-//         return Ok(None);
-//     }
+    let mut init_req = ctx.state.request("GET", url);
 
-//     let init_html = init_res.text().await?;
+    for (key, value) in HEADERS {
+        init_req = init_req.header(key, value);
+    }
 
-//     println!("html: {}", init_html);
+    let mut init_res = ctx.state.send(init_req).await?;
 
-//     let token_value = {
-//         let document = tl::parse(&init_html, tl::ParserOptions::default())?;
-//         let parser = document.parser();
+    let cookies = init_res
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .filter_map(|cookie| cookie.split(';').next())
+        .collect::<Vec<_>>()
+        .join("; ");
 
-//         let token_node = document
-//             .query_selector(r#"input[name="_token"]"#)
-//             .context("failed to execute selector query")?
-//             .next()
-//             .and_then(|handle| handle.get(parser))
-//             .and_then(|node| node.as_tag());
+    if !init_res.status().is_success() {
+        return Ok(None);
+    }
 
-//         println!("token: {:?}", token_node);
+    let init_html = init_res.text().await?;
 
-//         match token_node {
-//             Some(tag) => match tag.attributes().get("value") {
-//                 Some(Some(val)) => val.as_utf8_str().into_owned(),
-//                 _ => return Ok(None),
-//             },
-//             None => return Ok(None),
-//         }
-//     };
+    let token_value = {
+        let document = tl::parse(&init_html, tl::ParserOptions::default())?;
+        let parser = document.parser();
 
-//     let next_url = url.replace(&format!("{}/", domain), &format!("{}/xreallcygo/", domain));
-//     let referer = url.replace(&format!("{}/", domain), &format!("{}/go/", domain));
-//     let form_data = [("_token", token_value.as_str()), ("x-token", "")];
+        let token_node = document
+            .query_selector(r#"input[name="_token"]"#)
+            .context("failed to execute selector query")?
+            .next()
+            .and_then(|handle| handle.get(parser))
+            .and_then(|node| node.as_tag());
 
-//     let post_res = client
-//         .post(&next_url)
-//         .header("User-Agent", user_agent)
-//         .header(
-//             "Accept",
-//             "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-//         )
-//         .header("Accept-Language", "en-US,en;q=0.9")
-//         .header("Referer", referer)
-//         .header("Origin", origin)
-//         .header("Content-Type", "application/x-www-form-urlencoded")
-//         .header("Upgrade-Insecure-Requests", "1")
-//         .header("Sec-Fetch-Site", "same-origin")
-//         .header("Sec-Fetch-Dest", "document")
-//         .header("Sec-Fetch-Mode", "navigate")
-//         .header("Sec-Fetch-User", "?1")
-//         .header("Priority", "u=0, i")
-//         .form(&form_data)
-//         .send()
-//         .await?;
+        match token_node {
+            Some(tag) => match tag.attributes().get("value") {
+                Some(Some(val)) => val.as_utf8_str().into_owned(),
+                _ => return Ok(None),
+            },
+            None => return Ok(None),
+        }
+    };
 
-//     if !post_res.status().is_success() {
-//         return Ok(None);
-//     }
+    let next_url = url.replace(&format!("{}/", domain), &format!("{}/xreallcygo/", domain));
+    let referer = url.replace(&format!("{}/", domain), &format!("{}/go/", domain));
+    let form_data = [("_token", token_value.as_str()), ("x-token", "")];
+    let body_string = form_urlencoded::Serializer::new(String::new())
+        .extend_pairs(form_data)
+        .finish();
 
-//     let final_html = post_res.text().await?;
+    let mut post_req = isahc::Request::builder()
+        .redirect_policy(RedirectPolicy::None)
+        .method("POST")
+        .uri(&next_url)
+        .header("User-Agent", UA)
+        .header(
+            "Accept",
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        )
+        .header("Accept-Language", "en-US,en;q=0.9")
+        .header("Referer", referer)
+        .header("Origin", origin)
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .header("Upgrade-Insecure-Requests", "1")
+        .header("Sec-Fetch-Site", "same-origin")
+        .header("Sec-Fetch-Dest", "document")
+        .header("Sec-Fetch-Mode", "navigate")
+        .header("Sec-Fetch-User", "?1")
+        .header("Priority", "u=0, i");
 
-//     let final_url = {
-//         let final_doc = tl::parse(&final_html, tl::ParserOptions::default())?;
-//         let final_parser = final_doc.parser();
-//         let selector_str = if follow_redirect { "a" } else { "div.row a" };
+    if !cookies.is_empty() {
+        post_req = post_req.header("Cookie", cookies);
+    }
 
-//         final_doc
-//             .query_selector(selector_str)
-//             .context("failed final link selector query")?
-//             .next()
-//             .and_then(|handle| handle.get(final_parser))
-//             .and_then(|node| node.as_tag())
-//             .and_then(|tag| tag.attributes().get("href"))
-//             .flatten()
-//             .map(|val| val.as_utf8_str().into_owned())
-//     };
+    let mut post_res = ctx
+        .state
+        .http
+        .send_async(post_req.body(body_string)?)
+        .await?;
 
-//     Ok(final_url)
-// }
+    let final_html = post_res.text().await?;
 
-// const HELP: &str = "USAGE: .ouo [-r|--redirect] <ouo_url>";
+    let final_url = {
+        let final_doc = tl::parse(&final_html, tl::ParserOptions::default())?;
+        let final_parser = final_doc.parser();
 
-// #[command(trigger = ["ouo"], help = HELP)]
-// async fn ouo(ctx: Context) -> anyhow::Result<()> {
-//     let follow_redirect = ctx.args.iter().any(|a| a == "-r" || a == "--redirect");
+        final_doc
+            .query_selector("a")
+            .context("failed final link selector query")?
+            .next()
+            .and_then(|handle| handle.get(final_parser))
+            .and_then(|node| node.as_tag())
+            .and_then(|tag| tag.attributes().get("href"))
+            .flatten()
+            .map(|val| val.as_utf8_str().into_owned())
+    };
+    Ok(final_url)
+}
 
-//     let mut client_builder = reqwest::Client::builder().cookie_store(true);
+const HELP: &str = "USAGE: .ouo <ouo_url>";
 
-//     if !follow_redirect {
-//         client_builder = client_builder.redirect(reqwest::redirect::Policy::none());
-//     }
-//     let client = client_builder.build()?;
+#[command(trigger = ["ouo"], help = HELP)]
+async fn ouo(ctx: Context) -> anyhow::Result<()> {
+    let url = ctx.args.iter().find(|arg| {
+        arg.starts_with("https://") && (arg.contains("ouo.io") || arg.contains("ouo.press"))
+    });
 
-//     let url = ctx.args.iter().find(|arg| {
-//         arg.starts_with("https://") && (arg.contains("ouo.io") || arg.contains("ouo.press"))
-//     });
+    let Some(url) = url else {
+        ctx.reply_text(HELP).await?;
+        return Ok(());
+    };
 
-//     let Some(url) = url else {
-//         ctx.reply(HELP).await?;
-//         return Ok(());
-//     };
+    ctx.reply_wait().await?;
 
-//     match ouo_bypass(&client, url, follow_redirect).await? {
-//         Some(result) => {
-//             ctx.reply(&result).await?;
-//         }
-//         None => {
-//             ctx.reply("failed bypass").await?;
-//         }
-//     }
+    match ouo_bypass(&ctx, url).await? {
+        Some(result) => {
+            ctx.reply_text(&result).await?;
+        }
+        None => {
+            ctx.reply_failed().await?;
+        }
+    }
 
-//     Ok(())
-// }
+    Ok(())
+}

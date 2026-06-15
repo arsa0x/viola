@@ -1,5 +1,6 @@
-use reqwest::{Method, Url};
+use isahc::AsyncReadResponseExt;
 use std::collections::HashMap;
+use url::Url;
 use viola_core::context::Context;
 use viola_macros::command;
 use whatsapp_rust::CompactString;
@@ -50,14 +51,14 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
     if ctx.args.len() < 2 {
         ctx.reply_failed().await?;
 
-        ctx.reply(
+        ctx.reply_text(
             "usage:\n.http GET http://example.com \n-h \"Content-Type: application/json\" \n-q \"page=1\"",
         )
         .await?;
         return Ok(());
     }
 
-    let method = ctx.args[0].to_uppercase();
+    let method_str = ctx.args[0].to_uppercase();
     let mut url_str = ctx.args[1].clone();
 
     let mut headers = HashMap::new();
@@ -116,27 +117,27 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
         }
     }
 
-    let method = match Method::from_bytes(method.as_bytes()) {
-        Ok(m) => m,
+    let method = match isahc::http::Method::from_bytes(method_str.as_bytes()) {
+        Ok(method) => method,
         Err(_) => {
             ctx.reply_failed().await?;
-            ctx.reply("invalid http method").await?;
+            ctx.reply_text("invalid http method").await?;
             return Ok(());
         }
     };
 
-    let mut request = ctx.state.http.request(method, url_str.as_str());
+    let mut request = ctx.state.request(method.as_str(), url_str.as_str());
 
     for (key, value) in headers {
         request = request.header(key, value);
     }
 
     if let Some(body) = body {
-        request = request.body(body.to_string());
+        request = request.body(body);
     }
 
-    match request.send().await {
-        Ok(res) => {
+    match ctx.state.send(request).await {
+        Ok(mut res) => {
             let status = res.status();
 
             let body_text = match res.text().await {
@@ -144,22 +145,16 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
                 Err(_) => "failed to read body".to_string(),
             };
 
-            // let trimmed_body = if body_text.len() > 1500 {
-            //     format!("{}...", &body_text[..1500])
-            // } else {
-            //     body_text
-            // };
-
             ctx.reply_success().await?;
 
-            ctx.reply(&format!(
+            ctx.reply_text(&format!(
                 "status: {}\n\nbody:\n```{}\n```",
                 status, body_text
             ))
             .await?;
         }
         Err(e) => {
-            ctx.reply(&format!("request failed: {}", e)).await?;
+            ctx.reply_text(&format!("request failed: {}", e)).await?;
             ctx.reply_failed().await?;
         }
     }

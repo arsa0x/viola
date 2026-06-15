@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use image::{RgbaImage, imageops::overlay, load_from_memory};
-use viola_core::context::Context;
+use viola_core::context::{Context, media::Thumbnail, message::MessageBuilder};
 use viola_macros::command;
 use webp::Encoder;
 use whatsapp_rust::download::MediaType;
@@ -10,7 +10,7 @@ async fn sticker(ctx: Context) -> anyhow::Result<()> {
     if let Ok((img_msg, media_type)) = ctx.get_media() {
         if media_type == MediaType::Image {
             let webp: Bytes = {
-                let bytes = ctx.msg.client.download(img_msg).await?;
+                let bytes = ctx.msg_ctx.client.download(img_msg).await?;
                 let img = load_from_memory(&bytes)?;
                 let resized = img.thumbnail(512, 512);
 
@@ -28,12 +28,21 @@ async fn sticker(ctx: Context) -> anyhow::Result<()> {
                 Bytes::copy_from_slice(&webp_memory)
             };
 
-            ctx.reply_media(
-                viola_core::context::MediaSource::Bytes(webp.to_vec()),
-                MediaType::Sticker,
-                None,
-            )
-            .await?;
+            let upload = ctx
+                .msg_ctx
+                .client
+                .upload(webp.to_vec(), MediaType::Sticker, Default::default())
+                .await?;
+
+            let msg = MessageBuilder {
+                ctx: &ctx,
+                length: webp.len() as u64,
+                upload,
+            };
+
+            let thumbnail_bytes = Thumbnail::image_thumbnail_from_memory(&webp);
+
+            ctx.reply(msg.sticker_message(thumbnail_bytes)).await?;
         } else {
             ctx.reply_failed().await?;
         }
