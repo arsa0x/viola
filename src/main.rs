@@ -1,5 +1,5 @@
-mod backend;
 mod client;
+mod store;
 mod utils;
 
 use qrcode::render::unicode;
@@ -14,10 +14,11 @@ use viola_plugin as _;
 use whatsapp_rust::{
     TokioRuntime,
     bot::{Bot, MessageContext},
-    store::SqliteStore,
     transport::TokioWebSocketTransportFactory,
     types::events::Event,
 };
+
+use crate::store::redb_store::RedbStore;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -38,8 +39,8 @@ async fn main() -> anyhow::Result<()> {
         })
         .init();
 
-    let store_path = dir.join("store").join("whatsapp.db");
-    let backend = SqliteStore::new(&store_path.to_string_lossy()).await?;
+    let store_path = dir.join("store.redb");
+    let backend = RedbStore::new(&store_path.to_string_lossy())?;
 
     let http_client = reqwest::Client::builder()
         .cookie_store(true)

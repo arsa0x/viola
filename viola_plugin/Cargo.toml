@@ -10,7 +10,16 @@ bytes.workspace = true
 humansize.workspace = true
 image.workspace = true
 linkme.workspace = true
-reqwest.workspace = true
+reqwest = {
+  workspace = true,
+  features = [
+    "charset",
+    "cookies",
+    "form",
+    "json",
+    "query",
+  ]
+}
 scraper = { version = "0.27.0" }
 serde.workspace = true
 serde_json = "1.0.149"

@@ -22,12 +22,13 @@ image = {
   default-features = false,
   features = ["jpeg", "png"]
 }
+isahc = "2.0.0"
 linkme = "0.3"
 log = "0.4.29"
 reqwest = {
   version = "0.13.4",
   default-features = false,
-  features = ["charset", "cookies", "form", "http2", "json", "query", "rustls"]
+  features = ["http2", "rustls"]
 }
 serde = { version = "1.0.228", features = ["derive"] }
 sysinfo = "0.39.3"
@@ -43,7 +44,6 @@ whatsapp-rust = {
   default-features = false,
   features = [
     "signal",
-    "sqlite-storage",
     "tokio-native",
     "tokio-runtime",
     "tokio-transport",
@@ -53,6 +53,8 @@ whatsapp-rust = {
 [dependencies]
 anyhow.workspace = true
 async-trait = "0.1.89"
+bincode = { version = "2.0.1", features = ["serde"] }
+bytes.workspace = true
 compact_str.workspace = true
 dirs.workspace = true
 env_logger = "0.11.10"
@@ -60,6 +62,7 @@ futures.workspace = true
 lexopt = "0.3.2"
 log.workspace = true
 qrcode = "0.14.1"
+redb = "4.1.0"
 reqwest = { workspace = true, features = ["blocking"] }
 serde.workspace = true
 tokio.workspace = true

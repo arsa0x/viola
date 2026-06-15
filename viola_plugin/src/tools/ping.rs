@@ -42,9 +42,9 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
 
     let platform = System::name().unwrap_or_else(|| "Unknown".to_string());
 
-    let processing = ctx.processing_ms();
-
     let uptime = format_duration(ctx.state.start_time.elapsed());
+
+    let processing = ctx.processing_ms();
 
     let text = format!(
         concat!(
