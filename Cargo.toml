@@ -36,7 +36,7 @@ viola_plugin = { path = "viola_plugin/" }
 webp = "0.3.1"
 whatsapp-rust = {
   git = "https://github.com/oxidezap/whatsapp-rust",
-  rev = "a725074",
+  rev = "d441e5f",
   default-features = false,
   features = [
     "signal",
