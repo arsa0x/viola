@@ -1,10 +1,12 @@
 pub mod args;
 pub mod info;
 pub mod media;
-pub mod message;
 pub mod send;
 
-use crate::state::AppState;
+use crate::{
+    context::{args::Args, info::Info, media::Media, send::Sender},
+    state::AppState,
+};
 use compact_str::CompactString;
 use std::{sync::Arc, time::Instant};
 use whatsapp_rust::bot::MessageContext;
@@ -14,4 +16,19 @@ pub struct Context {
     pub args: Vec<CompactString>,
     pub state: Arc<AppState>,
     pub created_at: Instant,
+}
+
+impl Context {
+    pub fn send(&self) -> Sender<'_> {
+        Sender { ctx: self }
+    }
+    pub fn info(&self) -> Info<'_> {
+        Info { ctx: self }
+    }
+    pub fn args(&self) -> Args<'_> {
+        Args { ctx: self }
+    }
+    pub fn media(&self) -> Media<'_> {
+        Media { ctx: self }
+    }
 }

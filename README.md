@@ -64,7 +64,7 @@ EXAMPLE:
     help = HELP
 )]
 async fn ping(ctx: Context) -> anyhow::Result<()> {
-    ctx.reply("pong").await?;
+    ctx.send().reply_text("pong").await?;
 
     Ok(())
 }
@@ -100,7 +100,7 @@ owner = "628123456789"
 ├── src                 # bot entry point
 ├── viola_core          # command system, router, context, config, and state
 ├── viola_macros        # procedural macros for command registration
-└── viola_plugin        # collection of all bot native and lua plugins
+└── viola_plugin        # collection of all bot plugins
     └── src
         ├── downloader
         └── tools

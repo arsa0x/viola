@@ -1,34 +1,78 @@
-use crate::utils;
-use std::io::Cursor;
+use crate::context::Context;
+use anyhow::{Result, anyhow};
+use whatsapp_rust::{
+    download::{Downloadable, MediaType},
+    upload::UploadResponse,
+    waproto::whatsapp,
+};
 
-pub struct Thumbnail;
+pub enum MediaRef<'a> {
+    Image(&'a dyn Downloadable),
+    Video(&'a dyn Downloadable),
+    Audio(&'a dyn Downloadable),
+    Sticker(&'a dyn Downloadable),
+    Document(&'a dyn Downloadable),
+}
 
-impl Thumbnail {
-    pub fn image_thumbnail_from_memory(media_bytes: &[u8]) -> Option<Vec<u8>> {
-        let img = image::load_from_memory(media_bytes).ok()?;
-        let thumbnail = img.thumbnail(100, 100);
+pub struct Media<'a> {
+    pub ctx: &'a Context,
+}
 
-        let mut jpeg_bytes = Cursor::new(Vec::new());
-
-        thumbnail
-            .write_to(&mut jpeg_bytes, image::ImageFormat::Jpeg)
-            .ok()?;
-        Some(jpeg_bytes.into_inner())
+impl<'a> Media<'a> {
+    pub async fn download(&self, dl: &'a dyn Downloadable) -> Result<Vec<u8>> {
+        Ok(self.ctx.msg_ctx.client.download(dl).await?)
     }
 
-    pub fn video_thumbnail(media_bytes: &Vec<u8>) -> Option<Vec<u8>> {
-        let temp_path = tempfile::Builder::new()
-            .prefix("thumb_")
-            .suffix(".mp4")
-            .tempdir_in(dirs::home_dir()?.join("viola").join("cache"))
-            .expect("failed to found cache dir");
+    pub async fn upload(&self, media: Vec<u8>, media_type: MediaType) -> Result<UploadResponse> {
+        self.ctx
+            .msg_ctx
+            .client
+            .upload(media, media_type, Default::default())
+            .await
+    }
 
-        if std::fs::write(&temp_path, media_bytes).is_ok() {
-            let res = utils::generate_video_thumbnail(&temp_path.path().to_string_lossy()).ok();
-            let _ = std::fs::remove_file(temp_path.path());
-            res
-        } else {
-            None
+    pub fn current(&self) -> Result<MediaRef<'_>> {
+        Self::extract_media(&self.ctx.msg_ctx.message)
+    }
+
+    pub fn quoted(&self) -> Result<MediaRef<'_>> {
+        let msg = &self.ctx.msg_ctx.message;
+
+        let ext = msg
+            .extended_text_message
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("not a reply message"))?;
+
+        let quoted = ext
+            .context_info
+            .as_ref()
+            .and_then(|ctx| ctx.quoted_message.as_ref())
+            .ok_or_else(|| anyhow::anyhow!("quoted message not found"))?;
+
+        Self::extract_media(quoted)
+    }
+
+    fn extract_media(msg: &'a whatsapp::Message) -> Result<MediaRef<'a>> {
+        if let Some(img) = &msg.image_message {
+            return Ok(MediaRef::Image(img.as_ref()));
         }
+
+        if let Some(video) = &msg.video_message {
+            return Ok(MediaRef::Video(video.as_ref()));
+        }
+
+        if let Some(audio) = &msg.audio_message {
+            return Ok(MediaRef::Audio(audio.as_ref()));
+        }
+
+        if let Some(sticker) = &msg.sticker_message {
+            return Ok(MediaRef::Sticker(sticker.as_ref()));
+        }
+
+        if let Some(doc) = &msg.document_message {
+            return Ok(MediaRef::Document(doc.as_ref()));
+        }
+
+        Err(anyhow!("quoted message does not contain media"))
     }
 }

@@ -44,7 +44,7 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
 
     let uptime = format_duration(ctx.state.start_time.elapsed());
 
-    let processing = ctx.processing_ms();
+    let processing = ctx.info().processing_ms();
 
     let text = format!(
         concat!(
@@ -64,7 +64,7 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
         platform,
         uptime
     );
-    ctx.reply_text(&text).await?;
+    ctx.send().reply_text(&text).await?;
 
     Ok(())
 }

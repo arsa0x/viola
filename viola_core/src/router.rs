@@ -57,21 +57,24 @@ impl Router {
                 plugin.help
             };
 
-            ctx.reply_text(&format!(
-                "{}\n\nALIASES: {}\n\n{}",
-                description, triggers, help
-            ))
-            .await?;
+            ctx.send()
+                .reply_text(&format!(
+                    "{}\n\nALIASES: {}\n\n{}",
+                    description, triggers, help
+                ))
+                .await?;
             return Ok(());
         }
 
-        if plugin.group_only && !ctx.is_group() {
-            ctx.reply_text("command only works in groups").await?;
+        if plugin.group_only && !ctx.info().is_group() {
+            ctx.send()
+                .reply_text("command only works in groups")
+                .await?;
             return Ok(());
         }
 
-        if plugin.owner && ctx.sender_str()? != ctx.state.config.bot.owner {
-            ctx.reply_text("owner only command").await?;
+        if plugin.owner && ctx.info().sender_str()? != ctx.state.config.bot.owner {
+            ctx.send().reply_text("owner only command").await?;
             return Ok(());
         }
 

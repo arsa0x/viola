@@ -10,6 +10,7 @@ members = [".", "viola_core/", "viola_macros/", "viola_plugin/"]
 [workspace.dependencies]
 ahash = "0.8.12"
 anyhow = "1.0.102"
+async-trait = "0.1.89"
 base64 = "0.22.1"
 bytes = { version = "1", default-features = false }
 compact_str = "0.9.1"
@@ -48,7 +49,7 @@ whatsapp-rust = {
 
 [dependencies]
 anyhow.workspace = true
-async-trait = "0.1.89"
+async-trait.workspace = true
 bincode = { version = "2.0.1", features = ["serde"] }
 bytes.workspace = true
 compact_str.workspace = true

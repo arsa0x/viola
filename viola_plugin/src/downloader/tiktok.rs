@@ -13,7 +13,6 @@ use serde::Deserialize;
 use url::Url;
 use viola_core::context::Context;
 use viola_macros::command;
-use whatsapp_rust::download::MediaType;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,11 +25,13 @@ pub struct TikTokData {
 
 #[command(trigger = ["tt", "tiktok", "tik"])]
 async fn tiktok(ctx: Context) -> anyhow::Result<()> {
-    ctx.reply_wait().await?;
+    ctx.send().reply_wait().await?;
 
     let Some(tiktok_url) = ctx.args.iter().find(|f| f.contains("https")) else {
-        ctx.reply_failed().await?;
-        ctx.reply_text("usage: .tiktok [-mp3] <tiktok_url>").await?;
+        ctx.send().reply_failed().await?;
+        ctx.send()
+            .reply_text("usage: .tiktok [-mp3] <tiktok_url>")
+            .await?;
         return Ok(());
     };
 
@@ -59,42 +60,36 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
         let result: TikTokData = serde_json::from_str(&res)?;
 
         if !result.status {
-            ctx.reply_text("failed").await?;
-            ctx.reply_failed().await?;
+            ctx.send().reply_text("failed").await?;
+            ctx.send().reply_failed().await?;
             return Ok::<(), anyhow::Error>(());
         }
 
         if audio_only {
             let bytes = general_purpose::STANDARD.decode(result.audio_id)?;
             let url = String::from_utf8(bytes)?;
-            let media = ctx.state.http.get_async(&url).await?.bytes().await?;
-
-            let msg = ctx.media_message(media, MediaType::Audio, None).await?;
-            ctx.reply(msg).await?;
-            ctx.reply_success().await?;
+            let mut response = ctx.state.http.get_async(&url).await?;
+            let media = response.bytes().await?;
+            ctx.send().audio(media).await?;
+            ctx.send().reply_success().await?;
         } else {
             let bytes = general_purpose::STANDARD.decode(result.video_id)?;
             let url = String::from_utf8(bytes)?;
-            let media = ctx.state.http.get_async(&url).await?.bytes().await?;
-
-            let msg = ctx
-                .media_message(
-                    media,
-                    MediaType::Video,
-                    Some(format!("author: {}", result.author)),
-                )
+            let mut response = ctx.state.http.get_async(&url).await?;
+            let media = response.bytes().await?;
+            ctx.send()
+                .video(media)
+                .caption(format!("author: {}", result.author))
                 .await?;
-
-            ctx.reply(msg).await?;
-            ctx.reply_success().await?;
+            ctx.send().reply_success().await?;
         }
 
         Ok(())
     }
     .await
     {
-        ctx.reply_failed().await?;
-        ctx.reply_text(&e.to_string()).await?;
+        ctx.send().reply_failed().await?;
+        ctx.send().reply_text(&e.to_string()).await?;
     }
 
     Ok(())

@@ -1,16 +1,21 @@
-use super::Context;
+use crate::context::Context;
 
-impl Context {
+pub struct Args<'a> {
+    pub ctx: &'a Context,
+}
+
+impl<'a> Args<'a> {
     pub fn arg(&self, index: usize) -> Option<&str> {
-        self.args.get(index).map(|s| s.as_str())
+        self.ctx.args.get(index).map(|s| s.as_str())
     }
 
     pub fn rest(&self) -> String {
-        self.args.join(" ")
+        self.ctx.args.join(" ")
     }
 
     pub fn rest_from(&self, index: usize) -> String {
-        self.args
+        self.ctx
+            .args
             .iter()
             .skip(index)
             .map(|s| s.as_str())
