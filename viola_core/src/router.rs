@@ -35,9 +35,15 @@ impl Router {
     }
 
     pub async fn execute(&self, cmd: &str, ctx: Context) -> anyhow::Result<()> {
+        let config = ctx.state.read_config().await;
+
         let Some(plugin) = self.plugins.get(&UniCase::new(cmd)) else {
             return Ok(());
         };
+
+        if !config.bot.active && cmd != "bot" {
+            return Ok(());
+        }
 
         if self.is_help_flag(ctx.args.as_slice()) {
             let triggers = plugin
@@ -58,7 +64,7 @@ impl Router {
             };
 
             ctx.send()
-                .reply_text(&format!(
+                .quoted_text(&format!(
                     "{}\n\nALIASES: {}\n\n{}",
                     description, triggers, help
                 ))
@@ -68,13 +74,13 @@ impl Router {
 
         if plugin.group_only && !ctx.info().is_group() {
             ctx.send()
-                .reply_text("command only works in groups")
+                .quoted_text("command only works in groups")
                 .await?;
             return Ok(());
         }
 
-        if plugin.owner && ctx.info().sender_str()? != ctx.state.config.bot.owner {
-            ctx.send().reply_text("owner only command").await?;
+        if plugin.owner && ctx.info().sender_str()? != config.bot.owner {
+            ctx.send().quoted_text("owner only command").await?;
             return Ok(());
         }
 

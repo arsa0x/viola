@@ -1,4 +1,4 @@
-use super::redb_store::{
+use super::{
     APP_STATE_KEYS_TABLE, APP_STATE_MUTATION_MACS_TABLE, APP_STATE_VERSIONS_TABLE,
     AppStateMutationMacRecord, RedbStore,
 };
@@ -22,11 +22,7 @@ impl AppSyncStore for RedbStore {
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => {
-                    let (decoded, _): (AppStateSyncKey, usize) = bincode::serde::decode_from_slice(
-                        data.value(),
-                        bincode::config::standard(),
-                    )
-                    .map_err(|e| StoreError::Database(Box::new(e)))?;
+                    let decoded = self.decode(data.value())?;
                     Ok(Some(decoded))
                 }
                 None => Ok(None),
@@ -36,8 +32,7 @@ impl AppSyncStore for RedbStore {
 
     /// Set an app state sync key.
     async fn set_sync_key(&self, key_id: &[u8], key: AppStateSyncKey) -> Result<()> {
-        let encoded = bincode::serde::encode_to_vec(&key, bincode::config::standard())
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
+        let encoded = self.encode(&key)?;
         self.with_write_txn(APP_STATE_KEYS_TABLE, |table| {
             table
                 .insert((key_id, self.device_id), encoded.as_slice())
@@ -54,11 +49,7 @@ impl AppSyncStore for RedbStore {
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => {
-                    let (decoded, _): (HashState, usize) = bincode::serde::decode_from_slice(
-                        data.value(),
-                        bincode::config::standard(),
-                    )
-                    .map_err(|e| StoreError::Database(Box::new(e)))?;
+                    let decoded = self.decode(data.value())?;
                     Ok(decoded)
                 }
                 None => Ok(HashState::default()),
@@ -68,8 +59,7 @@ impl AppSyncStore for RedbStore {
 
     /// Set the app state version for a collection.
     async fn set_version(&self, name: &str, state: HashState) -> Result<()> {
-        let encoded = bincode::serde::encode_to_vec(state, bincode::config::standard())
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
+        let encoded = self.encode(&state)?;
         self.with_write_txn(APP_STATE_VERSIONS_TABLE, |table| {
             table
                 .insert((name, self.device_id), encoded.as_slice())
@@ -94,8 +84,7 @@ impl AppSyncStore for RedbStore {
                     version,
                     value_mac: m.value_mac.clone(),
                 };
-                let encoded = bincode::serde::encode_to_vec(record, bincode::config::standard())
-                    .map_err(|e| StoreError::Database(Box::new(e)))?;
+                let encoded = self.encode(&record)?;
                 table
                     .insert(
                         (name, self.device_id, m.index_mac.as_slice()),
@@ -115,12 +104,7 @@ impl AppSyncStore for RedbStore {
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => {
-                    let (decoded, _): (AppStateMutationMacRecord, usize) =
-                        bincode::serde::decode_from_slice(
-                            data.value(),
-                            bincode::config::standard(),
-                        )
-                        .map_err(|e| StoreError::Database(Box::new(e)))?;
+                    let decoded: AppStateMutationMacRecord = self.decode(data.value())?;
                     Ok(Some(decoded.value_mac))
                 }
                 None => Ok(None),
@@ -151,13 +135,7 @@ impl AppSyncStore for RedbStore {
                     .get((name, self.device_id, index_mac.as_slice()))
                     .map_err(|e| StoreError::Database(Box::new(e)))?
                 {
-                    let (decoded, _): (AppStateMutationMacRecord, usize) =
-                        bincode::serde::decode_from_slice(
-                            data.value(),
-                            bincode::config::standard(),
-                        )
-                        .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+                    let decoded: AppStateMutationMacRecord = self.decode(data.value())?;
                     out.insert(index_mac.clone(), decoded.value_mac);
                 }
             }

@@ -6,14 +6,22 @@ use crate::{
     },
 };
 use anyhow::Result;
-use whatsapp_rust::waproto::whatsapp::{self, MessageKey, message::ExtendedTextMessage};
+use whatsapp_rust::{
+    proto_helpers::MessageBuilderExt,
+    waproto::whatsapp::{self, MessageKey, message::ExtendedTextMessage},
+};
 
 pub struct Sender<'a> {
     pub ctx: &'a Context,
 }
 
 impl<'a> Sender<'a> {
-    pub async fn reply_text(&self, text: &str) -> Result<()> {
+    pub async fn text(&self, text: &str) -> Result<()> {
+        let reply = whatsapp::Message::text(text);
+        self.ctx.send().message(reply).await
+    }
+
+    pub async fn quoted_text(&self, text: &str) -> Result<()> {
         let reply = whatsapp::Message {
             extended_text_message: Some(Box::new(ExtendedTextMessage {
                 text: Some(text.to_string()),
@@ -22,14 +30,7 @@ impl<'a> Sender<'a> {
             })),
             ..Default::default()
         };
-
-        self.ctx
-            .msg_ctx
-            .client
-            .send_message(self.ctx.info().chat_jid(), reply)
-            .await?;
-
-        Ok(())
+        self.ctx.send().message(reply).await
     }
 
     pub async fn message(&self, message: whatsapp::Message) -> Result<()> {
@@ -63,6 +64,7 @@ impl<'a> Sender<'a> {
             ctx: self.ctx,
             caption: None,
             thumbnail: None,
+            quoted: false,
         }
     }
 
@@ -114,6 +116,6 @@ impl<'a> Sender<'a> {
 
     pub async fn reply_error(&self, err: impl std::fmt::Display) -> Result<()> {
         self.reply_failed().await?;
-        self.reply_text(&format!("Error:\n{}", err)).await
+        self.quoted_text(&format!("Error:\n{}", err)).await
     }
 }

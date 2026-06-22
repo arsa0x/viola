@@ -1,4 +1,4 @@
-use crate::store::redb_store::{MSG_SECRETS_TABLE, MsgSecretRecord, RedbStore};
+use super::{MSG_SECRETS_TABLE, MsgSecretRecord, RedbStore};
 use async_trait::async_trait;
 use redb::ReadableTable;
 use whatsapp_rust::{
@@ -98,9 +98,7 @@ impl MsgSecretStore for RedbStore {
                         message_ts: entry.message_ts,
                     },
                 };
-
                 let encoded = self.encode(&record)?;
-
                 table
                     .insert(key, encoded.as_slice())
                     .map_err(|e| StoreError::Database(Box::new(e)))?;

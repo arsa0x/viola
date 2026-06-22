@@ -1,4 +1,4 @@
-use super::redb_store::{
+use super::{
     BASE_KEYS_TABLE, BaseKeyRecord, DEVICE_REGISTRY_TABLE, GROUP_METADATA_TABLE,
     LID_PN_MAPPING_TABLE, RedbStore, SENDER_KEY_DEVICES_TABLE, SENT_MESSAGES_TABLE,
     SentMessageRecord, TC_TOKENS_TABLE,
@@ -143,9 +143,7 @@ impl ProtocolStore for RedbStore {
                 .get((lid, self.device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
-                let (decoded, _): (LidPnMappingEntry, usize) =
-                    bincode::serde::decode_from_slice(data.value(), bincode::config::standard())
-                        .map_err(|e| StoreError::Database(Box::new(e)))?;
+                let decoded: LidPnMappingEntry = self.decode(data.value())?;
                 Ok(Some(decoded))
             } else {
                 Ok(None)
@@ -164,10 +162,7 @@ impl ProtocolStore for RedbStore {
                 let (_, db_device_id) = k.value();
 
                 if db_device_id == self.device_id {
-                    let (decoded, _): (LidPnMappingEntry, usize) =
-                        bincode::serde::decode_from_slice(v.value(), bincode::config::standard())
-                            .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+                    let decoded: LidPnMappingEntry = self.decode(v.value())?;
                     if decoded.phone_number == phone {
                         return Ok(Some(decoded));
                     }
@@ -179,9 +174,7 @@ impl ProtocolStore for RedbStore {
 
     /// Store or update a LID-PN mapping.
     async fn put_lid_mapping(&self, entry: &LidPnMappingEntry) -> Result<()> {
-        let encoded = bincode::serde::encode_to_vec(entry, bincode::config::standard())
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+        let encoded = self.encode(entry)?;
         self.with_write_txn(LID_PN_MAPPING_TABLE, |table| {
             table
                 .insert((entry.lid.as_str(), self.device_id), encoded.as_slice())
@@ -199,8 +192,7 @@ impl ProtocolStore for RedbStore {
         }
         self.with_write_txn(LID_PN_MAPPING_TABLE, |table| {
             for entry in entries {
-                let encoded = bincode::serde::encode_to_vec(entry, bincode::config::standard())
-                    .map_err(|e| StoreError::Database(Box::new(e)))?;
+                let encoded = self.encode(entry)?;
                 table
                     .insert((entry.lid.as_str(), self.device_id), encoded.as_slice())
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
@@ -221,9 +213,7 @@ impl ProtocolStore for RedbStore {
                 let (_, db_device_id) = k.value();
 
                 if db_device_id == self.device_id {
-                    let (decoded, _): (LidPnMappingEntry, usize) =
-                        bincode::serde::decode_from_slice(v.value(), bincode::config::standard())
-                            .map_err(|e| StoreError::Database(Box::new(e)))?;
+                    let decoded: LidPnMappingEntry = self.decode(v.value())?;
                     results.push(decoded);
                 }
             }
@@ -239,9 +229,7 @@ impl ProtocolStore for RedbStore {
             base_key: base_key.to_vec(),
             created_at: wacore::time::now_secs() as i32,
         };
-        let encoded = bincode::serde::encode_to_vec(&record, bincode::config::standard())
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+        let encoded = self.encode(&record)?;
         self.with_write_txn(BASE_KEYS_TABLE, |table| {
             table
                 .insert((address, message_id, self.device_id), encoded.as_slice())
@@ -262,9 +250,7 @@ impl ProtocolStore for RedbStore {
                 .get((address, message_id, self.device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
-                let (decoded, _): (BaseKeyRecord, usize) =
-                    bincode::serde::decode_from_slice(data.value(), bincode::config::standard())
-                        .map_err(|e| StoreError::Database(Box::new(e)))?;
+                let decoded: BaseKeyRecord = self.decode(data.value())?;
                 Ok(decoded.base_key == current_base_key)
             } else {
                 Ok(false)
@@ -286,9 +272,7 @@ impl ProtocolStore for RedbStore {
 
     /// Update the device list for a user (called after usync responses).
     async fn update_device_list(&self, record: DeviceListRecord) -> Result<()> {
-        let encoded = bincode::serde::encode_to_vec(&record, bincode::config::standard())
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+        let encoded = self.encode(&record)?;
         self.with_write_txn(DEVICE_REGISTRY_TABLE, |table| {
             table
                 .insert((record.user.as_str(), self.device_id), encoded.as_slice())
@@ -311,8 +295,7 @@ impl ProtocolStore for RedbStore {
         }
         self.with_write_txn(DEVICE_REGISTRY_TABLE, |table| {
             for record in records {
-                let encoded = bincode::serde::encode_to_vec(&record, bincode::config::standard())
-                    .map_err(|e| StoreError::Database(Box::new(e)))?;
+                let encoded = self.encode(&record)?;
                 table
                     .insert((record.user.as_str(), self.device_id), encoded.as_slice())
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
@@ -328,9 +311,7 @@ impl ProtocolStore for RedbStore {
                 .get((user, self.device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
-                let (decoded, _): (DeviceListRecord, usize) =
-                    bincode::serde::decode_from_slice(data.value(), bincode::config::standard())
-                        .map_err(|e| StoreError::Database(Box::new(e)))?;
+                let decoded: DeviceListRecord = self.decode(data.value())?;
                 Ok(Some(decoded))
             } else {
                 Ok(None)
@@ -398,9 +379,7 @@ impl ProtocolStore for RedbStore {
                 .get((jid, self.device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
-                let (decoded, _): (TcTokenEntry, usize) =
-                    bincode::serde::decode_from_slice(data.value(), bincode::config::standard())
-                        .map_err(|e| StoreError::Database(Box::new(e)))?;
+                let decoded: TcTokenEntry = self.decode(data.value())?;
                 Ok(Some(decoded))
             } else {
                 Ok(None)
@@ -410,9 +389,7 @@ impl ProtocolStore for RedbStore {
 
     /// Store or update a trusted contact token for a JID.
     async fn put_tc_token(&self, jid: &str, entry: &TcTokenEntry) -> Result<()> {
-        let encoded = bincode::serde::encode_to_vec(entry, bincode::config::standard())
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+        let encoded = self.encode(entry)?;
         self.with_write_txn(TC_TOKENS_TABLE, |table| {
             table
                 .insert((jid, self.device_id), encoded.as_slice())
@@ -462,10 +439,7 @@ impl ProtocolStore for RedbStore {
                 let (db_jid, db_device_id) = k.value();
 
                 if db_device_id == self.device_id {
-                    let (decoded, _): (TcTokenEntry, usize) =
-                        bincode::serde::decode_from_slice(v.value(), bincode::config::standard())
-                            .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+                    let decoded: TcTokenEntry = self.decode(v.value())?;
                     if decoded.token_timestamp < cutoff_timestamp {
                         to_remove.push(db_jid.to_string());
                     }
@@ -496,9 +470,7 @@ impl ProtocolStore for RedbStore {
             payload: payload.to_vec(),
             created_at: wacore::time::now_secs() as i64,
         };
-        let encoded = bincode::serde::encode_to_vec(&record, bincode::config::standard())
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+        let encoded = self.encode(&record)?;
         self.with_write_txn(SENT_MESSAGES_TABLE, |table| {
             table
                 .insert((chat_jid, message_id, self.device_id), encoded.as_slice())
@@ -517,12 +489,7 @@ impl ProtocolStore for RedbStore {
                     .get((chat_jid, message_id, self.device_id))
                     .map_err(|e| StoreError::Database(Box::new(e)))?
                 {
-                    let (decoded, _): (SentMessageRecord, usize) =
-                        bincode::serde::decode_from_slice(
-                            data.value(),
-                            bincode::config::standard(),
-                        )
-                        .map_err(|e| StoreError::Database(Box::new(e)))?;
+                    let decoded: SentMessageRecord = self.decode(data.value())?;
                     record_opt = Some(decoded.payload);
                 }
             }
@@ -550,10 +517,7 @@ impl ProtocolStore for RedbStore {
                 let (db_chat, db_msg_id, db_device_id) = k.value();
 
                 if db_device_id == self.device_id {
-                    let (decoded, _): (SentMessageRecord, usize) =
-                        bincode::serde::decode_from_slice(v.value(), bincode::config::standard())
-                            .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+                    let decoded: SentMessageRecord = self.decode(v.value())?;
                     if decoded.created_at < cutoff_timestamp {
                         to_remove.push((db_chat.to_string(), db_msg_id.to_string()));
                     }

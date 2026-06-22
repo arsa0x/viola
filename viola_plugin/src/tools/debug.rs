@@ -5,19 +5,19 @@ use viola_macros::command;
 #[command(trigger = ["d"], owner = true)]
 async fn debug(ctx: Context) -> anyhow::Result<()> {
     ctx.send()
-        .reply_text(&format!("message: \n\n```{:#?}```", ctx.msg_ctx.message))
+        .quoted_text(&format!("message: \n\n```{:#?}```", ctx.msg_ctx.message))
         .await?;
     ctx.send()
-        .reply_text(&format!(
+        .quoted_text(&format!(
             "message_key: \n\n```{:#?}```",
             ctx.msg_ctx.message_key()
         ))
         .await?;
     ctx.send()
-        .reply_text(&format!("info: \n\n```{:#?}```", ctx.msg_ctx.info))
+        .quoted_text(&format!("info: \n\n```{:#?}```", ctx.msg_ctx.info))
         .await?;
     ctx.send()
-        .reply_text(&format!(
+        .quoted_text(&format!(
             "lid: \n\n```{:#?}```",
             ctx.msg_ctx
                 .client

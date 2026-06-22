@@ -1,10 +1,10 @@
 use crate::{config::Config, router::Router};
 use isahc::AsyncBody;
-use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Instant};
-use tokio::sync::Semaphore;
+use std::{collections::HashMap, fs, path::PathBuf, sync::Arc, time::Instant};
+use tokio::sync::{RwLock, Semaphore};
 
 pub struct AppState {
-    pub config: Arc<Config>,
+    pub config: Arc<RwLock<Config>>,
     pub router: Arc<Router>,
     pub start_time: Instant,
     pub semaphore: Arc<Semaphore>,
@@ -14,7 +14,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(
-        config: Arc<Config>,
+        config: Arc<RwLock<Config>>,
         router: Arc<Router>,
         dir: Arc<PathBuf>,
         client: isahc::HttpClient,
@@ -27,6 +27,15 @@ impl AppState {
             dir,
             http: client,
         }
+    }
+
+    pub async fn read_config(&self) -> Config {
+        self.config.read().await.clone()
+    }
+    pub fn save_config(&self, config: &Config) -> anyhow::Result<()> {
+        let content = toml::to_string_pretty(config)?;
+        fs::write(self.dir.join("config.toml"), content)?;
+        Ok(())
     }
 
     pub fn request(&self, method: impl Into<String>, url: impl Into<String>) -> HttpRequestBuilder {

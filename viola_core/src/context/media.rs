@@ -53,6 +53,18 @@ impl<'a> Media<'a> {
     }
 
     fn extract_media(msg: &'a whatsapp::Message) -> Result<MediaRef<'a>> {
+        if let Some(vo) = &msg.view_once_message {
+            if let Some(inner) = &vo.message {
+                return Self::extract_media(inner);
+            }
+        }
+
+        if let Some(vo) = &msg.view_once_message_v2 {
+            if let Some(inner) = &vo.message {
+                return Self::extract_media(inner);
+            }
+        }
+
         if let Some(img) = &msg.image_message {
             return Ok(MediaRef::Image(img.as_ref()));
         }

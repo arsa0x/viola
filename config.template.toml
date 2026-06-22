@@ -2,3 +2,4 @@
 name = "viola"
 prefix = "."
 owner = ""
+active = true

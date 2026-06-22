@@ -30,7 +30,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
     let Some(tiktok_url) = ctx.args.iter().find(|f| f.contains("https")) else {
         ctx.send().reply_failed().await?;
         ctx.send()
-            .reply_text("usage: .tiktok [-mp3] <tiktok_url>")
+            .quoted_text("usage: .tiktok [-mp3] <tiktok_url>")
             .await?;
         return Ok(());
     };
@@ -60,7 +60,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
         let result: TikTokData = serde_json::from_str(&res)?;
 
         if !result.status {
-            ctx.send().reply_text("failed").await?;
+            ctx.send().quoted_text("failed").await?;
             ctx.send().reply_failed().await?;
             return Ok::<(), anyhow::Error>(());
         }
@@ -89,7 +89,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
     .await
     {
         ctx.send().reply_failed().await?;
-        ctx.send().reply_text(&e.to_string()).await?;
+        ctx.send().quoted_text(&e.to_string()).await?;
     }
 
     Ok(())

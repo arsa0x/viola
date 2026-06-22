@@ -51,7 +51,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
     if ctx.args.len() < 2 {
         ctx.send().reply_failed().await?;
 
-        ctx.send().reply_text(
+        ctx.send().quoted_text(
             "usage:\n.http GET http://example.com \n-h \"Content-Type: application/json\" \n-q \"page=1\"",
         )
         .await?;
@@ -120,7 +120,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
     let method = match isahc::http::Method::from_bytes(method_str.as_bytes()) {
         Ok(method) => method,
         Err(_) => {
-            ctx.send().reply_text("invalid http method").await?;
+            ctx.send().quoted_text("invalid http method").await?;
             ctx.send().reply_failed().await?;
             return Ok(());
         }
@@ -146,7 +146,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
             };
 
             ctx.send()
-                .reply_text(&format!(
+                .quoted_text(&format!(
                     "status: {}\n\nbody:\n```{}\n```",
                     status, body_text
                 ))
@@ -155,7 +155,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
         }
         Err(e) => {
             ctx.send()
-                .reply_text(&format!("request failed: {}", e))
+                .quoted_text(&format!("request failed: {}", e))
                 .await?;
             ctx.send().reply_failed().await?;
         }

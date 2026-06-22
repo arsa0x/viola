@@ -1,4 +1,4 @@
-use super::redb_store::{DEVICE_TABLE, RedbStore};
+use super::{DEVICE_TABLE, RedbStore};
 use async_trait::async_trait;
 use whatsapp_rust::{
     store::{
@@ -14,9 +14,7 @@ const DEVICE_ROW_ID: u32 = 1;
 impl DeviceStore for RedbStore {
     /// Save device data.
     async fn save(&self, device: &Device) -> Result<()> {
-        let encoded = bincode::serde::encode_to_vec(device, bincode::config::standard())
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+        let encoded = self.encode(device)?;
         self.with_write_txn(DEVICE_TABLE, |table| {
             table
                 .insert(DEVICE_ROW_ID, encoded.as_slice())
@@ -32,9 +30,7 @@ impl DeviceStore for RedbStore {
                 .get(DEVICE_ROW_ID)
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
-                let (decoded, _): (Device, usize) =
-                    bincode::serde::decode_from_slice(data.value(), bincode::config::standard())
-                        .map_err(|e| StoreError::Database(Box::new(e)))?;
+                let decoded: Device = self.decode(data.value())?;
                 Ok(Some(decoded))
             } else {
                 Ok(None)
@@ -56,13 +52,10 @@ impl DeviceStore for RedbStore {
     /// Create a new device row and return its generated device_id.
     async fn create(&self) -> Result<i32> {
         let device = Device::new();
-
-        let bytes = bincode::serde::encode_to_vec(&device, bincode::config::standard())
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+        let encoded = self.encode(&device)?;
         self.with_write_txn(DEVICE_TABLE, |table| {
             table
-                .insert(DEVICE_ROW_ID, bytes.as_slice())
+                .insert(DEVICE_ROW_ID, encoded.as_slice())
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(DEVICE_ROW_ID as i32)
         })

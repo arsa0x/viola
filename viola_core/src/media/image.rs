@@ -9,6 +9,7 @@ pub struct ImageBuilder<'a> {
     pub bytes: Vec<u8>,
     pub caption: Option<String>,
     pub thumbnail: Option<Vec<u8>>,
+    pub quoted: bool,
 }
 
 impl<'a> ImageBuilder<'a> {
@@ -18,6 +19,10 @@ impl<'a> ImageBuilder<'a> {
     }
     pub fn thumbnail(mut self, thumbnail: Vec<u8>) -> Self {
         self.thumbnail = Some(thumbnail);
+        self
+    }
+    pub fn quoted(mut self) -> Self {
+        self.quoted = true;
         self
     }
 }
@@ -44,7 +49,11 @@ impl<'a> IntoFuture for ImageBuilder<'a> {
                     mimetype: Some("image/jpeg".to_string()),
                     direct_path: Some(upload.direct_path.clone()),
                     file_length: Some(upload.file_length),
-                    context_info: Some(Box::new(self.ctx.info().ctx_info())),
+                    context_info: if self.quoted {
+                        Some(Box::new(self.ctx.info().ctx_info()))
+                    } else {
+                        None
+                    },
                     jpeg_thumbnail: self.thumbnail,
                     caption: self.caption,
                     ..Default::default()

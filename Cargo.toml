@@ -29,7 +29,11 @@ log = "0.4.29"
 serde = { version = "1.0.228", features = ["derive"] }
 sysinfo = "0.39.3"
 tempfile = "3"
-tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
+tokio = {
+  version = "1.48",
+  default-features = false,
+  features = ["macros", "rt-multi-thread"]
+}
 toml = "1.1.2"
 viola_core = { path = "viola_core/" }
 viola_macros = { path = "viola_macros" }
@@ -37,7 +41,7 @@ viola_plugin = { path = "viola_plugin/" }
 webp = "0.3.1"
 whatsapp-rust = {
   git = "https://github.com/oxidezap/whatsapp-rust",
-  rev = "d441e5f",
+  rev = "0b4558e",
   default-features = false,
   features = [
     "signal",

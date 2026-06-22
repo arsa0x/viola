@@ -64,7 +64,7 @@ EXAMPLE:
     help = HELP
 )]
 async fn ping(ctx: Context) -> anyhow::Result<()> {
-    ctx.send().reply_text("pong").await?;
+    ctx.send().quoted_text("pong").await?;
 
     Ok(())
 }

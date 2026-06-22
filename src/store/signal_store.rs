@@ -1,9 +1,8 @@
-use super::redb_store::{
+use super::{
     IDENTITIES_TABLE, PREKEYS_TABLE, PreKeyRecord, RedbStore, SENDER_KEYS_TABLE, SESSIONS_TABLE,
     SIGNED_PREKEYS_TABLE,
 };
 use async_trait::async_trait;
-use bincode;
 use bytes::Bytes;
 use redb::ReadableTable;
 use whatsapp_rust::store::{
@@ -97,10 +96,7 @@ impl SignalStore for RedbStore {
             key: record.to_vec(),
             uploaded,
         };
-
-        let encoded = bincode::serde::encode_to_vec(&record, bincode::config::standard())
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+        let encoded = self.encode(&record)?;
         self.with_write_txn(PREKEYS_TABLE, |table| {
             table
                 .insert((id, self.device_id), encoded.as_slice())
@@ -117,9 +113,7 @@ impl SignalStore for RedbStore {
                     key: record.to_vec(),
                     uploaded,
                 };
-                let encoded = bincode::serde::encode_to_vec(&data, bincode::config::standard())
-                    .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+                let encoded = self.encode(&data)?;
                 table
                     .insert((*id, self.device_id), encoded.as_slice())
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
@@ -136,12 +130,7 @@ impl SignalStore for RedbStore {
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => {
-                    let (decoded, _): (PreKeyRecord, usize) = bincode::serde::decode_from_slice(
-                        data.value(),
-                        bincode::config::standard(),
-                    )
-                    .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+                    let decoded: PreKeyRecord = self.decode(data.value())?;
                     Ok(Some(Bytes::from(decoded.key)))
                 }
                 None => Ok(None),
@@ -159,12 +148,7 @@ impl SignalStore for RedbStore {
                     .get((*id, self.device_id))
                     .map_err(|e| StoreError::Database(Box::new(e)))?
                 {
-                    let (decoded, _): (PreKeyRecord, usize) = bincode::serde::decode_from_slice(
-                        data.value(),
-                        bincode::config::standard(),
-                    )
-                    .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+                    let decoded: PreKeyRecord = self.decode(data.value())?;
                     result.push((*id, Bytes::from(decoded.key)));
                 }
             }
@@ -185,22 +169,13 @@ impl SignalStore for RedbStore {
                         .get((id, self.device_id))
                         .map_err(|e| StoreError::Database(Box::new(e)))?
                     {
-                        let (record, _): (PreKeyRecord, usize) = bincode::serde::decode_from_slice(
-                            data.value(),
-                            bincode::config::standard(),
-                        )
-                        .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+                        let record: PreKeyRecord = self.decode(data.value())?;
                         record_to_update = Some(record);
                     }
                 }
                 if let Some(mut record) = record_to_update {
                     record.uploaded = true;
-
-                    let encoded =
-                        bincode::serde::encode_to_vec(&record, bincode::config::standard())
-                            .map_err(|e| StoreError::Database(Box::new(e)))?;
-
+                    let encoded = self.encode(&record)?;
                     table
                         .insert((id, self.device_id), encoded.as_slice())
                         .map_err(|e| StoreError::Database(Box::new(e)))?;

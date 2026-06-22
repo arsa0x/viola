@@ -1,7 +1,7 @@
 use viola_core::context::{Context, media::MediaRef};
 use viola_macros::command;
 
-#[command(trigger = ["rvo"])]
+#[command(trigger = ["rvo", "read", "show", "view"])]
 async fn rvo(ctx: Context) -> anyhow::Result<()> {
     if let Ok(media) = ctx.media().quoted() {
         match media {

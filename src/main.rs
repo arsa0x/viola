@@ -1,10 +1,7 @@
-mod client;
-mod store;
-mod utils;
-
-use crate::{client::IsahcClient, store::redb_store::RedbStore};
 use qrcode::render::unicode;
 use std::{io::Write, sync::Arc, time::Instant};
+use tokio::sync::RwLock;
+use viola::{client::IsahcClient, store::RedbStore};
 use viola_core::{
     config::{init_dir, load_config},
     context::Context,
@@ -22,8 +19,8 @@ use whatsapp_rust::{
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let dir = init_dir()?;
-    let config = Arc::new(load_config(&dir.join("config.toml").to_string_lossy())?);
-
+    let load_conf = load_config(&dir.join("config.toml").to_string_lossy())?;
+    let config = Arc::new(RwLock::new(load_conf));
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Info)
         .write_style(env_logger::WriteStyle::Always)
@@ -51,6 +48,8 @@ async fn main() -> anyhow::Result<()> {
         Arc::new(dir),
         isahc_client.clone(),
     ));
+
+    tokio::spawn(viola_core::config::watch_config(state.clone()));
 
     log::info!("SQLite backend initialized");
 
@@ -80,9 +79,12 @@ async fn main() -> anyhow::Result<()> {
                     }
                     Event::Message(msg, info) => {
                         let start_time = Instant::now();
-                        let prefix = &state.config.bot.prefix;
+                        let prefix = {
+                            let config = state.config.read().await;
+                            config.bot.prefix.clone()
+                        };
 
-                        if let Some((command, args)) = utils::parse_command(prefix, &msg) {
+                        if let Some((command, args)) = viola::utils::parse_command(&prefix, &msg) {
                             let state_handler = state.clone();
 
                             if let Ok(permit) = state.semaphore.clone().try_acquire_owned() {
