@@ -10,3 +10,5 @@ data/download/*
 
 data/store/*
 !data/store/.gitkeep
+
+logs/

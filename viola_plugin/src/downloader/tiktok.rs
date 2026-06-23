@@ -25,12 +25,13 @@ pub struct TikTokData {
 
 #[command(trigger = ["tt", "tiktok", "tik"])]
 async fn tiktok(ctx: Context) -> anyhow::Result<()> {
-    ctx.send().reply_wait().await?;
+    ctx.message().wait().await?;
 
     let Some(tiktok_url) = ctx.args.iter().find(|f| f.contains("https")) else {
-        ctx.send().reply_failed().await?;
-        ctx.send()
-            .quoted_text("usage: .tiktok [-mp3] <tiktok_url>")
+        ctx.message().failed().await?;
+        ctx.message()
+            .text("usage: .tiktok [-mp3] <tiktok_url>")
+            .quoted()
             .await?;
         return Ok(());
     };
@@ -60,8 +61,8 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
         let result: TikTokData = serde_json::from_str(&res)?;
 
         if !result.status {
-            ctx.send().quoted_text("failed").await?;
-            ctx.send().reply_failed().await?;
+            ctx.message().text("failed").await?;
+            ctx.message().failed().await?;
             return Ok::<(), anyhow::Error>(());
         }
 
@@ -70,26 +71,26 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
             let url = String::from_utf8(bytes)?;
             let mut response = ctx.state.http.get_async(&url).await?;
             let media = response.bytes().await?;
-            ctx.send().audio(media).await?;
-            ctx.send().reply_success().await?;
+            ctx.message().audio(media).await?;
+            ctx.message().success().await?;
         } else {
             let bytes = general_purpose::STANDARD.decode(result.video_id)?;
             let url = String::from_utf8(bytes)?;
             let mut response = ctx.state.http.get_async(&url).await?;
             let media = response.bytes().await?;
-            ctx.send()
+            ctx.message()
                 .video(media)
                 .caption(format!("author: {}", result.author))
                 .await?;
-            ctx.send().reply_success().await?;
+            ctx.message().success().await?;
         }
 
         Ok(())
     }
     .await
     {
-        ctx.send().reply_failed().await?;
-        ctx.send().quoted_text(&e.to_string()).await?;
+        ctx.message().failed().await?;
+        ctx.message().text(&e.to_string()).await?;
     }
 
     Ok(())

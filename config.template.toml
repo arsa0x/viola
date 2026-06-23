@@ -1,5 +1,6 @@
 [bot]
 name = "viola"
 prefix = "."
-owner = ""
-active = true
+owners = [""]
+# public | group | owner | disabled
+mode = "public"

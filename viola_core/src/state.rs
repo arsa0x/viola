@@ -1,4 +1,7 @@
-use crate::{config::Config, router::Router};
+use crate::{
+    config::{BotMode, Config},
+    router::Router,
+};
 use isahc::AsyncBody;
 use std::{collections::HashMap, fs, path::PathBuf, sync::Arc, time::Instant};
 use tokio::sync::{RwLock, Semaphore};
@@ -29,12 +32,22 @@ impl AppState {
         }
     }
 
+    pub async fn set_bot_mode(&self, mode: BotMode) -> anyhow::Result<()> {
+        let mut config = self.config.write().await;
+        config.bot.mode = mode;
+        let content = toml::to_string_pretty(&*config)?;
+        fs::write(self.dir.join("config.toml"), content)?;
+        Ok(())
+    }
+
     pub async fn read_config(&self) -> Config {
         self.config.read().await.clone()
     }
-    pub fn save_config(&self, config: &Config) -> anyhow::Result<()> {
-        let content = toml::to_string_pretty(config)?;
+
+    pub async fn save_config(&self, config: Config) -> anyhow::Result<()> {
+        let content = toml::to_string_pretty(&config)?;
         fs::write(self.dir.join("config.toml"), content)?;
+        *self.config.write().await = config;
         Ok(())
     }
 

@@ -49,12 +49,12 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
     let text = format!(
         concat!(
             "*Pong!*\n\n",
-            "*Processing    :* {:.3} ms\n",
-            "*CPU Usage     :* {:.2}%\n",
-            "*System RAM    :* {} / {}\n",
-            "*Bot RAM       :* {}\n",
-            "*Platform      :* {}\n",
-            "*Uptime        :* {}\n"
+            "*Processing:*\n{:.3} ms\n\n",
+            "*CPU Usage:*\n{:.2}%\n\n",
+            "*System RAM:*\n{} / {}\n\n",
+            "*Bot RAM:*\n{}\n\n",
+            "*Platform:*\n{}\n\n",
+            "*Uptime:*\n{}"
         ),
         processing,
         bot_cpu,
@@ -64,7 +64,6 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
         platform,
         uptime
     );
-    ctx.send().quoted_text(&text).await?;
 
-    Ok(())
+    ctx.message().inapp_signup(text).quoted().await
 }

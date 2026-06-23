@@ -29,10 +29,10 @@ async fn sticker(ctx: Context) -> anyhow::Result<()> {
                     webp_memory.to_vec()
                 };
 
-                ctx.send().sticker(webp).await?;
+                ctx.message().sticker(webp).await?;
             }
             _ => {
-                ctx.send().reply_failed().await?;
+                ctx.message().failed().await?;
             }
         }
     }

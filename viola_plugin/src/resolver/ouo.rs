@@ -133,19 +133,19 @@ async fn ouo(ctx: Context) -> anyhow::Result<()> {
     });
 
     let Some(url) = url else {
-        ctx.send().quoted_text(HELP).await?;
+        ctx.message().text(HELP).await?;
         return Ok(());
     };
 
-    ctx.send().reply_wait().await?;
+    ctx.message().wait().await?;
 
     match ouo_bypass(&ctx, url).await? {
         Some(result) => {
-            ctx.send().quoted_text(&result).await?;
-            ctx.send().reply_success().await?;
+            ctx.message().text(&result).await?;
+            ctx.message().success().await?;
         }
         None => {
-            ctx.send().reply_failed().await?;
+            ctx.message().failed().await?;
         }
     }
 

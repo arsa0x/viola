@@ -49,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
         isahc_client.clone(),
     ));
 
-    tokio::spawn(viola_core::config::watch_config(state.clone()));
+    // tokio::spawn(viola_core::config::watch_config(state.clone()));
 
     log::info!("SQLite backend initialized");
 
@@ -79,6 +79,13 @@ async fn main() -> anyhow::Result<()> {
                     }
                     Event::Message(msg, info) => {
                         let start_time = Instant::now();
+                        // ==== log
+                        // let _ = viola::log::log_message(
+                        //     &info.source.chat.to_string(),
+                        //     viola::log::detect_message_type(msg),
+                        //     &msg,
+                        // );
+                        // ====
                         let prefix = {
                             let config = state.config.read().await;
                             config.bot.prefix.clone()
@@ -96,7 +103,6 @@ async fn main() -> anyhow::Result<()> {
                                 };
                                 tokio::spawn(async move {
                                     let _permit = permit;
-
                                     if let Err(e) =
                                         state_handler.router.execute(&command, ctx).await
                                     {

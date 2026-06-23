@@ -1,5 +1,6 @@
 use crate::{
     command::{COMMANDS, Command},
+    config::BotMode,
     context::Context,
 };
 use ahash::AHashMap;
@@ -36,14 +37,26 @@ impl Router {
 
     pub async fn execute(&self, cmd: &str, ctx: Context) -> anyhow::Result<()> {
         let config = ctx.state.read_config().await;
+        let is_owner = ctx.info().is_owner().await;
+
+        match config.bot.mode {
+            BotMode::Disabled => return Ok(()),
+            BotMode::Group => {
+                if !ctx.info().is_group() {
+                    return Ok(());
+                }
+            }
+            BotMode::Owner => {
+                if !is_owner {
+                    return Ok(());
+                }
+            }
+            BotMode::Public => {}
+        }
 
         let Some(plugin) = self.plugins.get(&UniCase::new(cmd)) else {
             return Ok(());
         };
-
-        if !config.bot.active && cmd != "bot" {
-            return Ok(());
-        }
 
         if self.is_help_flag(ctx.args.as_slice()) {
             let triggers = plugin
@@ -63,24 +76,26 @@ impl Router {
                 plugin.help
             };
 
-            ctx.send()
-                .quoted_text(&format!(
+            ctx.message()
+                .text(format!(
                     "{}\n\nALIASES: {}\n\n{}",
                     description, triggers, help
                 ))
+                .quoted()
                 .await?;
             return Ok(());
         }
 
         if plugin.group_only && !ctx.info().is_group() {
-            ctx.send()
-                .quoted_text("command only works in groups")
+            ctx.message()
+                .text("command only works in groups")
+                .quoted()
                 .await?;
             return Ok(());
         }
 
-        if plugin.owner && ctx.info().sender_str()? != config.bot.owner {
-            ctx.send().quoted_text("owner only command").await?;
+        if plugin.owner && !is_owner {
+            ctx.message().text("owner only command").quoted().await?;
             return Ok(());
         }
 

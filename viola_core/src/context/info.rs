@@ -27,6 +27,15 @@ impl<'a> Info<'a> {
         self.ctx.msg_ctx.info.source.is_group
     }
 
+    pub async fn is_owner(&self) -> bool {
+        let sender = match self.sender_str() {
+            Ok(s) => s,
+            Err(_) => return false,
+        };
+        let config = self.ctx.state.read_config().await;
+        config.bot.owners.iter().any(|o| *o == sender)
+    }
+
     pub fn sender_str(&self) -> anyhow::Result<String> {
         let phone = self
             .ctx

@@ -1,10 +1,10 @@
 pub mod args;
 pub mod info;
 pub mod media;
-pub mod send;
 
 use crate::{
-    context::{args::Args, info::Info, media::Media, send::Sender},
+    context::{args::Args, info::Info, media::Media},
+    message::MessageFactory,
     state::AppState,
 };
 use compact_str::CompactString;
@@ -19,8 +19,8 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn send(&self) -> Sender<'_> {
-        Sender { ctx: self }
+    pub fn message(&self) -> MessageFactory<'_> {
+        MessageFactory { ctx: self }
     }
     pub fn info(&self) -> Info<'_> {
         Info { ctx: self }

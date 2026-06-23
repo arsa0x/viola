@@ -46,12 +46,12 @@ EXAMPLES:
 
 #[command(trigger = ["http", "https", "fetch"], help = HELP, description = "Send HTTP requests")]
 async fn http_request(ctx: Context) -> anyhow::Result<()> {
-    ctx.send().reply_wait().await?;
+    ctx.message().wait().await?;
 
     if ctx.args.len() < 2 {
-        ctx.send().reply_failed().await?;
+        ctx.message().failed().await?;
 
-        ctx.send().quoted_text(
+        ctx.message().text(
             "usage:\n.http GET http://example.com \n-h \"Content-Type: application/json\" \n-q \"page=1\"",
         )
         .await?;
@@ -120,8 +120,8 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
     let method = match isahc::http::Method::from_bytes(method_str.as_bytes()) {
         Ok(method) => method,
         Err(_) => {
-            ctx.send().quoted_text("invalid http method").await?;
-            ctx.send().reply_failed().await?;
+            ctx.message().text("invalid http method").await?;
+            ctx.message().failed().await?;
             return Ok(());
         }
     };
@@ -145,19 +145,21 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
                 Err(_) => "failed to read body".to_string(),
             };
 
-            ctx.send()
-                .quoted_text(&format!(
+            ctx.message()
+                .text(&format!(
                     "status: {}\n\nbody:\n```{}\n```",
                     status, body_text
                 ))
+                .quoted()
                 .await?;
-            ctx.send().reply_success().await?;
+            ctx.message().success().await?;
         }
         Err(e) => {
-            ctx.send()
-                .quoted_text(&format!("request failed: {}", e))
+            ctx.message()
+                .text(&format!("request failed: {}", e))
+                .quoted()
                 .await?;
-            ctx.send().reply_failed().await?;
+            ctx.message().failed().await?;
         }
     }
 

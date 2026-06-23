@@ -131,7 +131,6 @@ impl RedbStore {
         Ok(())
     }
 
-    #[allow(unused)]
     pub fn new_with_device_id(database_url: &str, device_id: u8) -> Result<Self> {
         Ok(Self {
             connection: Arc::new(
