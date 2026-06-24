@@ -20,30 +20,23 @@ EXAMPLE:
   .p"#;
 
 #[command(
-    trigger = ["ping", "p"],
+    triggers = ["ping", "p"],
     help = HELP,
+    category = "tools",
     description = "Check bot latency and response time"
 )]
 async fn ping(ctx: Context) -> anyhow::Result<()> {
     let mut system = System::new_all();
-
     system.refresh_processes(ProcessesToUpdate::All, true);
 
     let pid = sysinfo::Pid::from_u32(process::id());
-
     let process = system.process(pid);
-
     let bot_ram = process.map(|p| p.memory()).unwrap_or_default();
-
     let bot_cpu = process.map(|p| p.cpu_usage()).unwrap_or_default();
-
     let total_ram = system.total_memory();
     let used_ram = system.used_memory();
-
     let platform = System::name().unwrap_or_else(|| "Unknown".to_string());
-
     let uptime = format_duration(ctx.state.start_time.elapsed());
-
     let processing = ctx.info().processing_ms();
 
     let text = format!(
@@ -65,5 +58,5 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
         uptime
     );
 
-    ctx.message().inapp_signup(text).quoted().await
+    ctx.send().interactive().inapp_signup(text).quoted().await
 }

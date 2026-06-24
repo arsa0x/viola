@@ -41,7 +41,7 @@ fn split_arguments(input: &str) -> Vec<CompactString> {
 }
 
 pub fn parse_command(prefix: &str, msg: &Message) -> Option<(CompactString, Vec<CompactString>)> {
-    let text = viola_core::utils::get_text_content(msg)?;
+    let text = viola_core::utils::get_message_content(msg)?;
 
     if !text.starts_with(prefix) {
         return None;

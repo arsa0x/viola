@@ -19,7 +19,7 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn message(&self) -> MessageFactory<'_> {
+    pub fn send(&self) -> MessageFactory<'_> {
         MessageFactory { ctx: self }
     }
     pub fn info(&self) -> Info<'_> {

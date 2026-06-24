@@ -45,7 +45,7 @@ impl<'a> AudioBuilder<'a> {
             })),
             ..Default::default()
         };
-        self.ctx.message().raw(message).await
+        self.ctx.send().raw(message).await
     }
 }
 

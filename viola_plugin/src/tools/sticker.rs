@@ -3,7 +3,7 @@ use viola_core::context::{Context, media::MediaRef};
 use viola_macros::command;
 use webp::Encoder;
 
-#[command(trigger = ["sticker", "stiker", "s"])]
+#[command(triggers = ["sticker", "stiker", "s"], category = "tools")]
 async fn sticker(ctx: Context) -> anyhow::Result<()> {
     let media_ctx = ctx.media();
     if let Ok(media) = media_ctx.current().or_else(|_| media_ctx.quoted()) {
@@ -29,10 +29,10 @@ async fn sticker(ctx: Context) -> anyhow::Result<()> {
                     webp_memory.to_vec()
                 };
 
-                ctx.message().sticker(webp).await?;
+                ctx.send().sticker(webp).await?;
             }
             _ => {
-                ctx.message().failed().await?;
+                ctx.send().failed().await?;
             }
         }
     }

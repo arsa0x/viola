@@ -32,6 +32,7 @@ struct CommandConfig {
     triggers: Vec<LitStr>,
     help: Option<syn::Expr>,
     description: Option<syn::Expr>,
+    category: syn::Expr,
     cooldown: u64,
     owner: bool,
     group_only: bool,
@@ -43,6 +44,7 @@ impl Default for CommandConfig {
             triggers: Vec::new(),
             description: None,
             help: None,
+            category: syn::parse_quote!(""),
             cooldown: 0,
             owner: false,
             group_only: false,
@@ -53,16 +55,16 @@ impl Default for CommandConfig {
 impl Parse for CommandConfig {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let mut config = CommandConfig::default();
+        let mut has_category = false;
 
         while !input.is_empty() {
             let ident: Ident = input.parse()?;
-
             let key = ident.to_string();
 
             input.parse::<Token![=]>()?;
 
             match key.as_str() {
-                "trigger" => {
+                "triggers" => {
                     let content;
                     bracketed!(content in input);
                     let values: Punctuated<LitStr, Token![,]> =
@@ -76,6 +78,11 @@ impl Parse for CommandConfig {
                 "help" => {
                     let value: syn::Expr = input.parse()?;
                     config.help = Some(value);
+                }
+                "category" => {
+                    let value: syn::Expr = input.parse()?;
+                    config.category = value;
+                    has_category = true;
                 }
                 "cooldown" => {
                     let value: LitInt = input.parse()?;
@@ -104,7 +111,14 @@ impl Parse for CommandConfig {
         if config.triggers.is_empty() {
             return Err(syn::Error::new(
                 proc_macro2::Span::call_site(),
-                "trigger is required",
+                "triggers is required",
+            ));
+        }
+
+        if !has_category {
+            return Err(syn::Error::new(
+                proc_macro2::Span::call_site(),
+                "category is required",
             ));
         }
 
@@ -118,7 +132,6 @@ pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = parse_macro_input!(item as ItemFn);
 
     let ident = &function.sig.ident;
-
     let name = &ident.to_string();
 
     let cmd_name = syn::Ident::new(
@@ -127,33 +140,12 @@ pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
     );
 
     let triggers = config.triggers;
-
     let owner = config.owner;
-
     let group_only = config.group_only;
-
     let cooldown = config.cooldown;
-
     let description = config.description.unwrap_or_else(|| syn::parse_quote!(""));
-
     let help = config.help.unwrap_or_else(|| syn::parse_quote!(""));
-
-    // let expanded = quote! {
-    //     #function
-
-    //     inventory::submit! {
-    //         viola_core::command::Command {
-    //             name: #name,
-    //             triggers: &[#(#triggers),*],
-    //             description: #description,
-    //             help: #help,
-    //             cooldown: std::time::Duration::from_millis(#cooldown),
-    //             owner: #owner,
-    //             group_only: #group_only,
-    //             handler: |ctx| Box::pin(#ident(ctx)),
-    //         }
-    //     }
-    // };
+    let category = config.category;
 
     let expanded = quote! {
         #function
@@ -164,6 +156,7 @@ pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
             triggers: &[#(#triggers),*],
             description: #description,
             help: #help,
+            category: #category,
             cooldown: std::time::Duration::from_millis(#cooldown),
             owner: #owner,
             group_only: #group_only,

@@ -126,26 +126,26 @@ pub async fn ouo_bypass(ctx: &Context, url: &str) -> anyhow::Result<Option<Strin
 
 const HELP: &str = "USAGE: .ouo <ouo_url>";
 
-#[command(trigger = ["ouo"], help = HELP)]
+#[command(triggers = ["ouo"], help = HELP, category = "resolver")]
 async fn ouo(ctx: Context) -> anyhow::Result<()> {
     let url = ctx.args.iter().find(|arg| {
         arg.starts_with("https://") && (arg.contains("ouo.io") || arg.contains("ouo.press"))
     });
 
     let Some(url) = url else {
-        ctx.message().text(HELP).await?;
+        ctx.send().text(HELP).await?;
         return Ok(());
     };
 
-    ctx.message().wait().await?;
+    ctx.send().wait().await?;
 
     match ouo_bypass(&ctx, url).await? {
         Some(result) => {
-            ctx.message().text(&result).await?;
-            ctx.message().success().await?;
+            ctx.send().text(&result).await?;
+            ctx.send().success().await?;
         }
         None => {
-            ctx.message().failed().await?;
+            ctx.send().failed().await?;
         }
     }
 

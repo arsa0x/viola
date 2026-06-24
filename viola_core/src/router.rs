@@ -76,7 +76,7 @@ impl Router {
                 plugin.help
             };
 
-            ctx.message()
+            ctx.send()
                 .text(format!(
                     "{}\n\nALIASES: {}\n\n{}",
                     description, triggers, help
@@ -87,7 +87,7 @@ impl Router {
         }
 
         if plugin.group_only && !ctx.info().is_group() {
-            ctx.message()
+            ctx.send()
                 .text("command only works in groups")
                 .quoted()
                 .await?;
@@ -95,7 +95,7 @@ impl Router {
         }
 
         if plugin.owner && !is_owner {
-            ctx.message().text("owner only command").quoted().await?;
+            ctx.send().text("owner only command").quoted().await?;
             return Ok(());
         }
 

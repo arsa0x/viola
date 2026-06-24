@@ -1,7 +1,7 @@
 use viola_core::{config::BotMode, context::Context};
 use viola_macros::command;
 
-#[command(trigger = ["bot"], owner = true)]
+#[command(triggers = ["bot"], owner = true, category = "tools")]
 async fn bot(ctx: Context) -> anyhow::Result<()> {
     let cmd = ctx.args[0].as_str();
     match cmd {
@@ -10,9 +10,9 @@ async fn bot(ctx: Context) -> anyhow::Result<()> {
         "public" => ctx.state.set_bot_mode(BotMode::Public).await?,
         "disabled" => ctx.state.set_bot_mode(BotMode::Disabled).await?,
         _ => {
-            ctx.message().failed().await?;
+            ctx.send().failed().await?;
             return Ok(());
         }
     }
-    ctx.message().success().await
+    ctx.send().success().await
 }

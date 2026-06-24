@@ -10,17 +10,12 @@ pub mod video;
 use crate::{
     Context,
     message::{
-        audio::AudioBuilder,
-        document::DocumentBuilder,
-        image::ImageBuilder,
-        interactive::{InteractiveBuilder, inapp_signup::InappSignupBuilder},
-        reaction::ReactionBuilder,
-        sticker::StickerBuilder,
-        text::TextBuilder,
-        video::VideoBuilder,
+        audio::AudioBuilder, document::DocumentBuilder, image::ImageBuilder,
+        interactive::InteractiveFactory, reaction::ReactionBuilder, sticker::StickerBuilder,
+        text::TextBuilder, video::VideoBuilder,
     },
 };
-use whatsapp_rust::waproto::whatsapp::{self, message::interactive_message};
+use whatsapp_rust::waproto::whatsapp::{self};
 
 pub struct MessageFactory<'a> {
     pub ctx: &'a Context,
@@ -103,26 +98,8 @@ impl<'a> MessageFactory<'a> {
         }
     }
 
-    pub fn interactive(
-        self,
-        interactive: interactive_message::InteractiveMessage,
-    ) -> InteractiveBuilder<'a> {
-        InteractiveBuilder {
-            body: None,
-            ctx: self.ctx,
-            header: None,
-            interactive: Some(interactive),
-            quoted: false,
-        }
-    }
-
-    pub fn inapp_signup(self, text_body: impl Into<String>) -> InappSignupBuilder<'a> {
-        InappSignupBuilder {
-            ctx: self.ctx,
-            quoted: false,
-            text_body: text_body.into(),
-            title: "Viola".into(),
-        }
+    pub fn interactive(self) -> InteractiveFactory<'a> {
+        InteractiveFactory { ctx: self.ctx }
     }
 
     pub async fn success(self) -> anyhow::Result<()> {

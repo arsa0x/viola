@@ -9,8 +9,8 @@ use crate::Context;
 pub struct InappSignupBuilder<'a> {
     pub ctx: &'a Context,
     pub quoted: bool,
-    pub title: String,
-    pub text_body: String,
+    pub title: Option<String>,
+    pub text_body: Option<String>,
 }
 
 impl<'a> InappSignupBuilder<'a> {
@@ -19,14 +19,15 @@ impl<'a> InappSignupBuilder<'a> {
         self
     }
     pub fn title(mut self, title: impl Into<String>) -> Self {
-        self.title = title.into();
+        self.title = Some(title.into());
         self
     }
     pub async fn send(self) -> anyhow::Result<()> {
         let message = self
             .ctx
-            .message()
-            .interactive(interactive_message::InteractiveMessage::NativeFlowMessage(
+            .send()
+            .interactive()
+            .raw(interactive_message::InteractiveMessage::NativeFlowMessage(
                 NativeFlowMessage {
                     message_params_json: Some("{}".into()),
                     message_version: Some(1),
@@ -37,10 +38,10 @@ impl<'a> InappSignupBuilder<'a> {
                 },
             ))
             .body(interactive_message::Body {
-                text: Some(self.text_body),
+                text: self.text_body,
             })
             .header(interactive_message::Header {
-                title: Some(self.title),
+                title: self.title,
                 has_media_attachment: Some(false),
                 ..Default::default()
             });

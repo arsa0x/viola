@@ -5,6 +5,7 @@ use ffmpeg_next::software::scaling::{self, Flags};
 use ffmpeg_next::util::frame::Video as VideoFrame;
 use std::io::Cursor;
 use std::sync::OnceLock;
+use whatsapp_rust::waproto::whatsapp::message::interactive_response_message::InteractiveResponseMessage;
 use whatsapp_rust::{wacore::proto_helpers::MessageExt, waproto::whatsapp::Message};
 
 static FFMPEG_INIT: OnceLock<()> = OnceLock::new();
@@ -45,6 +46,29 @@ pub fn get_text_content(msg: &Message) -> Option<&str> {
     }
 
     None
+}
+pub fn get_interactive_id(msg: &Message) -> Option<String> {
+    let interactive = msg.interactive_response_message.as_ref()?;
+
+    let response = interactive.interactive_response_message.as_ref()?;
+
+    match response {
+        InteractiveResponseMessage::NativeFlowResponseMessage(v) => {
+            let json = v.params_json.as_ref()?;
+
+            let value: serde_json::Value = serde_json::from_str(json).ok()?;
+
+            value.get("id")?.as_str().map(str::to_owned)
+        }
+    }
+}
+
+pub fn get_message_content(msg: &Message) -> Option<String> {
+    if let Some(id) = get_interactive_id(msg) {
+        return Some(id);
+    }
+
+    get_text_content(msg).map(str::to_owned)
 }
 
 pub fn generate_video_thumbnail(video_path: &str) -> anyhow::Result<Vec<u8>> {

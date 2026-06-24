@@ -1,22 +1,21 @@
+use crate::Context;
 use std::pin::Pin;
-
 use whatsapp_rust::waproto::whatsapp::message::interactive_message::{
     self, NativeFlowMessage, native_flow_message::NativeFlowButton,
 };
 
-use crate::Context;
-
 pub struct QuickReplyBuilder<'a> {
     pub ctx: &'a Context,
-    pub title: String,
-    pub body: String,
     pub quoted: bool,
-    pub buttons: Vec<ButtonParam<'a>>,
+    pub title: Option<String>,
+    pub text_body: Option<String>,
+    pub footer: Option<String>,
+    pub buttons: Vec<QuickReplyButton>,
 }
 
-pub struct ButtonParam<'a> {
-    pub display_text: &'a str,
-    pub id: &'a str,
+pub struct QuickReplyButton {
+    pub text: String,
+    pub id: String,
 }
 
 impl<'a> QuickReplyBuilder<'a> {
@@ -26,27 +25,38 @@ impl<'a> QuickReplyBuilder<'a> {
     }
 
     pub fn title(mut self, title: impl Into<String>) -> Self {
-        self.title = title.into();
+        self.title = Some(title.into());
+        self
+    }
+
+    pub fn footer(mut self, footer: impl Into<String>) -> Self {
+        self.footer = Some(footer.into());
+        self
+    }
+
+    pub fn text_body(mut self, text: impl Into<String>) -> Self {
+        self.text_body = Some(text.into());
         self
     }
 
     pub async fn send(self) -> anyhow::Result<()> {
         let message = self
             .ctx
-            .message()
-            .interactive(interactive_message::InteractiveMessage::NativeFlowMessage(
+            .send()
+            .interactive()
+            .raw(interactive_message::InteractiveMessage::NativeFlowMessage(
                 NativeFlowMessage {
                     message_params_json: Some("{}".into()),
                     message_version: Some(1),
                     buttons: self
                         .buttons
                         .iter()
-                        .map(|btn| NativeFlowButton {
+                        .map(|q| NativeFlowButton {
                             name: Some("quick_reply".into()),
                             button_params_json: Some(
                                 serde_json::json!({
-                                    "display_text": btn.display_text,
-                                    "id": btn.id,
+                                    "display_text": q.text,
+                                    "id": q.id,
                                 })
                                 .to_string(),
                             ),
@@ -55,11 +65,16 @@ impl<'a> QuickReplyBuilder<'a> {
                 },
             ))
             .body(interactive_message::Body {
-                text: Some(self.body),
+                text: self.text_body,
             })
             .header(interactive_message::Header {
-                title: Some(self.title),
+                title: self.title,
                 has_media_attachment: Some(false),
+                ..Default::default()
+            })
+            .footer(interactive_message::Footer {
+                text: self.footer,
+                has_media_attachment: None,
                 ..Default::default()
             });
         if self.quoted {

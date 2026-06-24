@@ -1,28 +1,28 @@
 use viola_core::context::{Context, media::MediaRef};
 use viola_macros::command;
 
-#[command(trigger = ["rvo", "read", "show", "view"])]
-async fn rvo(ctx: Context) -> anyhow::Result<()> {
+#[command(triggers = ["rvo", "read", "show", "view"], category = "tools")]
+async fn read_view_once(ctx: Context) -> anyhow::Result<()> {
     if let Ok(media) = ctx.media().quoted() {
         match media {
             MediaRef::Image(img) => {
                 let download = ctx.media().download(img).await?;
-                ctx.message().image(download).await?;
+                ctx.send().image(download).await?;
                 Ok(())
             }
             MediaRef::Video(vid) => {
                 let download = ctx.media().download(vid).await?;
-                ctx.message().video(download).await?;
+                ctx.send().video(download).await?;
                 Ok(())
             }
             MediaRef::Audio(aud) => {
                 let download = ctx.media().download(aud).await?;
-                ctx.message().audio(download).await?;
+                ctx.send().audio(download).await?;
                 Ok(())
             }
-            _ => ctx.message().failed().await,
+            _ => ctx.send().failed().await,
         }
     } else {
-        ctx.message().failed().await
+        ctx.send().failed().await
     }
 }

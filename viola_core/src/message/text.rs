@@ -30,7 +30,7 @@ impl<'a> TextBuilder<'a> {
             }
         };
 
-        self.ctx.message().raw(message).await?;
+        self.ctx.send().raw(message).await?;
 
         Ok(())
     }

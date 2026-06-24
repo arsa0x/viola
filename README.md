@@ -25,47 +25,22 @@ On first launch, Viola will:
 - create storage directories
 - display a pairing QR code
 
-## Native Command Example
+## Example
 
 ```rs
 use viola_core::context::Context;
 use viola_macros::command;
 
 #[command(
-    trigger = [""],
-    owner = false,
-    group_only = false,
-    description = "",
-    help = ""
+    trigger = [""],     // required
+    category = "",      // required
+    owner = false,      // optional
+    group_only = false, // optional
+    description = "",   // optional
+    help = ""           // optional
 )]
-async fn name(ctx: Context) -> anyhow::Result<()> {
-    // do something
-
-    Ok(())
-}
-```
-
-### Example
-
-```rs
-use viola_core::context::Context;
-use viola_macros::command;
-
-const HELP: &str = r#"USAGE:
-.ping
-
-EXAMPLE:
-.ping
-.p"#;
-
-#[command(
-    trigger = ["ping", "p"],
-    description = "Ping command",
-    help = HELP
-)]
-async fn ping(ctx: Context) -> anyhow::Result<()> {
-    ctx.message().text("pong").await?;
-
+async fn command_name(ctx: Context) -> anyhow::Result<()> {
+    ctx.send().text("hi there!").quoted().await?;
     Ok(())
 }
 ```
@@ -88,9 +63,10 @@ The config file will be automatically generated on first run.
 
 ```toml
 [bot]
-name = "viola"
+name   = "viola"
 prefix = "."
-owner = "628123456789"
+owner  = "628123456789"
+mode   = "public"
 ```
 
 ## Project Structure
