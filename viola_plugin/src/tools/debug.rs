@@ -2,7 +2,11 @@ use anyhow::anyhow;
 use viola_core::context::Context;
 use viola_macros::command;
 
-#[command(triggers = ["d"], owner = true, category = "tools")]
+#[command(
+    triggers = ["debug", "d"],
+    owner = true,
+    category = "tools",
+)]
 async fn debug(ctx: Context) -> anyhow::Result<()> {
     ctx.send()
         .text(&format!("message: \n\n```{:#?}```", ctx.msg_ctx.message))

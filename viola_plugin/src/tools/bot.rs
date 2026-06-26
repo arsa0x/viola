@@ -1,7 +1,11 @@
 use viola_core::{config::BotMode, context::Context};
 use viola_macros::command;
 
-#[command(triggers = ["bot"], owner = true, category = "tools")]
+#[command(
+    triggers = ["bot"],
+    owner = true,
+    category = "tools",
+)]
 async fn bot(ctx: Context) -> anyhow::Result<()> {
     let cmd = ctx.args[0].as_str();
     match cmd {

@@ -25,13 +25,13 @@ pub async fn ouo_bypass(ctx: &Context, url: &str) -> anyhow::Result<Option<Strin
 
     let origin = format!("{}://{}", url_obj.scheme(), domain);
 
-    let mut init_req = ctx.state.request("GET", url);
+    let mut init_req = ctx.http().raw("GET", url);
 
     for (key, value) in HEADERS {
         init_req = init_req.header(key, value);
     }
 
-    let mut init_res = ctx.state.send(init_req).await?;
+    let mut init_res = init_req.send().await?;
 
     let cookies = init_res
         .headers()
@@ -126,7 +126,12 @@ pub async fn ouo_bypass(ctx: &Context, url: &str) -> anyhow::Result<Option<Strin
 
 const HELP: &str = "USAGE: .ouo <ouo_url>";
 
-#[command(triggers = ["ouo"], help = HELP, category = "resolver")]
+#[command(
+    triggers = ["ouo"],
+    help = HELP,
+    category = "resolver",
+    description = "ouo.io and ouo.press resolver"
+)]
 async fn ouo(ctx: Context) -> anyhow::Result<()> {
     let url = ctx.args.iter().find(|arg| {
         arg.starts_with("https://") && (arg.contains("ouo.io") || arg.contains("ouo.press"))

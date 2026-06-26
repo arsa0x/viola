@@ -3,7 +3,11 @@ use viola_core::context::{Context, media::MediaRef};
 use viola_macros::command;
 use webp::Encoder;
 
-#[command(triggers = ["sticker", "stiker", "s"], category = "tools")]
+#[command(
+    triggers = ["sticker", "stiker", "s"],
+    category = "tools",
+    description = "Convert image to whatsapp sticker"
+)]
 async fn sticker(ctx: Context) -> anyhow::Result<()> {
     let media_ctx = ctx.media();
     if let Ok(media) = media_ctx.current().or_else(|_| media_ctx.quoted()) {

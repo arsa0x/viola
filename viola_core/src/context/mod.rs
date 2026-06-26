@@ -4,6 +4,7 @@ pub mod media;
 
 use crate::{
     context::{args::Args, info::Info, media::Media},
+    http::Http,
     message::MessageFactory,
     state::AppState,
 };
@@ -21,6 +22,9 @@ pub struct Context {
 impl Context {
     pub fn send(&self) -> MessageFactory<'_> {
         MessageFactory { ctx: self }
+    }
+    pub fn http(&self) -> Http<'_> {
+        Http { ctx: self }
     }
     pub fn info(&self) -> Info<'_> {
         Info { ctx: self }

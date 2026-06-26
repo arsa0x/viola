@@ -44,7 +44,12 @@ EXAMPLES:
     .http GET https://api.example.com/me \
       -h "Authorization: Bearer token""#;
 
-#[command(triggers = ["http", "https", "fetch"], help = HELP, description = "Send HTTP requests", category = "tools")]
+#[command(
+    triggers = ["http", "https", "fetch"],
+    help = HELP,
+    description = "Send HTTP requests",
+    category = "tools"
+)]
 async fn http_request(ctx: Context) -> anyhow::Result<()> {
     ctx.send().wait().await?;
 
@@ -126,7 +131,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
         }
     };
 
-    let mut request = ctx.state.request(method.as_str(), url_str.as_str());
+    let mut request = ctx.http().raw(method.as_str(), url_str.as_str());
 
     for (key, value) in headers {
         request = request.header(key, value);
@@ -136,7 +141,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
         request = request.body(body);
     }
 
-    match ctx.state.send(request).await {
+    match request.send().await {
         Ok(mut res) => {
             let status = res.status();
 

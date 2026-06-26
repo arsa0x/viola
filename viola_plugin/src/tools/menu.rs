@@ -8,7 +8,7 @@ use viola_macros::command;
 
 #[command(
     triggers = ["menu", "help"],
-    description = "show bot menu",
+    description = "Show bot menu",
     category = "tools"
 )]
 async fn menu(ctx: Context) -> anyhow::Result<()> {
@@ -24,13 +24,11 @@ async fn menu(ctx: Context) -> anyhow::Result<()> {
     let sections = categories
         .into_iter()
         .map(|(category, commands)| SingleSelectSection {
-            title: category.to_string(),
-
+            title: category.to_uppercase(),
             rows: commands
                 .into_iter()
                 .map(|cmd| SingleSelectRow {
                     title: humanize_command(cmd.name),
-
                     description: if cmd.description.is_empty() {
                         "No description".into()
                     } else {

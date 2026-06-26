@@ -23,7 +23,11 @@ pub struct TikTokData {
     pub audio_id: String,
 }
 
-#[command(triggers = ["tt", "tiktok", "tik"], category = "downloader")]
+#[command(
+    triggers = ["tt", "tiktok", "tik"],
+    category = "downloader",
+    description = "Tiktok video and audio downloader"
+)]
 async fn tiktok(ctx: Context) -> anyhow::Result<()> {
     ctx.send().wait().await?;
 

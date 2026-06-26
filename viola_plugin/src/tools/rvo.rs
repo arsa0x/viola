@@ -1,7 +1,11 @@
 use viola_core::context::{Context, media::MediaRef};
 use viola_macros::command;
 
-#[command(triggers = ["rvo", "read", "show", "view"], category = "tools")]
+#[command(
+    triggers = ["rvo", "read", "show", "view"],
+    category = "tools",
+    description = "Read view once message"
+)]
 async fn read_view_once(ctx: Context) -> anyhow::Result<()> {
     if let Ok(media) = ctx.media().quoted() {
         match media {

@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod document;
+pub mod extended;
 pub mod image;
 pub mod interactive;
 pub mod reaction;
