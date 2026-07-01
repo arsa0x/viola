@@ -11,17 +11,17 @@ async fn read_view_once(ctx: Context) -> anyhow::Result<()> {
         match media {
             MediaRef::Image(img) => {
                 let download = ctx.media().download(img).await?;
-                ctx.send().image(download).await?;
+                ctx.send().image(download).quoted().await?;
                 Ok(())
             }
             MediaRef::Video(vid) => {
                 let download = ctx.media().download(vid).await?;
-                ctx.send().video(download).await?;
+                ctx.send().video(download).quoted().await?;
                 Ok(())
             }
             MediaRef::Audio(aud) => {
                 let download = ctx.media().download(aud).await?;
-                ctx.send().audio(download).await?;
+                ctx.send().audio(download).quoted().await?;
                 Ok(())
             }
             _ => ctx.send().failed().await,

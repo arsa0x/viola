@@ -1,19 +1,34 @@
 use crate::Context;
 use std::pin::Pin;
-use whatsapp_rust::{
-    download::MediaType,
-    waproto::whatsapp::{self, message::AudioMessage},
-};
+use whatsapp_rust::{download::MediaType, media::AudioOptions};
 
 pub struct AudioBuilder<'a> {
     pub ctx: &'a Context,
     pub bytes: Vec<u8>,
     pub quoted: bool,
+    pub ptt: bool,
+    pub mime_type: Option<String>,
+    pub duration: Option<u32>,
 }
 
 impl<'a> AudioBuilder<'a> {
     pub fn quoted(mut self) -> Self {
         self.quoted = true;
+        self
+    }
+
+    pub fn ptt(mut self) -> Self {
+        self.ptt = true;
+        self
+    }
+
+    pub fn duration(mut self, duration: u32) -> Self {
+        self.duration = Some(duration);
+        self
+    }
+
+    pub fn mime_type(mut self, mime: impl Into<String>) -> Self {
+        self.mime_type = Some(mime.into());
         self
     }
 
@@ -30,21 +45,18 @@ impl<'a> AudioBuilder<'a> {
             .upload(self.bytes, MediaType::Audio)
             .await?;
 
-        let message = whatsapp::Message {
-            audio_message: Some(Box::new(AudioMessage {
-                url: Some(upload.url.clone()),
-                file_sha256: Some(upload.file_sha256.to_vec()),
-                file_enc_sha256: Some(upload.file_enc_sha256.to_vec()),
-                media_key: Some(upload.media_key.to_vec()),
-                media_key_timestamp: Some(upload.media_key_timestamp),
-                mimetype: Some("audio/mpeg".to_string()),
-                direct_path: Some(upload.direct_path.clone()),
-                file_length: Some(upload.file_length),
+        let message = whatsapp_rust::media::audio_message(
+            upload,
+            AudioOptions {
+                // mimetype: (),
+                // duration_seconds: (),
+                // ptt: (),
+                // waveform: (),
                 context_info: quoted,
                 ..Default::default()
-            })),
-            ..Default::default()
-        };
+            },
+        );
+
         self.ctx.send().raw(message).await
     }
 }

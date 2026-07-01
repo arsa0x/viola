@@ -70,6 +70,9 @@ impl<'a> MessageFactory<'a> {
             bytes: audio,
             ctx: self.ctx,
             quoted: false,
+            ptt: false,
+            mime_type: None,
+            duration: None,
         }
     }
 
@@ -80,6 +83,9 @@ impl<'a> MessageFactory<'a> {
             ctx: self.ctx,
             quoted: false,
             thumbnail: None,
+            mime_type: None,
+            file_name: None,
+            title: None,
         }
     }
 

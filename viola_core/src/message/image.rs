@@ -1,9 +1,6 @@
 use crate::Context;
 use std::pin::Pin;
-use whatsapp_rust::{
-    download::MediaType,
-    waproto::whatsapp::{self, message::ImageMessage},
-};
+use whatsapp_rust::{download::MediaType, media::ImageOptions};
 
 pub struct ImageBuilder<'a> {
     pub ctx: &'a Context,
@@ -42,23 +39,16 @@ impl<'a> ImageBuilder<'a> {
             .upload(self.bytes, MediaType::Image)
             .await?;
 
-        let message = whatsapp::Message {
-            image_message: Some(Box::new(ImageMessage {
-                url: Some(upload.url.clone()),
-                file_sha256: Some(upload.file_sha256.to_vec()),
-                file_enc_sha256: Some(upload.file_enc_sha256.to_vec()),
-                media_key: Some(upload.media_key.to_vec()),
-                media_key_timestamp: Some(upload.media_key_timestamp),
-                mimetype: Some("video/mp4".to_string()),
-                direct_path: Some(upload.direct_path.clone()),
-                file_length: Some(upload.file_length),
+        let message = whatsapp_rust::media::image_message(
+            upload,
+            ImageOptions {
                 context_info: quoted,
                 jpeg_thumbnail: self.thumbnail,
                 caption: self.caption,
                 ..Default::default()
-            })),
-            ..Default::default()
-        };
+            },
+        );
+
         self.ctx.send().raw(message).await
     }
 }

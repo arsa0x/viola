@@ -75,7 +75,11 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
             let url = String::from_utf8(bytes)?;
             let mut response = ctx.state.http.get_async(&url).await?;
             let media = response.bytes().await?;
-            ctx.send().audio(media).await?;
+            ctx.send()
+                .audio(media)
+                .quoted()
+                .mime_type("audio/mpeg")
+                .await?;
             ctx.send().success().await?;
         } else {
             let bytes = general_purpose::STANDARD.decode(result.video_id)?;
@@ -85,6 +89,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
             ctx.send()
                 .video(media)
                 .caption(format!("author: {}", result.author))
+                .quoted()
                 .await?;
             ctx.send().success().await?;
         }
