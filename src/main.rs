@@ -1,7 +1,7 @@
 use qrcode::render::unicode;
 use std::{io::Write, sync::Arc, time::Instant};
 use tokio::sync::RwLock;
-use viola::{client::IsahcClient, store::RedbStore};
+use viola::{client::IsahcClient, incoming, store::RedbStore};
 use viola_core::{
     config::{init_dir, load_config},
     context::Context,
@@ -9,18 +9,14 @@ use viola_core::{
     state::AppState,
 };
 use viola_plugin as _;
-use whatsapp_rust::{
-    TokioRuntime,
-    bot::{Bot, MessageContext},
-    transport::TokioWebSocketTransportFactory,
-    types::events::Event,
-};
+use whatsapp_rust::{TokioRuntime, bot::Bot, transport::TokioWebSocketTransportFactory};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let dir = init_dir()?;
     let load_conf = load_config(&dir.join("config.toml").to_string_lossy())?;
     let config = Arc::new(RwLock::new(load_conf));
+
     env_logger::Builder::from_default_env()
         .filter_level(log::LevelFilter::Info)
         .write_style(env_logger::WriteStyle::Always)
@@ -39,7 +35,6 @@ async fn main() -> anyhow::Result<()> {
     let backend = RedbStore::new(&store_path.to_string_lossy())?;
 
     let router = Arc::new(Router::new());
-
     let isahc_client = isahc::HttpClient::builder().build()?;
 
     let state = Arc::new(AppState::new(
@@ -49,75 +44,69 @@ async fn main() -> anyhow::Result<()> {
         isahc_client.clone(),
     ));
 
-    // tokio::spawn(viola_core::config::watch_config(state.clone()));
-
-    log::info!("SQLite backend initialized");
-
+    log::info!("Redb backend initialized");
     log::info!("Starting bot...");
+
+    let state_for_bot = state.clone();
 
     let bot = Bot::builder()
         .with_backend(backend)
         .with_transport_factory(TokioWebSocketTransportFactory::new())
         .with_http_client(IsahcClient::new(isahc_client))
         .with_runtime(TokioRuntime)
-        .on_event(move |event, client| {
-            let state = Arc::clone(&state);
+        .on_qr_code(|code, _timeout| async move {
+            match qrcode::QrCode::new(code.as_bytes()) {
+                Ok(qr) => {
+                    let qr_str = qr.render::<unicode::Dense1x2>().quiet_zone(false).build();
+                    println!("{}", qr_str);
+                }
+                Err(e) => {
+                    log::error!("failed to generate qr: {}", e);
+                }
+            }
+        })
+        .on_message(move |msg_ctx| {
+            let state = state_for_bot.clone();
 
             async move {
-                match &*event {
-                    Event::PairingQrCode { code, .. } => {
-                        match qrcode::QrCode::new(code.as_bytes()) {
-                            Ok(qr) => {
-                                let qr_str =
-                                    qr.render::<unicode::Dense1x2>().quiet_zone(false).build();
-                                println!("{}", qr_str);
-                            }
-                            Err(e) => {
-                                log::error!("failed to generate qr: {}", e);
-                            }
-                        }
-                    }
-                    Event::Message(msg, info) => {
-                        let start_time = Instant::now();
-                        // ==== log
-                        // let _ = viola::log::log_message(
-                        //     &info.source.chat.to_string(),
-                        //     viola::log::detect_message_type(msg),
-                        //     &msg,
-                        // );
-                        // ====
+                let start = Instant::now();
+
+                let text_content = match incoming::get_text_content(&msg_ctx.message) {
+                    Some(t) if !t.trim().is_empty() => t.trim().to_string(),
+                    _ => return,
+                };
+
+                if let Ok(permit) = state.semaphore.clone().try_acquire_owned() {
+                    tokio::spawn(async move {
+                        let _permit = permit;
+
                         let prefix = {
                             let config = state.config.read().await;
                             config.bot.prefix.clone()
                         };
 
-                        if let Some((command, args)) = viola::utils::parse_command(&prefix, &msg) {
-                            let state_handler = state.clone();
+                        let ctx = Context {
+                            msg_ctx,
+                            args: Vec::new(),
+                            state: state.clone(),
+                            created_at: start,
+                        };
 
-                            if let Ok(permit) = state.semaphore.clone().try_acquire_owned() {
-                                let ctx = Context {
-                                    msg_ctx: MessageContext::from_parts(msg, info, client.clone()),
-                                    args,
-                                    state,
-                                    created_at: start_time,
-                                };
-                                tokio::spawn(async move {
-                                    let _permit = permit;
-                                    if let Err(e) =
-                                        state_handler.router.execute(&command, ctx).await
-                                    {
-                                        log::error!("command failed: {}", e);
-                                    }
-                                });
-                            } else {
-                                log::error!("server is busy");
-                            };
+                        if let Some((command, args)) = viola::parser::parse(&prefix, &text_content)
+                        {
+                            let mut ctx_with_args = ctx;
+                            ctx_with_args.args = args;
+
+                            if let Err(e) = state.router.execute(&command, ctx_with_args).await {
+                                log::error!("command failed: {}", e);
+                            }
+                        } else {
+                            return;
                         }
-                    }
-                    Event::Connected(_) => log::info!("Bot connected!"),
-                    Event::LoggedOut(_) => log::info!("Bot was logged out!"),
-                    _ => {}
-                }
+                    });
+                } else {
+                    log::warn!("server is busy");
+                };
             }
         })
         .build()

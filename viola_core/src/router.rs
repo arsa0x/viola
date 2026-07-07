@@ -5,7 +5,6 @@ use crate::{
 };
 use ahash::AHashMap;
 use anyhow::anyhow;
-use compact_str::CompactString;
 use unicase::UniCase;
 
 pub struct Router {
@@ -31,7 +30,7 @@ impl Router {
         Self { plugins }
     }
 
-    fn is_help_flag(&self, args: &[CompactString]) -> bool {
+    fn is_help_flag(&self, args: &[String]) -> bool {
         args.iter().any(|arg| arg == "--help")
     }
 

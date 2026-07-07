@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use url::Url;
 use viola_core::context::Context;
 use viola_macros::command;
-use whatsapp_rust::CompactString;
 
 const HELP: &str = r#"USAGE:
   .http <METHOD> <URL> [OPTIONS]
@@ -68,7 +67,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
 
     let mut headers = HashMap::new();
     let mut queries = Vec::new();
-    let mut body = None::<CompactString>;
+    let mut body = None::<String>;
 
     let mut i = 2;
     while i < ctx.args.len() {
@@ -118,7 +117,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
                     query_pairs.append_pair(&k, &v);
                 }
             }
-            url_str = CompactString::from(url_obj.as_str());
+            url_str = url_obj.to_string();
         }
     }
 

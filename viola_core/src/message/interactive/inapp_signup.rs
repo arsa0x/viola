@@ -28,14 +28,14 @@ impl<'a> InappSignupBuilder<'a> {
             .send()
             .interactive()
             .raw(interactive_message::InteractiveMessage::NativeFlowMessage(
-                NativeFlowMessage {
+                Box::new(NativeFlowMessage {
                     message_params_json: Some("{}".into()),
                     message_version: Some(1),
                     buttons: vec![NativeFlowButton {
                         button_params_json: Some("{}".into()),
                         name: Some("inapp_signup".into()),
                     }],
-                },
+                }),
             ))
             .body(interactive_message::Body {
                 text: self.text_body,

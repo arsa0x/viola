@@ -40,49 +40,49 @@ impl<'a> Media<'a> {
 
         let ext = msg
             .extended_text_message
-            .as_ref()
+            .as_option()
             .ok_or_else(|| anyhow::anyhow!("not a reply message"))?;
 
         let quoted = ext
             .context_info
-            .as_ref()
-            .and_then(|ctx| ctx.quoted_message.as_ref())
+            .as_option()
+            .and_then(|ctx| ctx.quoted_message.as_option())
             .ok_or_else(|| anyhow::anyhow!("quoted message not found"))?;
 
         Self::extract_media(quoted)
     }
 
     fn extract_media(msg: &'a whatsapp::Message) -> Result<MediaRef<'a>> {
-        if let Some(vo) = &msg.view_once_message {
-            if let Some(inner) = &vo.message {
+        if let Some(vo) = msg.view_once_message.as_option() {
+            if let Some(inner) = vo.message.as_option() {
                 return Self::extract_media(inner);
             }
         }
 
-        if let Some(vo) = &msg.view_once_message_v2 {
-            if let Some(inner) = &vo.message {
+        if let Some(vo) = msg.view_once_message_v2.as_option() {
+            if let Some(inner) = vo.message.as_option() {
                 return Self::extract_media(inner);
             }
         }
 
-        if let Some(img) = &msg.image_message {
-            return Ok(MediaRef::Image(img.as_ref()));
+        if let Some(img) = msg.image_message.as_option() {
+            return Ok(MediaRef::Image(img));
         }
 
-        if let Some(video) = &msg.video_message {
-            return Ok(MediaRef::Video(video.as_ref()));
+        if let Some(video) = msg.video_message.as_option() {
+            return Ok(MediaRef::Video(video));
         }
 
-        if let Some(audio) = &msg.audio_message {
-            return Ok(MediaRef::Audio(audio.as_ref()));
+        if let Some(audio) = msg.audio_message.as_option() {
+            return Ok(MediaRef::Audio(audio));
         }
 
-        if let Some(sticker) = &msg.sticker_message {
-            return Ok(MediaRef::Sticker(sticker.as_ref()));
+        if let Some(sticker) = msg.sticker_message.as_option() {
+            return Ok(MediaRef::Sticker(sticker));
         }
 
-        if let Some(doc) = &msg.document_message {
-            return Ok(MediaRef::Document(doc.as_ref()));
+        if let Some(doc) = msg.document_message.as_option() {
+            return Ok(MediaRef::Document(doc));
         }
 
         Err(anyhow!("quoted message does not contain media"))

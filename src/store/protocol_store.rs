@@ -427,32 +427,50 @@ impl ProtocolStore for RedbStore {
         })
     }
 
-    /// Delete tc tokens with token_timestamp older than cutoff. Returns count deleted.
-    async fn delete_expired_tc_tokens(&self, cutoff_timestamp: i64) -> Result<u32> {
+    /// Delete tc tokens that have no live state left. A row is removed only when
+    /// its received token is expired-or-absent (`token_timestamp < token_cutoff`
+    /// or empty) **and** its sender bucket is expired-or-absent
+    /// (`sender_timestamp < sender_cutoff` or null), so recent sender state is
+    /// never dropped just because the received token expired. Returns count deleted.
+    async fn delete_expired_tc_tokens(&self, token_cutoff: i64, sender_cutoff: i64) -> Result<u32> {
         self.with_write_txn(TC_TOKENS_TABLE, |table| {
             let mut to_remove = Vec::new();
+
             for result in table
                 .range::<(&str, u8)>(..)
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 let (k, v) = result.map_err(|e| StoreError::Database(Box::new(e)))?;
-                let (db_jid, db_device_id) = k.value();
 
-                if db_device_id == self.device_id {
-                    let decoded: TcTokenEntry = self.decode(v.value())?;
-                    if decoded.token_timestamp < cutoff_timestamp {
-                        to_remove.push(db_jid.to_string());
-                    }
+                let (jid, device_id) = k.value();
+
+                if device_id != self.device_id {
+                    continue;
+                }
+
+                let entry: TcTokenEntry = self.decode(v.value())?;
+
+                let token_expired = entry.token_timestamp < token_cutoff;
+
+                let sender_expired = entry
+                    .sender_timestamp
+                    .map(|ts| ts < sender_cutoff)
+                    .unwrap_or(true);
+
+                if token_expired && sender_expired {
+                    to_remove.push(jid.to_owned());
                 }
             }
 
-            let count = to_remove.len() as u32;
+            let deleted = to_remove.len() as u32;
+
             for jid in to_remove {
                 table
                     .remove((jid.as_str(), self.device_id))
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
             }
-            Ok(count)
+
+            Ok(deleted)
         })
     }
 

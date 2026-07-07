@@ -5,70 +5,11 @@ use ffmpeg_next::software::scaling::{self, Flags};
 use ffmpeg_next::util::frame::Video as VideoFrame;
 use std::io::Cursor;
 use std::sync::OnceLock;
-use whatsapp_rust::waproto::whatsapp::message::interactive_response_message::InteractiveResponseMessage;
-use whatsapp_rust::{wacore::proto_helpers::MessageExt, waproto::whatsapp::Message};
 
 static FFMPEG_INIT: OnceLock<()> = OnceLock::new();
 
 pub fn init_ffmpeg() {
     FFMPEG_INIT.get_or_init(|| ffmpeg::init().expect("failed to init ffmpeg"));
-}
-
-pub fn get_text_content(msg: &Message) -> Option<&str> {
-    if let Some(once) = &msg.view_once_message {
-        return once.message.as_deref().and_then(get_text_content);
-    }
-
-    if let Some(once_v2) = &msg.view_once_message_v2 {
-        return once_v2.message.as_deref().and_then(get_text_content);
-    }
-
-    if let Some(text) = &msg.text_content() {
-        return Some(text);
-    }
-
-    if let Some(image) = &msg.image_message {
-        if let Some(caption) = &image.caption {
-            return Some(caption);
-        }
-    }
-
-    if let Some(video) = &msg.video_message {
-        if let Some(caption) = &video.caption {
-            return Some(caption);
-        }
-    }
-
-    if let Some(document) = &msg.document_message {
-        if let Some(caption) = &document.caption {
-            return Some(caption);
-        }
-    }
-
-    None
-}
-pub fn get_interactive_id(msg: &Message) -> Option<String> {
-    let interactive = msg.interactive_response_message.as_ref()?;
-
-    let response = interactive.interactive_response_message.as_ref()?;
-
-    match response {
-        InteractiveResponseMessage::NativeFlowResponseMessage(v) => {
-            let json = v.params_json.as_ref()?;
-
-            let value: serde_json::Value = serde_json::from_str(json).ok()?;
-
-            value.get("id")?.as_str().map(str::to_owned)
-        }
-    }
-}
-
-pub fn get_message_content(msg: &Message) -> Option<String> {
-    if let Some(id) = get_interactive_id(msg) {
-        return Some(id);
-    }
-
-    get_text_content(msg).map(str::to_owned)
 }
 
 pub fn generate_video_thumbnail(video_path: &str) -> anyhow::Result<Vec<u8>> {

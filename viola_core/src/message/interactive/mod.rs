@@ -13,11 +13,14 @@ use crate::{
     },
 };
 use std::pin::Pin;
-use whatsapp_rust::waproto::whatsapp::{
-    self,
-    message::{
-        InteractiveMessage,
-        interactive_message::{self, Body, Footer, Header},
+use whatsapp_rust::{
+    buffa::MessageField,
+    waproto::whatsapp::{
+        self,
+        message::{
+            InteractiveMessage,
+            interactive_message::{self, Body, Footer, Header},
+        },
     },
 };
 
@@ -31,10 +34,10 @@ impl<'a> InteractiveFactory<'a> {
         interactive: interactive_message::InteractiveMessage,
     ) -> InteractiveBuilder<'a> {
         InteractiveBuilder {
-            body: None,
+            body: MessageField::none(),
             ctx: self.ctx,
-            header: None,
-            footer: None,
+            header: MessageField::none(),
+            footer: MessageField::none(),
             interactive: Some(interactive),
             quoted: false,
         }
@@ -86,25 +89,25 @@ impl<'a> InteractiveFactory<'a> {
 pub struct InteractiveBuilder<'a> {
     pub ctx: &'a Context,
     pub quoted: bool,
-    pub body: Option<Body>,
-    pub header: Option<Box<Header>>,
-    pub footer: Option<Box<Footer>>,
+    pub body: MessageField<Body>,
+    pub header: MessageField<Header>,
+    pub footer: MessageField<Footer>,
     pub interactive: Option<interactive_message::InteractiveMessage>,
 }
 
 impl<'a> InteractiveBuilder<'a> {
     pub fn body(mut self, body: Body) -> Self {
-        self.body = Some(body);
+        self.body = MessageField::some(body);
         self
     }
 
     pub fn header(mut self, header: Header) -> Self {
-        self.header = Some(Box::new(header));
+        self.header = MessageField::some(header);
         self
     }
 
     pub fn footer(mut self, footer: Footer) -> Self {
-        self.footer = Some(Box::new(footer));
+        self.footer = MessageField::some(footer);
         self
     }
 
@@ -115,22 +118,22 @@ impl<'a> InteractiveBuilder<'a> {
 
     pub async fn send(self) -> anyhow::Result<()> {
         let quoted = if self.quoted {
-            Some(Box::new(self.ctx.info().ctx_info()))
+            MessageField::some(self.ctx.info().ctx_info())
         } else {
-            None
+            MessageField::none()
         };
 
         self.ctx
             .send()
             .raw(whatsapp::Message {
-                interactive_message: Some(Box::new(InteractiveMessage {
+                interactive_message: MessageField::some(InteractiveMessage {
                     header: self.header,
                     body: self.body,
                     interactive_message: self.interactive,
                     context_info: quoted,
                     footer: self.footer,
                     ..Default::default()
-                })),
+                }),
                 ..Default::default()
             })
             .await

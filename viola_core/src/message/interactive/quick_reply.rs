@@ -45,7 +45,7 @@ impl<'a> QuickReplyBuilder<'a> {
             .send()
             .interactive()
             .raw(interactive_message::InteractiveMessage::NativeFlowMessage(
-                NativeFlowMessage {
+                Box::new(NativeFlowMessage {
                     message_params_json: Some("{}".into()),
                     message_version: Some(1),
                     buttons: self
@@ -62,7 +62,7 @@ impl<'a> QuickReplyBuilder<'a> {
                             ),
                         })
                         .collect(),
-                },
+                }),
             ))
             .body(interactive_message::Body {
                 text: self.text_body,

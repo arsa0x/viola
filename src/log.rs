@@ -28,21 +28,21 @@ pub fn log_message(jid: &str, msg_type: &str, msg: &impl serde::Serialize) -> an
 pub fn detect_message_type(msg: &whatsapp::Message) -> &'static str {
     if msg.conversation.is_some() {
         "conversation"
-    } else if msg.extended_text_message.is_some() {
+    } else if msg.extended_text_message.as_option().is_some() {
         "extended_text_message"
-    } else if msg.image_message.is_some() {
+    } else if msg.image_message.as_option().is_some() {
         "image_message"
-    } else if msg.video_message.is_some() {
+    } else if msg.video_message.as_option().is_some() {
         "video_message"
-    } else if msg.document_message.is_some() {
+    } else if msg.document_message.as_option().is_some() {
         "document_message"
-    } else if msg.list_message.is_some() {
+    } else if msg.list_message.as_option().is_some() {
         "list_message"
-    } else if msg.buttons_message.is_some() {
+    } else if msg.buttons_message.as_option().is_some() {
         "buttons_message"
-    } else if msg.interactive_message.is_some() {
+    } else if msg.interactive_message.as_option().is_some() {
         "interactive_message"
-    } else if msg.poll_creation_message.is_some() {
+    } else if msg.poll_creation_message.as_option().is_some() {
         "poll_creation_message"
     } else {
         "unknown"
