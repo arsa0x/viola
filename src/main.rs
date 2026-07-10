@@ -9,112 +9,163 @@ use viola_core::{
     state::AppState,
 };
 use viola_plugin as _;
-use whatsapp_rust::{TokioRuntime, bot::Bot, transport::TokioWebSocketTransportFactory};
+use whatsapp_rust::{
+    TokioRuntime,
+    bot::{Bot, MessageContext},
+    transport::TokioWebSocketTransportFactory,
+    types::events::{Event, EventKind},
+};
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let dir = init_dir()?;
-    let load_conf = load_config(&dir.join("config.toml").to_string_lossy())?;
-    let config = Arc::new(RwLock::new(load_conf));
+fn main() -> anyhow::Result<()> {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
 
-    env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Info)
-        .write_style(env_logger::WriteStyle::Always)
-        .format(|buf, record| {
-            writeln!(
-                buf,
-                "[{:<5}] [{}] - {}",
-                record.level(),
-                record.target(),
-                record.args()
-            )
-        })
-        .init();
+    runtime.block_on(async {
+        let dir = init_dir()?;
 
-    let store_path = dir.join("store.redb");
-    let backend = RedbStore::new(&store_path.to_string_lossy())?;
+        let load_conf = load_config(&dir.join("config.toml").to_string_lossy())?;
 
-    let router = Arc::new(Router::new());
-    let isahc_client = isahc::HttpClient::builder().build()?;
+        let config = Arc::new(RwLock::new(load_conf));
 
-    let state = Arc::new(AppState::new(
-        Arc::clone(&config),
-        Arc::clone(&router),
-        Arc::new(dir),
-        isahc_client.clone(),
-    ));
+        env_logger::Builder::from_default_env()
+            .filter_level(log::LevelFilter::Info)
+            .write_style(env_logger::WriteStyle::Always)
+            .format(|buf, record| {
+                writeln!(
+                    buf,
+                    "[{:<5}] [{}] - {}",
+                    record.level(),
+                    record.target(),
+                    record.args()
+                )
+            })
+            .init();
 
-    log::info!("Redb backend initialized");
-    log::info!("Starting bot...");
+        let store_path = dir.join("store.redb");
+        let backend = RedbStore::new(&store_path.to_string_lossy())?;
 
-    let state_for_bot = state.clone();
+        let router = Arc::new(Router::new());
+        let isahc_client = isahc::HttpClient::builder().build()?;
 
-    let bot = Bot::builder()
-        .with_backend(backend)
-        .with_transport_factory(TokioWebSocketTransportFactory::new())
-        .with_http_client(IsahcClient::new(isahc_client))
-        .with_runtime(TokioRuntime)
-        .on_qr_code(|code, _timeout| async move {
-            match qrcode::QrCode::new(code.as_bytes()) {
-                Ok(qr) => {
-                    let qr_str = qr.render::<unicode::Dense1x2>().quiet_zone(false).build();
-                    println!("{}", qr_str);
-                }
-                Err(e) => {
-                    log::error!("failed to generate qr: {}", e);
-                }
-            }
-        })
-        .on_message(move |msg_ctx| {
-            let state = state_for_bot.clone();
+        let state = Arc::new(AppState::new(
+            Arc::clone(&config),
+            Arc::clone(&router),
+            Arc::new(dir),
+            isahc_client.clone(),
+        ));
 
-            async move {
-                let start = Instant::now();
+        log::info!("Redb backend initialized");
+        log::info!("Starting bot...");
 
-                let text_content = match incoming::get_text_content(&msg_ctx.message) {
-                    Some(t) if !t.trim().is_empty() => t.trim().to_string(),
-                    _ => return,
-                };
+        let state_for_bot = state.clone();
 
-                if let Ok(permit) = state.semaphore.clone().try_acquire_owned() {
-                    tokio::spawn(async move {
-                        let _permit = permit;
+        let bot = Bot::builder()
+            .with_backend(backend)
+            .with_transport_factory(TokioWebSocketTransportFactory::new())
+            .with_http_client(IsahcClient::new(isahc_client))
+            .with_runtime(TokioRuntime)
+            .on_event_for(
+                &[
+                    EventKind::PairingCode,
+                    EventKind::Connected,
+                    EventKind::Messages,
+                    EventKind::Disconnected,
+                    EventKind::LoggedOut,
+                ],
+                move |event, client| {
+                    let state = state_for_bot.clone();
+                    async move {
+                        match &*event {
+                            Event::PairingQrCode(qr) => match qrcode::QrCode::new(&qr.code) {
+                                Ok(qrcode) => {
+                                    let qr_str = qrcode
+                                        .render::<unicode::Dense1x2>()
+                                        .quiet_zone(false)
+                                        .build();
+                                    println!("{}", qr_str);
+                                }
 
-                        let prefix = {
-                            let config = state.config.read().await;
-                            config.bot.prefix.clone()
-                        };
+                                Err(e) => log::error!("failed to generate qr: {}", e),
+                            },
 
-                        let ctx = Context {
-                            msg_ctx,
-                            args: Vec::new(),
-                            state: state.clone(),
-                            created_at: start,
-                        };
+                            Event::Connected(_) => log::info!("Bot connected!"),
 
-                        if let Some((command, args)) = viola::parser::parse(&prefix, &text_content)
-                        {
-                            let mut ctx_with_args = ctx;
-                            ctx_with_args.args = args;
+                            Event::Messages(batch) => {
+                                for inb in batch {
+                                    let msg = inb.message.clone();
+                                    let info = inb.info.clone();
 
-                            if let Err(e) = state.router.execute(&command, ctx_with_args).await {
-                                log::error!("command failed: {}", e);
+                                    let text_content = match incoming::get_text_content(&msg) {
+                                        Some(t) if !t.trim().is_empty() => t.trim().to_string(),
+                                        _ => continue,
+                                    };
+
+                                    if let Ok(permit) = state.semaphore.clone().try_acquire_owned()
+                                    {
+                                        let state_spawn = state.clone();
+                                        let client_spawn = client.clone();
+                                        let start_time = Instant::now();
+
+                                        tokio::spawn(async move {
+                                            let _permit = permit;
+
+                                            let prefix = {
+                                                let config = state_spawn.config.read().await;
+                                                config.bot.prefix.clone()
+                                            };
+
+                                            let internal_msg_ctx = MessageContext::from_parts(
+                                                &msg,
+                                                &info,
+                                                client_spawn,
+                                            );
+                                            let ctx = Context {
+                                                msg_ctx: internal_msg_ctx,
+                                                args: Vec::new(),
+                                                state: state_spawn.clone(),
+                                                created_at: start_time,
+                                            };
+
+                                            if let Some((command, args)) =
+                                                viola::parser::parse(&prefix, &text_content)
+                                            {
+                                                let mut ctx_with_args = ctx;
+                                                ctx_with_args.args = args;
+
+                                                if let Err(e) = state_spawn
+                                                    .router
+                                                    .execute(&command, ctx_with_args)
+                                                    .await
+                                                {
+                                                    log::error!(
+                                                        "command [{}] failed: {}",
+                                                        command,
+                                                        e
+                                                    );
+                                                }
+                                            }
+                                        });
+                                    } else {
+                                        log::warn!("Server sangat sibuk, menolak pesan.");
+                                    }
+                                }
                             }
-                        } else {
-                            return;
+                            Event::Disconnected(_) => log::info!("Bot was disconnected!"),
+
+                            Event::LoggedOut(_) => log::info!("Bot was logged out!"),
+                            _ => {}
                         }
-                    });
-                } else {
-                    log::warn!("server is busy");
-                };
-            }
-        })
-        .build()
-        .await?;
+                    }
+                },
+            )
+            .build()
+            .await?;
 
-    bot.run().await;
+        bot.run().await;
 
-    log::info!("bot is running. press ctrl+c to stop.");
+        log::info!("bot is running. press ctrl+c to stop.");
 
-    Ok(())
+        Ok(())
+    })
 }

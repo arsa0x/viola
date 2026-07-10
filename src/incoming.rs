@@ -16,12 +16,20 @@ pub fn get_text_content(msg: &whatsapp::Message) -> Option<&str> {
     if let Some(doc) = &msg.document_message.caption {
         return Some(doc);
     }
+    if let Some(vo) = msg.view_once_message.as_option() {
+        if let Some(inner) = vo.message.as_option() {
+            if let Some(onc) = get_text_content(inner) {
+                return Some(onc);
+            }
+        }
+    }
+    if let Some(vo2) = msg.view_once_message_v2.as_option() {
+        if let Some(inner) = vo2.message.as_option() {
+            if let Some(onc_v2) = get_text_content(inner) {
+                return Some(onc_v2);
+            }
+        }
+    }
 
-    if let Some(onc) = get_text_content(&msg.view_once_message.message) {
-        return Some(onc);
-    }
-    if let Some(onc_v2) = get_text_content(&msg.view_once_message_v2.message) {
-        return Some(onc_v2);
-    }
-    return None;
+    None
 }
