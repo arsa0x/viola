@@ -5,6 +5,7 @@ use super::{
 };
 use async_trait::async_trait;
 use redb::ReadableTable;
+use std::collections::HashSet;
 use whatsapp_rust::{
     store::{
         DeviceListRecord, LidPnMappingEntry, ProtocolStore, TcTokenEntry,
@@ -46,20 +47,32 @@ impl ProtocolStore for RedbStore {
         if entries.is_empty() {
             return Ok(());
         }
-        self.with_write_txn(SENDER_KEY_DEVICES_TABLE, |table| {
-            for &(device_jid, has_key) in entries {
+        let device_id = self.device_id;
+        let group_jid = group_jid.to_string();
+
+        let entries: Vec<(String, bool)> = entries
+            .iter()
+            .map(|&(jid, has_key)| (jid.to_string(), has_key))
+            .collect();
+
+        self.with_write_txn(SENDER_KEY_DEVICES_TABLE, move |table| {
+            for (device_jid, has_key) in entries {
                 let val = if has_key { 1 } else { 0 };
                 table
-                    .insert((group_jid, self.device_id, device_jid), val)
+                    .insert((group_jid.as_str(), device_id, device_jid.as_str()), val)
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
             }
             Ok(())
         })
+        .await
     }
 
     /// Clear all sender key device tracking for a group (on sender key rotation).
     async fn clear_sender_key_devices(&self, group_jid: &str) -> Result<()> {
-        self.with_write_txn(SENDER_KEY_DEVICES_TABLE, |table| {
+        let group_jid = group_jid.to_string();
+        let device_id = self.device_id;
+
+        self.with_write_txn(SENDER_KEY_DEVICES_TABLE, move |table| {
             let mut to_remove = Vec::new();
             for result in table
                 .range::<(&str, u8, &str)>(..)
@@ -68,17 +81,18 @@ impl ProtocolStore for RedbStore {
                 let (k, _) = result.map_err(|e| StoreError::Database(Box::new(e)))?;
                 let (db_group, db_device_id, db_device_jid) = k.value();
 
-                if db_group == group_jid && db_device_id == self.device_id {
+                if db_group == group_jid && db_device_id == device_id {
                     to_remove.push(db_device_jid.to_string());
                 }
             }
             for device_jid in to_remove {
                 table
-                    .remove((group_jid, self.device_id, device_jid.as_str()))
+                    .remove((group_jid.as_str(), device_id, device_jid.as_str()))
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
             }
             Ok(())
         })
+        .await
     }
 
     /// Delete specific `sender_key_devices` rows by device JID across all groups.
@@ -87,8 +101,13 @@ impl ProtocolStore for RedbStore {
         if device_jids.is_empty() {
             return Ok(());
         }
-        self.with_write_txn(SENDER_KEY_DEVICES_TABLE, |table| {
+
+        let target_jids: HashSet<String> = device_jids.iter().map(|s| s.to_string()).collect();
+        let device_id = self.device_id;
+
+        self.with_write_txn(SENDER_KEY_DEVICES_TABLE, move |table| {
             let mut to_remove = Vec::new();
+
             for result in table
                 .range::<(&str, u8, &str)>(..)
                 .map_err(|e| StoreError::Database(Box::new(e)))?
@@ -96,23 +115,26 @@ impl ProtocolStore for RedbStore {
                 let (k, _) = result.map_err(|e| StoreError::Database(Box::new(e)))?;
                 let (db_group, db_device_id, db_device_jid) = k.value();
 
-                if db_device_id == self.device_id && device_jids.contains(&db_device_jid) {
+                if db_device_id == device_id && target_jids.contains(db_device_jid) {
                     to_remove.push((db_group.to_string(), db_device_jid.to_string()));
                 }
             }
             for (g_jid, d_jid) in to_remove {
                 table
-                    .remove((g_jid.as_str(), self.device_id, d_jid.as_str()))
+                    .remove((g_jid.as_str(), device_id, d_jid.as_str()))
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
             }
             Ok(())
         })
+        .await
     }
 
     /// Clear all sender key device tracking across ALL groups.
     /// Called on identity change (raw_id mismatch) to force SKDM redistribution.
     async fn clear_all_sender_key_devices(&self) -> Result<()> {
-        self.with_write_txn(SENDER_KEY_DEVICES_TABLE, |table| {
+        let device_id = self.device_id;
+
+        self.with_write_txn(SENDER_KEY_DEVICES_TABLE, move |table| {
             let mut to_remove = Vec::new();
             for result in table
                 .range::<(&str, u8, &str)>(..)
@@ -121,17 +143,18 @@ impl ProtocolStore for RedbStore {
                 let (k, _) = result.map_err(|e| StoreError::Database(Box::new(e)))?;
                 let (db_group, db_device_id, db_device_jid) = k.value();
 
-                if db_device_id == self.device_id {
+                if db_device_id == device_id {
                     to_remove.push((db_group.to_string(), db_device_jid.to_string()));
                 }
             }
             for (g_jid, d_jid) in to_remove {
                 table
-                    .remove((g_jid.as_str(), self.device_id, d_jid.as_str()))
+                    .remove((g_jid.as_str(), device_id, d_jid.as_str()))
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
             }
             Ok(())
         })
+        .await
     }
 
     // --- LID-PN Mapping ---
@@ -175,12 +198,16 @@ impl ProtocolStore for RedbStore {
     /// Store or update a LID-PN mapping.
     async fn put_lid_mapping(&self, entry: &LidPnMappingEntry) -> Result<()> {
         let encoded = self.encode(entry)?;
-        self.with_write_txn(LID_PN_MAPPING_TABLE, |table| {
+        let device_id = self.device_id;
+        let lid = entry.lid.to_string();
+
+        self.with_write_txn(LID_PN_MAPPING_TABLE, move |table| {
             table
-                .insert((entry.lid.as_str(), self.device_id), encoded.as_slice())
+                .insert((lid.as_str(), device_id), encoded.as_slice())
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Batched variant of `put_lid_mapping`. Backends should override with a
@@ -190,15 +217,24 @@ impl ProtocolStore for RedbStore {
         if entries.is_empty() {
             return Ok(());
         }
-        self.with_write_txn(LID_PN_MAPPING_TABLE, |table| {
-            for entry in entries {
-                let encoded = self.encode(entry)?;
+
+        let mut prepared_entries = Vec::with_capacity(entries.len());
+        for entry in entries {
+            let encoded = self.encode(entry)?;
+            prepared_entries.push((entry.lid.to_string(), encoded));
+        }
+
+        let device_id = self.device_id;
+
+        self.with_write_txn(LID_PN_MAPPING_TABLE, move |table| {
+            for (lid, encoded) in prepared_entries {
                 table
-                    .insert((entry.lid.as_str(), self.device_id), encoded.as_slice())
+                    .insert((lid.as_str(), device_id), encoded.as_slice())
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
             }
             Ok(())
         })
+        .await
     }
 
     /// Get all LID-PN mappings (for cache warm-up).
@@ -230,12 +266,20 @@ impl ProtocolStore for RedbStore {
             created_at: wacore::time::now_secs() as i32,
         };
         let encoded = self.encode(&record)?;
-        self.with_write_txn(BASE_KEYS_TABLE, |table| {
+        let address = address.to_string();
+        let device_id = self.device_id;
+        let message_id = message_id.to_string();
+
+        self.with_write_txn(BASE_KEYS_TABLE, move |table| {
             table
-                .insert((address, message_id, self.device_id), encoded.as_slice())
+                .insert(
+                    (address.as_str(), message_id.as_str(), device_id),
+                    encoded.as_slice(),
+                )
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Check if the current session has the same base key as the saved one.
@@ -260,12 +304,17 @@ impl ProtocolStore for RedbStore {
 
     /// Delete a base key entry.
     async fn delete_base_key(&self, address: &str, message_id: &str) -> Result<()> {
-        self.with_write_txn(BASE_KEYS_TABLE, |table| {
+        let address = address.to_string();
+        let message_id = message_id.to_string();
+        let device_id = self.device_id;
+
+        self.with_write_txn(BASE_KEYS_TABLE, move |table| {
             table
-                .remove((address, message_id, self.device_id))
+                .remove((address.as_str(), message_id.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     // --- Device Registry ---
@@ -273,12 +322,15 @@ impl ProtocolStore for RedbStore {
     /// Update the device list for a user (called after usync responses).
     async fn update_device_list(&self, record: DeviceListRecord) -> Result<()> {
         let encoded = self.encode(&record)?;
-        self.with_write_txn(DEVICE_REGISTRY_TABLE, |table| {
+        let device_id = self.device_id;
+
+        self.with_write_txn(DEVICE_REGISTRY_TABLE, move |table| {
             table
-                .insert((record.user.as_str(), self.device_id), encoded.as_slice())
+                .insert((record.user.as_str(), device_id), encoded.as_slice())
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Batched variant of `update_device_list`. Backends should override with
@@ -293,15 +345,19 @@ impl ProtocolStore for RedbStore {
         if records.is_empty() {
             return Ok(());
         }
-        self.with_write_txn(DEVICE_REGISTRY_TABLE, |table| {
+        let device_id = self.device_id;
+        let this = self.clone();
+
+        self.with_write_txn(DEVICE_REGISTRY_TABLE, move |table| {
             for record in records {
-                let encoded = self.encode(&record)?;
+                let encoded = this.encode(&record)?;
                 table
-                    .insert((record.user.as_str(), self.device_id), encoded.as_slice())
+                    .insert((record.user.as_str(), device_id), encoded.as_slice())
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
             }
             Ok(())
         })
+        .await
     }
 
     /// Get all known devices for a user.
@@ -321,12 +377,16 @@ impl ProtocolStore for RedbStore {
 
     /// Delete a device list record, forcing a network re-fetch on next query.
     async fn delete_devices(&self, user: &str) -> Result<()> {
-        self.with_write_txn(DEVICE_REGISTRY_TABLE, |table| {
+        let user = user.to_string();
+        let device_id = self.device_id;
+
+        self.with_write_txn(DEVICE_REGISTRY_TABLE, move |table| {
             table
-                .remove((user, self.device_id))
+                .remove((user.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     // --- Group Metadata Cache (WA Web participant-phash re-query skip) ---
@@ -350,24 +410,33 @@ impl ProtocolStore for RedbStore {
     /// Persist (upsert) the serialized group metadata blob for `group_jid`.
     /// No-op by default; backends override to enable the phash re-query skip.
     async fn put_group_metadata(&self, group_jid: &str, blob: &[u8]) -> Result<()> {
-        self.with_write_txn(GROUP_METADATA_TABLE, |table| {
+        let device_id = self.device_id;
+        let group_jid = group_jid.to_string();
+        let blob = blob.to_vec();
+
+        self.with_write_txn(GROUP_METADATA_TABLE, move |table| {
             table
-                .insert((group_jid, self.device_id), blob)
+                .insert((group_jid.as_str(), device_id), blob.as_slice())
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Remove the persisted group metadata blob for `group_jid` (e.g. on leave),
     /// so the next query re-fetches in full instead of comparing a stale phash.
     /// No-op by default.
     async fn delete_group_metadata(&self, group_jid: &str) -> Result<()> {
-        self.with_write_txn(GROUP_METADATA_TABLE, |table| {
+        let device_id = self.device_id;
+        let group_jid = group_jid.to_string();
+
+        self.with_write_txn(GROUP_METADATA_TABLE, move |table| {
             table
-                .remove((group_jid, self.device_id))
+                .remove((group_jid.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     // --- TcToken Storage ---
@@ -390,22 +459,30 @@ impl ProtocolStore for RedbStore {
     /// Store or update a trusted contact token for a JID.
     async fn put_tc_token(&self, jid: &str, entry: &TcTokenEntry) -> Result<()> {
         let encoded = self.encode(entry)?;
-        self.with_write_txn(TC_TOKENS_TABLE, |table| {
+        let jid = jid.to_string();
+        let device_id = self.device_id;
+
+        self.with_write_txn(TC_TOKENS_TABLE, move |table| {
             table
-                .insert((jid, self.device_id), encoded.as_slice())
+                .insert((jid.as_str(), device_id), encoded.as_slice())
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Delete a trusted contact token for a JID.
     async fn delete_tc_token(&self, jid: &str) -> Result<()> {
-        self.with_write_txn(TC_TOKENS_TABLE, |table| {
+        let jid = jid.to_string();
+        let device_id = self.device_id;
+
+        self.with_write_txn(TC_TOKENS_TABLE, move |table| {
             table
-                .remove((jid, self.device_id))
+                .remove((jid.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Get all JIDs that have stored tc tokens.
@@ -433,7 +510,9 @@ impl ProtocolStore for RedbStore {
     /// (`sender_timestamp < sender_cutoff` or null), so recent sender state is
     /// never dropped just because the received token expired. Returns count deleted.
     async fn delete_expired_tc_tokens(&self, token_cutoff: i64, sender_cutoff: i64) -> Result<u32> {
-        self.with_write_txn(TC_TOKENS_TABLE, |table| {
+        let device_id = self.device_id;
+
+        self.with_write_txn(TC_TOKENS_TABLE, move |table| {
             let mut to_remove = Vec::new();
 
             for result in table
@@ -441,14 +520,14 @@ impl ProtocolStore for RedbStore {
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 let (k, v) = result.map_err(|e| StoreError::Database(Box::new(e)))?;
+                let (jid, db_device_id) = k.value();
 
-                let (jid, device_id) = k.value();
-
-                if device_id != self.device_id {
+                if db_device_id != device_id {
                     continue;
                 }
 
-                let entry: TcTokenEntry = self.decode(v.value())?;
+                let entry: TcTokenEntry = serde_json::from_slice(v.value())
+                    .map_err(|e| StoreError::Database(Box::new(e)))?;
 
                 let token_expired = entry.token_timestamp < token_cutoff;
 
@@ -466,12 +545,13 @@ impl ProtocolStore for RedbStore {
 
             for jid in to_remove {
                 table
-                    .remove((jid.as_str(), self.device_id))
+                    .remove((jid.as_str(), device_id))
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
             }
 
             Ok(deleted)
         })
+        .await
     }
 
     // --- Sent Message Store (retry support, matches WA Web's getMessageTable) ---
@@ -489,43 +569,60 @@ impl ProtocolStore for RedbStore {
             created_at: wacore::time::now_secs() as i64,
         };
         let encoded = self.encode(&record)?;
-        self.with_write_txn(SENT_MESSAGES_TABLE, |table| {
+        let device_id = self.device_id;
+        let chat_jid = chat_jid.to_string();
+        let message_id = message_id.to_string();
+
+        self.with_write_txn(SENT_MESSAGES_TABLE, move |table| {
             table
-                .insert((chat_jid, message_id, self.device_id), encoded.as_slice())
+                .insert(
+                    (chat_jid.as_str(), message_id.as_str(), device_id),
+                    encoded.as_slice(),
+                )
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Retrieve and delete a sent message (atomic take). Returns serialized payload.
     /// Called when a retry receipt arrives; consuming prevents double-retry.
     async fn take_sent_message(&self, chat_jid: &str, message_id: &str) -> Result<Option<Vec<u8>>> {
-        self.with_write_txn(SENT_MESSAGES_TABLE, |table| {
+        let chat_jid = chat_jid.to_string();
+        let message_id = message_id.to_string();
+        let device_id = self.device_id;
+        let this = self.clone();
+
+        self.with_write_txn(SENT_MESSAGES_TABLE, move |table| {
             let mut record_opt = None;
             {
                 if let Some(data) = table
-                    .get((chat_jid, message_id, self.device_id))
+                    .get((chat_jid.as_str(), message_id.as_str(), device_id))
                     .map_err(|e| StoreError::Database(Box::new(e)))?
                 {
-                    let decoded: SentMessageRecord = self.decode(data.value())?;
+                    let decoded: SentMessageRecord = this.decode(data.value())?;
                     record_opt = Some(decoded.payload);
                 }
             }
 
             if let Some(payload) = record_opt {
                 table
-                    .remove((chat_jid, message_id, self.device_id))
+                    .remove((chat_jid.as_str(), message_id.as_str(), device_id))
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
                 Ok(Some(payload))
             } else {
                 Ok(None)
             }
         })
+        .await
     }
 
     /// Delete sent messages older than cutoff (unix timestamp seconds). Returns count deleted.
     async fn delete_expired_sent_messages(&self, cutoff_timestamp: i64) -> Result<u32> {
-        self.with_write_txn(SENT_MESSAGES_TABLE, |table| {
+        let device_id = self.device_id;
+        let this = self.clone();
+
+        self.with_write_txn(SENT_MESSAGES_TABLE, move |table| {
             let mut to_remove = Vec::new();
             for result in table
                 .range::<(&str, &str, u8)>(..)
@@ -534,8 +631,8 @@ impl ProtocolStore for RedbStore {
                 let (k, v) = result.map_err(|e| StoreError::Database(Box::new(e)))?;
                 let (db_chat, db_msg_id, db_device_id) = k.value();
 
-                if db_device_id == self.device_id {
-                    let decoded: SentMessageRecord = self.decode(v.value())?;
+                if db_device_id == device_id {
+                    let decoded: SentMessageRecord = this.decode(v.value())?;
                     if decoded.created_at < cutoff_timestamp {
                         to_remove.push((db_chat.to_string(), db_msg_id.to_string()));
                     }
@@ -545,10 +642,11 @@ impl ProtocolStore for RedbStore {
             let count = to_remove.len() as u32;
             for (chat, msg_id) in to_remove {
                 table
-                    .remove((chat.as_str(), msg_id.as_str(), self.device_id))
+                    .remove((chat.as_str(), msg_id.as_str(), device_id))
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
             }
             Ok(count)
         })
+        .await
     }
 }
