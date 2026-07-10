@@ -15,12 +15,13 @@ impl DeviceStore for RedbStore {
     /// Save device data.
     async fn save(&self, device: &Device) -> Result<()> {
         let encoded = self.encode(device)?;
-        self.with_write_txn(DEVICE_TABLE, |table| {
+        self.with_write_txn(DEVICE_TABLE, move |table| {
             table
                 .insert(DEVICE_ROW_ID, encoded.as_slice())
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Load device data.
@@ -53,12 +54,14 @@ impl DeviceStore for RedbStore {
     async fn create(&self) -> Result<i32> {
         let device = Device::new();
         let encoded = self.encode(&device)?;
-        self.with_write_txn(DEVICE_TABLE, |table| {
+
+        self.with_write_txn(DEVICE_TABLE, move |table| {
             table
                 .insert(DEVICE_ROW_ID, encoded.as_slice())
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(DEVICE_ROW_ID as i32)
         })
+        .await
     }
 
     /// Create a snapshot of the database state.
