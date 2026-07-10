@@ -41,7 +41,6 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
 
     let text = format!(
         concat!(
-            "*Pong!*\n\n",
             "*Processing:*\n{:.3} ms\n\n",
             "*CPU Usage:*\n{:.2}%\n\n",
             "*System RAM:*\n{} / {}\n\n",
@@ -58,5 +57,10 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
         uptime
     );
 
-    ctx.send().interactive().inapp_signup(text).quoted().await
+    ctx.send()
+        .interactive()
+        .inapp_signup(text)
+        .title("Pong!")
+        .quoted()
+        .await
 }

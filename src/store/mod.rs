@@ -141,26 +141,35 @@ impl RedbStore {
     }
 
     /// Executes a write operation on a single table within an atomic transaction.
-    pub fn with_write_txn<K, V, F, R>(&self, definition: TableDefinition<K, V>, f: F) -> Result<R>
+    pub async fn with_write_txn<K, V, F, R>(
+        &self,
+        definition: TableDefinition<'static, K, V>,
+        f: F,
+    ) -> Result<R>
     where
-        K: redb::Key + 'static,
-        V: redb::Value + 'static,
-        F: FnOnce(&mut Table<K, V>) -> Result<R>,
+        K: redb::Key + Send + Sync + 'static,
+        V: redb::Value + Send + Sync + 'static,
+        F: FnOnce(&mut Table<K, V>) -> Result<R> + Send + 'static,
+        R: Send + 'static,
     {
-        let write_txn = self
-            .connection
-            .begin_write()
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
-        let result = {
-            let mut table = write_txn
-                .open_table(definition)
+        let connection = Arc::clone(&self.connection);
+        tokio::task::spawn_blocking(move || {
+            let write_txn = connection
+                .begin_write()
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
-            f(&mut table).map_err(|e| StoreError::Database(Box::new(e)))?
-        };
-        write_txn
-            .commit()
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
-        Ok(result)
+            let result = {
+                let mut table = write_txn
+                    .open_table(definition)
+                    .map_err(|e| StoreError::Database(Box::new(e)))?;
+                f(&mut table).map_err(|e| StoreError::Database(Box::new(e)))?
+            };
+            write_txn
+                .commit()
+                .map_err(|e| StoreError::Database(Box::new(e)))?;
+            Ok(result)
+        })
+        .await
+        .map_err(|e| StoreError::Database(Box::new(e)))?
     }
 
     /// Executes a read operation on a single table within a read transaction.
