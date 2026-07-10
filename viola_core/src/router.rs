@@ -35,8 +35,12 @@ impl Router {
     }
 
     pub async fn execute(&self, cmd: &str, ctx: Context) -> anyhow::Result<()> {
+        let Some(plugin) = self.plugins.get(&UniCase::new(cmd)) else {
+            return Ok(());
+        };
+
         let config = ctx.state.read_config().await;
-        let is_owner = ctx.info().is_owner().await;
+        let is_owner = ctx.info().is_owner(&config);
 
         match config.bot.mode {
             BotMode::Disabled => return Ok(()),
@@ -52,10 +56,6 @@ impl Router {
             }
             BotMode::Public => {}
         }
-
-        let Some(plugin) = self.plugins.get(&UniCase::new(cmd)) else {
-            return Ok(());
-        };
 
         if self.is_help_flag(ctx.args.as_slice()) {
             let triggers = plugin

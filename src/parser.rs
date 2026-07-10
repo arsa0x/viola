@@ -1,13 +1,7 @@
 pub fn parse(prefix: &str, message: &str) -> Option<(String, Vec<String>)> {
-    if !message.starts_with(prefix) {
-        return None;
-    }
-
-    let without_prefix = message.trim_start_matches(prefix);
+    let without_prefix = message.strip_prefix(prefix)?;
     let parts = split_message(without_prefix);
-
     let (cmd, args) = parts.split_first()?;
-
     Some((cmd.to_string(), args.to_vec()))
 }
 

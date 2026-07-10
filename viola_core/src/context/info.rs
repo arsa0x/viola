@@ -1,6 +1,6 @@
 use whatsapp_rust::{Jid, waproto::whatsapp::ContextInfo};
 
-use crate::context::Context;
+use crate::{config::Config, context::Context};
 
 pub struct Info<'a> {
     pub ctx: &'a Context,
@@ -27,12 +27,11 @@ impl<'a> Info<'a> {
         self.ctx.msg_ctx.info.source.is_group
     }
 
-    pub async fn is_owner(&self) -> bool {
+    pub fn is_owner(&self, config: &Config) -> bool {
         let sender = match self.sender_str() {
             Ok(s) => s,
             Err(_) => return false,
         };
-        let config = self.ctx.state.read_config().await;
         config.bot.owners.iter().any(|o| *o == sender)
     }
 
