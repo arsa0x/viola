@@ -146,7 +146,12 @@ async fn ouo(ctx: Context) -> anyhow::Result<()> {
 
     match ouo_bypass(&ctx, url).await? {
         Some(result) => {
-            ctx.send().text(&result).await?;
+            ctx.send()
+                .interactive()
+                .inapp_signup(&result)
+                .title("Success")
+                .quoted()
+                .await?;
             ctx.send().success().await?;
         }
         None => {

@@ -97,9 +97,13 @@ pub const DEVICE_TABLE: TableDefinition<u32, &[u8]> = TableDefinition::new("devi
 
 impl RedbStore {
     pub fn new(database_url: &str) -> Result<Self> {
-        let connection =
-            Arc::new(redb::Database::create(database_url).expect("failed to create database"));
-        RedbStore::ensure_tables(&connection).expect("msg");
+        let connection = Arc::new(
+            redb::Database::create(database_url).map_err(|e| StoreError::Database(Box::new(e)))?,
+        );
+        RedbStore::ensure_tables(&connection).map_err(|e| {
+            let io_err = std::io::Error::new(std::io::ErrorKind::Other, e.to_string());
+            StoreError::Database(Box::new(io_err))
+        })?;
         Ok(Self {
             connection,
             device_id: 1,
