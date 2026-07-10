@@ -15,7 +15,6 @@ A fast and modular WhatsApp bot framework for Rust with procedural macro command
 ```bash
 git clone https://github.com/arsa0x/viola.git
 cd viola
-
 cargo run
 ```
 
@@ -32,7 +31,7 @@ use viola_core::context::Context;
 use viola_macros::command;
 
 #[command(
-    trigger = [""],     // required
+    triggers = [""],    // required
     category = "",      // required
     owner = false,      // optional
     group_only = false, // optional
@@ -45,17 +44,19 @@ async fn command_name(ctx: Context) -> anyhow::Result<()> {
 }
 ```
 
+See [`viola_core/src/message/README.md`](./viola_core/src/message/README.md#message-module) for the full API used to build and send messages (text, media, reactions, interactive buttons/lists) via `ctx.send()`.
+
 ## Configuration
 
 Viola automatically stores configuration files inside your system home directory.
 
 ### Config Location
 
-|Platform | Example Path                        |
-| ------- | ----------------------------------- |
-| Linux   | /home/username/viola/config.toml    |
-| macOS   | /Users/UserName/viola/config.toml   |
-| Windows | C:\Users\UserName\viola\config.toml |
+| Platform | Example Path                         |
+| -------- | ------------------------------------- |
+| Linux    | `/home/username/viola/config.toml`    |
+| macOS    | `/Users/UserName/viola/config.toml`   |
+| Windows  | `C:\Users\UserName\viola\config.toml` |
 
 The config file will be automatically generated on first run.
 
@@ -65,9 +66,11 @@ The config file will be automatically generated on first run.
 [bot]
 name   = "viola"
 prefix = "."
-owner  = "628123456789"
+owners = ["628123456789"]
 mode   = "public"
 ```
+
+`owners` accepts a list, so multiple bot owners can be configured. `mode` must be one of `public`, `group`, `owner`, or `disabled`.
 
 ## Project Structure
 
@@ -81,6 +84,10 @@ mode   = "public"
         ├── downloader
         └── tools
 ```
+
+## Documentation
+
+- [Message module](./viola_core/src/message/README.md#message-module) — builders for sending text, media, reactions, and interactive (buttons/list) messages via `ctx.send()`.
 
 ## License
 
