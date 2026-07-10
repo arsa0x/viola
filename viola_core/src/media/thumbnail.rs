@@ -1,4 +1,5 @@
 use anyhow::{Context as _, Result, anyhow};
+use bytes::Bytes;
 use ffmpeg_next as ffmpeg;
 use image::{DynamicImage, ImageBuffer, Rgb, imageops::FilterType};
 use std::io::Write;
@@ -11,8 +12,7 @@ pub fn init_ffmpeg() -> Result<()> {
     ffmpeg::init().map_err(|e| anyhow!("failed to initialize ffmpeg: {e}"))
 }
 
-pub async fn video_thumbnail_async(bytes: &[u8], max_dim: Option<u32>) -> Result<Vec<u8>> {
-    let bytes = bytes.to_vec();
+pub async fn video_thumbnail_async(bytes: Bytes, max_dim: Option<u32>) -> Result<Vec<u8>> {
     let max_dim = max_dim.unwrap_or(DEFAULT_MAX_DIM);
     tokio::task::spawn_blocking(move || video_thumbnail(&bytes, max_dim))
         .await
@@ -40,13 +40,26 @@ pub fn video_thumbnail(bytes: &[u8], max_dim: u32) -> Result<Vec<u8>> {
         .video()
         .context("failed to open video decoder")?;
 
+    let mut out_width = decoder.width();
+    let mut out_height = decoder.height();
+
+    if out_width > max_dim || out_height > max_dim {
+        if out_width > out_height {
+            out_height = (out_height * max_dim) / out_width;
+            out_width = max_dim;
+        } else {
+            out_width = (out_width * max_dim) / out_height;
+            out_height = max_dim;
+        }
+    }
+
     let mut scaler = ffmpeg::software::scaling::context::Context::get(
         decoder.format(),
         decoder.width(),
         decoder.height(),
         ffmpeg::format::Pixel::RGB24,
-        decoder.width(),
-        decoder.height(),
+        out_width,
+        out_height,
         ffmpeg::software::scaling::flag::Flags::BILINEAR,
     )
     .context("failed to create pixel-format scaler")?;
