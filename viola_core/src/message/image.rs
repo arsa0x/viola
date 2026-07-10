@@ -1,4 +1,4 @@
-use crate::Context;
+use crate::{Context, media};
 use std::pin::Pin;
 use whatsapp_rust::{download::MediaType, media::ImageOptions};
 
@@ -33,6 +33,11 @@ impl<'a> ImageBuilder<'a> {
             None
         };
 
+        let thumbnail = match self.thumbnail {
+            Some(t) => Some(t),
+            None => media::image_thumbnail_async(&self.bytes, None).await.ok(),
+        };
+
         let upload = self
             .ctx
             .media()
@@ -43,7 +48,7 @@ impl<'a> ImageBuilder<'a> {
             upload,
             ImageOptions {
                 context_info: quoted,
-                jpeg_thumbnail: self.thumbnail,
+                jpeg_thumbnail: thumbnail,
                 caption: self.caption,
                 ..Default::default()
             },
