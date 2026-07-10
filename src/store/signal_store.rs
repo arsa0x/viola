@@ -14,12 +14,15 @@ use whatsapp_rust::store::{
 impl SignalStore for RedbStore {
     /// Store an identity key for a remote address
     async fn put_identity(&self, address: &str, key: [u8; 32]) -> Result<()> {
-        self.with_write_txn(IDENTITIES_TABLE, |table| {
+        let address = address.to_string();
+        let device_id = self.device_id;
+        self.with_write_txn(IDENTITIES_TABLE, move |table| {
             table
-                .insert((address, self.device_id), &key)
+                .insert((address.as_str(), device_id), &key)
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Load an identity key for a remote address
@@ -37,12 +40,15 @@ impl SignalStore for RedbStore {
 
     /// Delete an identity key
     async fn delete_identity(&self, address: &str) -> Result<()> {
-        self.with_write_txn(IDENTITIES_TABLE, |table| {
+        let address = address.to_string();
+        let device_id = self.device_id;
+        self.with_write_txn(IDENTITIES_TABLE, move |table| {
             table
-                .remove((address, self.device_id))
+                .remove((address.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Get an encrypted session for an address
@@ -60,22 +66,29 @@ impl SignalStore for RedbStore {
 
     /// Store an encrypted session
     async fn put_session(&self, address: &str, session: &[u8]) -> Result<()> {
-        self.with_write_txn(SESSIONS_TABLE, |table| {
+        let address = address.to_string();
+        let session = session.to_vec();
+        let device_id = self.device_id;
+        self.with_write_txn(SESSIONS_TABLE, move |table| {
             table
-                .insert((address, self.device_id), session)
+                .insert((address.as_str(), device_id), session.as_slice())
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Delete a session
     async fn delete_session(&self, address: &str) -> Result<()> {
-        self.with_write_txn(SESSIONS_TABLE, |table| {
+        let address = address.to_string();
+        let device_id = self.device_id;
+        self.with_write_txn(SESSIONS_TABLE, move |table| {
             table
-                .remove((address, self.device_id))
+                .remove((address.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Check if a session exists (default implementation uses get_session)
@@ -96,30 +109,43 @@ impl SignalStore for RedbStore {
             key: record.to_vec(),
             uploaded,
         };
+
         let encoded = self.encode(&record)?;
-        self.with_write_txn(PREKEYS_TABLE, |table| {
+
+        let device_id = self.device_id;
+
+        self.with_write_txn(PREKEYS_TABLE, move |table| {
             table
-                .insert((id, self.device_id), encoded.as_slice())
+                .insert((id, device_id), encoded.as_slice())
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Store multiple pre-keys in a single batch operation (default loops over store_prekey)
     async fn store_prekeys_batch(&self, keys: &[(u32, Bytes)], uploaded: bool) -> Result<()> {
-        self.with_write_txn(PREKEYS_TABLE, |table| {
-            for (id, record) in keys {
-                let data = PreKeyRecord {
-                    key: record.to_vec(),
-                    uploaded,
-                };
-                let encoded = self.encode(&data)?;
+        let device_id = self.device_id;
+        let mut r = Vec::with_capacity(keys.len());
+        for (id, record) in keys {
+            let data = PreKeyRecord {
+                key: record.to_vec(),
+                uploaded,
+            };
+
+            let encoded = self.encode(&data)?;
+            r.push((*id, encoded));
+        }
+
+        self.with_write_txn(PREKEYS_TABLE, move |table| {
+            for (id, encoded) in r {
                 table
-                    .insert((*id, self.device_id), encoded.as_slice())
+                    .insert((id, device_id), encoded.as_slice())
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
             }
             Ok(())
         })
+        .await
     }
 
     /// Load a pre-key by ID
@@ -161,38 +187,47 @@ impl SignalStore for RedbStore {
         if ids.is_empty() {
             return Ok(());
         }
-        self.with_write_txn(PREKEYS_TABLE, |table| {
-            for &id in ids {
+
+        let ids = ids.to_vec();
+        let device_id = self.device_id;
+
+        let this = self.clone();
+
+        self.with_write_txn(PREKEYS_TABLE, move |table| {
+            for id in ids {
                 let mut record_to_update = None;
                 {
                     if let Some(data) = table
-                        .get((id, self.device_id))
+                        .get((id, device_id))
                         .map_err(|e| StoreError::Database(Box::new(e)))?
                     {
-                        let record: PreKeyRecord = self.decode(data.value())?;
+                        let record: PreKeyRecord = this.decode(data.value())?;
                         record_to_update = Some(record);
                     }
                 }
                 if let Some(mut record) = record_to_update {
                     record.uploaded = true;
-                    let encoded = self.encode(&record)?;
+                    let encoded = this.encode(&record)?;
                     table
-                        .insert((id, self.device_id), encoded.as_slice())
+                        .insert((id, device_id), encoded.as_slice())
                         .map_err(|e| StoreError::Database(Box::new(e)))?;
                 }
             }
             Ok(())
         })
+        .await
     }
 
     /// Remove a pre-key
     async fn remove_prekey(&self, id: u32) -> Result<()> {
-        self.with_write_txn(PREKEYS_TABLE, |table| {
+        let device_id = self.device_id;
+        self.with_write_txn(PREKEYS_TABLE, move |table| {
             table
-                .remove((id, self.device_id))
+                .remove((id, device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Get the highest pre-key ID currently stored
@@ -215,12 +250,15 @@ impl SignalStore for RedbStore {
 
     /// Store a signed pre-key
     async fn store_signed_prekey(&self, id: u32, record: &[u8]) -> Result<()> {
-        self.with_write_txn(SIGNED_PREKEYS_TABLE, |table| {
+        let record = record.to_vec();
+        let device_id = self.device_id;
+        self.with_write_txn(SIGNED_PREKEYS_TABLE, move |table| {
             table
-                .insert((id, self.device_id), record)
+                .insert((id, device_id), record.as_slice())
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Load a signed pre-key by ID
@@ -261,22 +299,28 @@ impl SignalStore for RedbStore {
 
     /// Remove a signed pre-key
     async fn remove_signed_prekey(&self, id: u32) -> Result<()> {
-        self.with_write_txn(SIGNED_PREKEYS_TABLE, |table| {
+        let device_id = self.device_id;
+        self.with_write_txn(SIGNED_PREKEYS_TABLE, move |table| {
             table
-                .remove((id, self.device_id))
+                .remove((id, device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Store a sender key for group messaging
     async fn put_sender_key(&self, address: &str, record: &[u8]) -> Result<()> {
-        self.with_write_txn(SENDER_KEYS_TABLE, |table| {
+        let address = address.to_string();
+        let record = record.to_vec();
+        let device_id = self.device_id;
+        self.with_write_txn(SENDER_KEYS_TABLE, move |table| {
             table
-                .insert((address, self.device_id), record)
+                .insert((address.as_str(), device_id), record.as_slice())
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 
     /// Get a sender key
@@ -294,11 +338,14 @@ impl SignalStore for RedbStore {
 
     /// Delete a sender key
     async fn delete_sender_key(&self, address: &str) -> Result<()> {
-        self.with_write_txn(SENDER_KEYS_TABLE, |table| {
+        let address = address.to_string();
+        let device_id = self.device_id;
+        self.with_write_txn(SENDER_KEYS_TABLE, move |table| {
             table
-                .remove((address, self.device_id))
+                .remove((address.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
             Ok(())
         })
+        .await
     }
 }
