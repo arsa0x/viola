@@ -1,4 +1,4 @@
-use crate::Context;
+use crate::{Context, media};
 use std::pin::Pin;
 use whatsapp_rust::{download::MediaType, media::ImageOptions};
 
@@ -32,7 +32,10 @@ impl<'a> VideoBuilder<'a> {
         } else {
             None
         };
-
+        let thumbnail = match self.thumbnail {
+            Some(t) => Some(t),
+            None => media::video_thumbnail_async(&self.bytes, None).await.ok(),
+        };
         let upload = self
             .ctx
             .media()
@@ -43,7 +46,7 @@ impl<'a> VideoBuilder<'a> {
             upload,
             ImageOptions {
                 context_info: quoted,
-                jpeg_thumbnail: self.thumbnail,
+                jpeg_thumbnail: thumbnail,
                 caption: self.caption,
                 ..Default::default()
             },
