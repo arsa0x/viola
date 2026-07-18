@@ -3,10 +3,10 @@ use super::{
     LID_PN_MAPPING_TABLE, RedbStore, SENDER_KEY_DEVICES_TABLE, SENT_MESSAGES_TABLE,
     SentMessageRecord, TC_TOKENS_TABLE,
 };
-use async_trait::async_trait;
 use redb::ReadableTable;
 use std::collections::HashSet;
 use whatsapp_rust::{
+    async_trait, serde_json,
     store::{
         DeviceListRecord, LidPnMappingEntry, ProtocolStore, TcTokenEntry,
         error::{Result, StoreError},

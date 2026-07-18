@@ -1,6 +1,7 @@
 use crate::context::Context;
 use isahc::{AsyncBody, Response};
 use std::{collections::HashMap, future::Future, pin::Pin};
+use whatsapp_rust::{anyhow, serde::Serialize, serde_json};
 
 pub struct HttpRequestBuilder<'a> {
     pub ctx: &'a Context,
@@ -31,7 +32,7 @@ impl<'a> HttpRequestBuilder<'a> {
         self
     }
 
-    pub fn json<T: serde::Serialize>(mut self, value: &T) -> anyhow::Result<Self> {
+    pub fn json<T: Serialize>(mut self, value: &T) -> anyhow::Result<Self> {
         self.headers
             .insert("Content-Type".into(), "application/json".into());
 
@@ -51,7 +52,7 @@ impl<'a> HttpRequestBuilder<'a> {
 
         let request = builder.body(self.body.unwrap_or_default())?;
 
-        Ok(self.ctx.state.http.send_async(request).await?)
+        Ok(self.ctx.http_client.send_async(request).await?)
     }
 }
 

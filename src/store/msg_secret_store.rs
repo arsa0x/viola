@@ -1,7 +1,7 @@
 use super::{MSG_SECRETS_TABLE, MsgSecretRecord, RedbStore};
-use async_trait::async_trait;
 use redb::ReadableTable;
 use whatsapp_rust::{
+    async_trait,
     store::{
         MsgSecretEntry, MsgSecretStore,
         error::{Result, StoreError},

@@ -1,6 +1,0 @@
-[bot]
-name = "viola"
-prefix = "."
-owners = [""]
-# public | group | owner | disabled
-mode = "public"

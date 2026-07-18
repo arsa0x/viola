@@ -1,5 +1,6 @@
-use viola_core::context::{Context, media::MediaRef};
+use viola_core::Context;
 use viola_macros::command;
+use whatsapp_rust::{anyhow, download::MediaType};
 
 #[command(
     triggers = ["rvo", "read", "show", "view"],
@@ -7,20 +8,18 @@ use viola_macros::command;
     description = "Read view once message"
 )]
 async fn read_view_once(ctx: Context) -> anyhow::Result<()> {
-    if let Ok(media) = ctx.media().quoted() {
-        match media {
-            MediaRef::Image(img) => {
-                let download = ctx.media().download(img).await?;
+    if let Ok((mtype, media)) = ctx.get_quoted_media() {
+        let download = ctx.wa_client.download(media).await?;
+        match mtype {
+            MediaType::Image => {
                 ctx.send().image(download).quoted().await?;
                 Ok(())
             }
-            MediaRef::Video(vid) => {
-                let download = ctx.media().download(vid).await?;
+            MediaType::Video => {
                 ctx.send().video(download).quoted().await?;
                 Ok(())
             }
-            MediaRef::Audio(aud) => {
-                let download = ctx.media().download(aud).await?;
+            MediaType::Audio => {
                 ctx.send().audio(download).quoted().await?;
                 Ok(())
             }

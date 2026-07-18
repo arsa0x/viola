@@ -2,6 +2,8 @@ target/
 
 data/config.toml
 
+viola/
+
 data/cache/*
 !data/cache/.gitkeep
 

@@ -1,78 +1,66 @@
+// pub type Execute =
+//     fn(
+//         ctx: Context,
+//     ) -> std::pin::Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>>;
+
+// pub struct Command {
+//     pub name: &'static str,
+//     pub triggers: &'static [&'static str],
+//     pub category: &'static str,
+//     pub help: Option<&'static str>,
+//     pub description: Option<&'static str>,
+//     pub group_only: bool,
+//     pub owner_only: bool,
+//     pub execute: Execute,
+// }
+
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{
-    Expr, Ident, ItemFn, LitBool, LitInt, LitStr, Token, bracketed, parse::Parse,
-    parse_macro_input, punctuated::Punctuated,
-};
-
-/*
-* pub struct Command {
-*   pub triggers: &'static [&'static str],
-*   pub description: &'static str,
-*   pub cooldown: Duration,
-*   pub owner: bool,
-*   pub group_only: bool,
-*   pub handler: CommandHandler,
-* }
-*
-* #[command(
-*   trigger = [&str],
-*   owner = bool,       // false
-*   group_only = bool,  // false
-*   cooldown u64,       // 0
-*   description = &str  // ""
-*   help = &str         // ""
-* )]
-* async fn function(ctx: Context) -> anyhow::Result<()> {
-*   Ok(())
-* }
-*/
+use syn::{bracketed, parse_macro_input};
 
 struct CommandConfig {
-    triggers: Vec<LitStr>,
+    category: syn::Expr,
+    triggers: Vec<syn::LitStr>,
     help: Option<syn::Expr>,
     description: Option<syn::Expr>,
-    category: syn::Expr,
-    cooldown: u64,
-    owner: bool,
     group_only: bool,
+    owner_only: bool,
 }
 
 impl Default for CommandConfig {
     fn default() -> Self {
-        CommandConfig {
+        Self {
+            category: syn::parse_quote!(""),
             triggers: Vec::new(),
             description: None,
             help: None,
-            category: syn::parse_quote!(""),
-            cooldown: 0,
-            owner: false,
             group_only: false,
+            owner_only: false,
         }
     }
 }
 
-impl Parse for CommandConfig {
+impl syn::parse::Parse for CommandConfig {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let mut config = CommandConfig::default();
         let mut has_category = false;
 
         while !input.is_empty() {
-            let ident: Ident = input.parse()?;
+            let ident: syn::Ident = input.parse()?;
             let key = ident.to_string();
 
-            input.parse::<Token![=]>()?;
+            input.parse::<syn::Token![=]>()?;
 
             match key.as_str() {
                 "triggers" => {
                     let content;
                     bracketed!(content in input);
-                    let values: Punctuated<LitStr, Token![,]> =
-                        Punctuated::parse_terminated(&content)?;
-                    config.triggers = values.into_iter().collect();
+                    let val: syn::punctuated::Punctuated<syn::LitStr, syn::Token![,]> =
+                        syn::punctuated::Punctuated::parse_terminated(&content)?;
+                    config.triggers = val.into_iter().collect();
                 }
                 "description" => {
-                    let value: Expr = input.parse()?;
+                    let value: syn::Expr = input.parse()?;
                     config.description = Some(value);
                 }
                 "help" => {
@@ -80,31 +68,22 @@ impl Parse for CommandConfig {
                     config.help = Some(value);
                 }
                 "category" => {
-                    let value: syn::Expr = input.parse()?;
-                    config.category = value;
+                    let val: syn::Expr = input.parse()?;
+                    config.category = val;
                     has_category = true;
                 }
-                "cooldown" => {
-                    let value: LitInt = input.parse()?;
-                    config.cooldown = value.base10_parse::<u64>()?;
-                }
-
-                "owner" => {
-                    let value: LitBool = input.parse()?;
-                    config.owner = value.value;
-                }
-
                 "group_only" => {
-                    let value: LitBool = input.parse()?;
-                    config.group_only = value.value;
+                    let val: syn::LitBool = input.parse()?;
+                    config.group_only = val.value;
                 }
-                _ => {
-                    return Err(syn::Error::new(ident.span(), "Unknown parameter"));
+                "owner_only" => {
+                    let val: syn::LitBool = input.parse()?;
+                    config.owner_only = val.value;
                 }
+                _ => return Err(syn::Error::new(ident.span(), "Unknown parameter")),
             }
-
-            if input.peek(Token![,]) {
-                input.parse::<Token![,]>()?;
+            if input.peek(syn::Token![,]) {
+                input.parse::<syn::Token![,]>()?;
             }
         }
 
@@ -129,7 +108,7 @@ impl Parse for CommandConfig {
 #[proc_macro_attribute]
 pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
     let config = parse_macro_input!(attr as CommandConfig);
-    let function = parse_macro_input!(item as ItemFn);
+    let function = parse_macro_input!(item as syn::ItemFn);
 
     let ident = &function.sig.ident;
     let name = &ident.to_string();
@@ -140,28 +119,33 @@ pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
     );
 
     let triggers = config.triggers;
-    let owner = config.owner;
+    let owner_only = config.owner_only;
     let group_only = config.group_only;
-    let cooldown = config.cooldown;
-    let description = config.description.unwrap_or_else(|| syn::parse_quote!(""));
-    let help = config.help.unwrap_or_else(|| syn::parse_quote!(""));
     let category = config.category;
 
-    let expanded = quote! {
-        #function
-
-        #[linkme::distributed_slice(viola_core::command::COMMANDS)]
-        static #cmd_name: viola_core::command::Command = viola_core::command::Command {
-            name: #name,
-            triggers: &[#(#triggers),*],
-            description: #description,
-            help: #help,
-            category: #category,
-            cooldown: std::time::Duration::from_millis(#cooldown),
-            owner: #owner,
-            group_only: #group_only,
-            handler: |ctx| Box::pin( async move { #ident(ctx).await }),
-        };
+    let description = match config.description {
+        Some(expr) => quote!(Some(#expr)),
+        None => quote!(None),
     };
-    TokenStream::from(expanded)
+
+    let help = match config.help {
+        Some(expr) => quote!(Some(#expr)),
+        None => quote!(None),
+    };
+
+    TokenStream::from(quote! {
+          #function
+
+          #[linkme::distributed_slice(viola_core::command::COMMANDS)]
+          static #cmd_name: viola_core::Command = viola_core::Command {
+              name: #name,
+              category: #category,
+              group_only: #group_only,
+              description: #description,
+              help: #help,
+              owner_only: #owner_only,
+              triggers: &[#(#triggers),*],
+              execute: |ctx: viola_core::Context| Box::pin(#ident(ctx))
+        };
+    })
 }

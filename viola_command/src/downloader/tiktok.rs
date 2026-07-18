@@ -13,6 +13,7 @@ use serde::Deserialize;
 use url::Url;
 use viola_core::context::Context;
 use viola_macros::command;
+use whatsapp_rust::{anyhow, serde_json};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -58,7 +59,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
             )
             .body(())?;
 
-        let mut response = ctx.state.http.send_async(req).await?;
+        let mut response = ctx.http_client.send_async(req).await?;
 
         let res = response.text().await?;
 
@@ -73,7 +74,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
         if audio_only {
             let bytes = general_purpose::STANDARD.decode(result.audio_id)?;
             let url = String::from_utf8(bytes)?;
-            let mut response = ctx.state.http.get_async(&url).await?;
+            let mut response = ctx.http_client.get_async(&url).await?;
             let media = response.bytes().await?;
             ctx.send()
                 .audio(media)
@@ -84,7 +85,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
         } else {
             let bytes = general_purpose::STANDARD.decode(result.video_id)?;
             let url = String::from_utf8(bytes)?;
-            let mut response = ctx.state.http.get_async(&url).await?;
+            let mut response = ctx.http_client.get_async(&url).await?;
             let media = response.bytes().await?;
             ctx.send()
                 .video(media)

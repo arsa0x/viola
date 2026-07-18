@@ -8,6 +8,11 @@ pub mod sticker;
 pub mod text;
 pub mod video;
 
+use whatsapp_rust::{
+    anyhow,
+    waproto::whatsapp::{self},
+};
+
 use crate::{
     Context,
     message::{
@@ -16,7 +21,6 @@ use crate::{
         text::TextBuilder, video::VideoBuilder,
     },
 };
-use whatsapp_rust::waproto::whatsapp::{self};
 
 pub struct MessageFactory<'a> {
     pub ctx: &'a Context,
@@ -30,9 +34,8 @@ pub struct BaseBuilder<'a> {
 impl<'a> MessageFactory<'a> {
     pub async fn raw(&self, message: whatsapp::Message) -> anyhow::Result<()> {
         self.ctx
-            .msg_ctx
-            .client
-            .send_message(self.ctx.info().chat_jid(), message)
+            .wa_client
+            .send_message(self.ctx.info.source.sender.clone(), message)
             .await?;
         Ok(())
     }

@@ -1,0 +1,13 @@
+# Command prefixes (separate multiple prefixes with "|")
+prefixes=.|!|>
+
+# Owner phone numbers (international format, without "+")
+# Separate multiple numbers with "|"
+# E.g. 628123|628321
+owners=
+
+# Bot operating mode:
+# - public : everyone can use commands
+# - group  : commands only work in group chats
+# - owner  : only configured owners can use commands
+mode=public

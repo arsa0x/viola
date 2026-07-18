@@ -1,7 +1,8 @@
 use image::{RgbaImage, imageops::overlay, load_from_memory};
-use viola_core::context::{Context, media::MediaRef};
+use viola_core::context::Context;
 use viola_macros::command;
 use webp::Encoder;
+use whatsapp_rust::{anyhow, download::MediaType};
 
 #[command(
     triggers = ["sticker", "stiker", "s"],
@@ -9,12 +10,11 @@ use webp::Encoder;
     description = "Convert image to whatsapp sticker"
 )]
 async fn sticker(ctx: Context) -> anyhow::Result<()> {
-    let media_ctx = ctx.media();
-    if let Ok(media) = media_ctx.current().or_else(|_| media_ctx.quoted()) {
-        match media {
-            MediaRef::Image(img) => {
+    if let Ok((mtype, media)) = ctx.get_current_media().or_else(|_| ctx.get_quoted_media()) {
+        match mtype {
+            MediaType::Image => {
+                let bytes = ctx.wa_client.download(media).await?;
                 let webp: Vec<u8> = {
-                    let bytes = ctx.media().download(img).await?;
                     let img = load_from_memory(&bytes)?;
                     let resized = img.thumbnail(512, 512);
 

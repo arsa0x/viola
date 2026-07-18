@@ -1,5 +1,5 @@
 use crate::context::Context;
-use whatsapp_rust::{download::MediaType, media::DocumentOptions};
+use whatsapp_rust::{anyhow, download::MediaType, media::DocumentOptions};
 
 pub struct DocumentBuilder<'a> {
     pub ctx: &'a Context,
@@ -45,15 +45,15 @@ impl<'a> DocumentBuilder<'a> {
 
     pub async fn send(self) -> anyhow::Result<()> {
         let quoted = if self.quoted {
-            Some(Box::new(self.ctx.info().ctx_info()))
+            Some(Box::new(self.ctx.build_ctx_info()))
         } else {
             None
         };
 
         let upload = self
             .ctx
-            .media()
-            .upload(self.bytes, MediaType::Image)
+            .wa_client
+            .upload(self.bytes, MediaType::Image, Default::default())
             .await?;
 
         let message = whatsapp_rust::media::document_message(

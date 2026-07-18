@@ -1,8 +1,8 @@
-use async_trait::async_trait;
 use isahc::{AsyncBody, AsyncReadResponseExt, Body, Request};
 use std::io::Read;
 use std::sync::Mutex;
 use whatsapp_rust::{
+    anyhow, async_trait,
     http::{HttpClient, HttpRequest, HttpResponse},
     wacore::net::{StreamingHttpResponse, UploadBody},
 };
@@ -12,8 +12,12 @@ pub struct IsahcClient {
 }
 
 impl IsahcClient {
-    pub fn new(client: isahc::HttpClient) -> Self {
-        Self { client }
+    pub fn new() -> Self {
+        Self {
+            client: isahc::HttpClient::builder()
+                .build()
+                .expect("failed to build http client"),
+        }
     }
 }
 

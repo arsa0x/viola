@@ -1,3 +1,5 @@
+use whatsapp_rust::anyhow;
+
 use super::request::HttpRequestBuilder;
 use crate::context::Context;
 

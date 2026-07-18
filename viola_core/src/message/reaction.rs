@@ -1,6 +1,6 @@
 use crate::context::Context;
 use std::pin::Pin;
-use whatsapp_rust::waproto::whatsapp::MessageKey;
+use whatsapp_rust::{anyhow, waproto::whatsapp::MessageKey};
 
 pub struct ReactionBuilder<'a> {
     pub ctx: &'a Context,
@@ -9,17 +9,20 @@ pub struct ReactionBuilder<'a> {
 
 impl<'a> ReactionBuilder<'a> {
     pub async fn send(self) -> anyhow::Result<()> {
+        let chat = self.ctx.info.source.chat.clone();
+        let sender = self.ctx.info.source.sender.clone();
+        let id = self.ctx.info.id.clone();
+
         let key = MessageKey {
-            remote_jid: Some(self.ctx.info().chat_jid().to_string()),
-            participant: Some(self.ctx.info().sender_jid().to_string()),
-            id: Some(self.ctx.msg_ctx.info.id.to_string()),
             from_me: Some(false),
+            remote_jid: Some(chat.to_string()),
+            id: Some(id),
+            participant: Some(sender.to_string()),
         };
 
         self.ctx
-            .msg_ctx
-            .client
-            .send_reaction(&self.ctx.info().chat_jid(), key, self.reaction)
+            .wa_client
+            .send_reaction(&chat, key, self.reaction)
             .await?;
         Ok(())
     }

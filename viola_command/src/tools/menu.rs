@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
+
 use viola_core::{
-    command::COMMANDS,
-    context::Context,
+    COMMANDS, Context,
     message::interactive::single_select::{SingleSelectRow, SingleSelectSection},
 };
 use viola_macros::command;
+use whatsapp_rust::anyhow;
 
 #[command(
     triggers = ["menu", "help"],
@@ -29,10 +30,10 @@ async fn menu(ctx: Context) -> anyhow::Result<()> {
                 .into_iter()
                 .map(|cmd| SingleSelectRow {
                     title: humanize_command(cmd.name),
-                    description: if cmd.description.is_empty() {
-                        "No description".into()
+                    description: if let Some(desc) = cmd.description {
+                        desc.to_string()
                     } else {
-                        cmd.description.to_string()
+                        "No description".into()
                     },
                     id: format!(".{} --help", cmd.triggers[0]),
                 })

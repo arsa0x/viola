@@ -1,6 +1,6 @@
-use crate::{Context, media};
+use crate::Context;
 use std::pin::Pin;
-use whatsapp_rust::{download::MediaType, media::ImageOptions};
+use whatsapp_rust::{anyhow, download::MediaType, media::ImageOptions};
 
 pub struct ImageBuilder<'a> {
     pub ctx: &'a Context,
@@ -28,20 +28,20 @@ impl<'a> ImageBuilder<'a> {
 
     pub async fn send(self) -> anyhow::Result<()> {
         let quoted = if self.quoted {
-            Some(Box::new(self.ctx.info().ctx_info()))
+            Some(Box::new(self.ctx.build_ctx_info()))
         } else {
             None
         };
 
         let thumbnail = match self.thumbnail {
             Some(t) => Some(t),
-            None => media::image_thumbnail_async(&self.bytes, None).await.ok(),
+            None => Some(Vec::new()), // to do
         };
 
         let upload = self
             .ctx
-            .media()
-            .upload(self.bytes, MediaType::Image)
+            .wa_client
+            .upload(self.bytes, MediaType::Image, Default::default())
             .await?;
 
         let message = whatsapp_rust::media::image_message(

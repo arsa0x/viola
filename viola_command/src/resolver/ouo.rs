@@ -6,10 +6,11 @@ use isahc::{
 use url::{Url, form_urlencoded};
 use viola_core::context::Context;
 use viola_macros::command;
+use whatsapp_rust::anyhow;
 
 const UA: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:150.0) Gecko/20100101 Firefox/150.0";
-const HEADERS: [(&str, &str); 5] = [
-    ("User-Agent", UA),
+
+const GET_HEADERS: [(&str, &str); 4] = [
     (
         "Accept",
         "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -19,60 +20,83 @@ const HEADERS: [(&str, &str); 5] = [
     ("Sec-Fetch-Site", "same-origin"),
 ];
 
+fn find_between<'a>(haystack: &'a str, start: &str, end: &str) -> Option<&'a str> {
+    let after_start = haystack.find(start)? + start.len();
+    let rest = &haystack[after_start..];
+    let end_idx = rest.find(end)?;
+    Some(&rest[..end_idx])
+}
+
+fn unescape_html(input: &str) -> String {
+    if !input.contains('&') {
+        return input.to_string();
+    }
+    input
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#039;", "'")
+}
+
+fn extract_token(html: &str) -> Option<String> {
+    find_between(
+        html,
+        r#"<input name="_token" type="hidden" value=""#,
+        r#"">"#,
+    )
+    .map(unescape_html)
+}
+
+fn extract_first_href(html: &str) -> Option<String> {
+    find_between(html, r#"<a href=""#, "\"").map(unescape_html)
+}
+
+fn join_set_cookies<I, S>(values: I) -> String
+where
+    I: Iterator<Item = S>,
+    S: AsRef<str>,
+{
+    values
+        .filter_map(|v| v.as_ref().split(';').next().map(str::to_string))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
 pub async fn ouo_bypass(ctx: &Context, url: &str) -> anyhow::Result<Option<String>> {
     let url_obj = Url::parse(url)?;
     let domain = url_obj.host_str().context("failed getting domain")?;
-
     let origin = format!("{}://{}", url_obj.scheme(), domain);
 
-    let mut init_req = ctx.http().raw("GET", url);
-
-    for (key, value) in HEADERS {
+    let mut init_req = ctx.http().raw("GET", url).header("User-Agent", UA);
+    for (key, value) in GET_HEADERS {
         init_req = init_req.header(key, value);
     }
 
     let mut init_res = init_req.send().await?;
-
-    let cookies = init_res
-        .headers()
-        .get_all("set-cookie")
-        .iter()
-        .filter_map(|v| v.to_str().ok())
-        .filter_map(|cookie| cookie.split(';').next())
-        .collect::<Vec<_>>()
-        .join("; ");
-
     if !init_res.status().is_success() {
         return Ok(None);
     }
 
+    let cookies = join_set_cookies(
+        init_res
+            .headers()
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|v| v.to_str().ok()),
+    );
+
     let init_html = init_res.text().await?;
-
-    let token_value = {
-        let document = tl::parse(&init_html, tl::ParserOptions::default())?;
-        let parser = document.parser();
-
-        let token_node = document
-            .query_selector(r#"input[name="_token"]"#)
-            .context("failed to execute selector query")?
-            .next()
-            .and_then(|handle| handle.get(parser))
-            .and_then(|node| node.as_tag());
-
-        match token_node {
-            Some(tag) => match tag.attributes().get("value") {
-                Some(Some(val)) => val.as_utf8_str().into_owned(),
-                _ => return Ok(None),
-            },
-            None => return Ok(None),
-        }
+    let Some(token_value) = extract_token(&init_html) else {
+        return Ok(None);
     };
 
-    let next_url = url.replace(&format!("{}/", domain), &format!("{}/xreallcygo/", domain));
-    let referer = url.replace(&format!("{}/", domain), &format!("{}/go/", domain));
-    let form_data = [("_token", token_value.as_str()), ("x-token", "")];
-    let body_string = form_urlencoded::Serializer::new(String::new())
-        .extend_pairs(form_data)
+    // --- Step 2: POST token untuk melewati gate ---
+    let next_url = url.replacen(&format!("{domain}/"), &format!("{domain}/xreallcygo/"), 1);
+    let referer = url.replacen(&format!("{domain}/"), &format!("{domain}/go/"), 1);
+
+    let body = form_urlencoded::Serializer::new(String::new())
+        .extend_pairs([("_token", token_value.as_str()), ("x-token", "")])
         .finish();
 
     let mut post_req = isahc::Request::builder()
@@ -99,29 +123,16 @@ pub async fn ouo_bypass(ctx: &Context, url: &str) -> anyhow::Result<Option<Strin
         post_req = post_req.header("Cookie", cookies);
     }
 
-    let mut post_res = ctx
-        .state
-        .http
-        .send_async(post_req.body(body_string)?)
-        .await?;
+    let mut post_res = ctx.http_client.send_async(post_req.body(body)?).await?;
+
+    if let Some(location) = post_res.headers().get("location") {
+        if let Ok(location) = location.to_str() {
+            return Ok(Some(location.to_string()));
+        }
+    }
 
     let final_html = post_res.text().await?;
-
-    let final_url = {
-        let final_doc = tl::parse(&final_html, tl::ParserOptions::default())?;
-        let final_parser = final_doc.parser();
-
-        final_doc
-            .query_selector("a")
-            .context("failed final link selector query")?
-            .next()
-            .and_then(|handle| handle.get(final_parser))
-            .and_then(|node| node.as_tag())
-            .and_then(|tag| tag.attributes().get("href"))
-            .flatten()
-            .map(|val| val.as_utf8_str().into_owned())
-    };
-    Ok(final_url)
+    Ok(extract_first_href(&final_html))
 }
 
 const HELP: &str = "USAGE: .ouo <ouo_url>";
@@ -133,11 +144,9 @@ const HELP: &str = "USAGE: .ouo <ouo_url>";
     description = "ouo.io and ouo.press resolver"
 )]
 async fn ouo(ctx: Context) -> anyhow::Result<()> {
-    let url = ctx.args.iter().find(|arg| {
+    let Some(url) = ctx.args.iter().find(|arg| {
         arg.starts_with("https://") && (arg.contains("ouo.io") || arg.contains("ouo.press"))
-    });
-
-    let Some(url) = url else {
+    }) else {
         ctx.send().text(HELP).await?;
         return Ok(());
     };

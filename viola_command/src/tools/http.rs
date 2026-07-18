@@ -1,8 +1,10 @@
-use isahc::AsyncReadResponseExt;
 use std::collections::HashMap;
+
+use isahc::AsyncReadResponseExt;
 use url::Url;
-use viola_core::context::Context;
+use viola_core::Context;
 use viola_macros::command;
+use whatsapp_rust::anyhow;
 
 const HELP: &str = r#"USAGE:
   .http <METHOD> <URL> [OPTIONS]
@@ -143,7 +145,6 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
     match request.send().await {
         Ok(mut res) => {
             let status = res.status();
-
             let body_text = match res.text().await {
                 Ok(text) => text,
                 Err(_) => "failed to read body".to_string(),

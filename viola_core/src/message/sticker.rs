@@ -1,6 +1,7 @@
-use crate::{context::Context, media};
+use crate::context::Context;
 use std::pin::Pin;
 use whatsapp_rust::{
+    anyhow,
     buffa::MessageField,
     download::MediaType,
     waproto::whatsapp::{self, message::StickerMessage},
@@ -26,18 +27,18 @@ impl<'a> StickerBuilder<'a> {
 
     pub async fn send(self) -> anyhow::Result<()> {
         let quoted = if self.quoted {
-            MessageField::some(self.ctx.info().ctx_info())
+            MessageField::some(self.ctx.build_ctx_info())
         } else {
             MessageField::none()
         };
         let thumbnail = match self.thumbnail {
             Some(t) => Some(t),
-            None => media::image_thumbnail_async(&self.bytes, None).await.ok(),
+            None => Some(Vec::new()), // to do
         };
         let upload = self
             .ctx
-            .media()
-            .upload(self.bytes, MediaType::Image)
+            .wa_client
+            .upload(self.bytes, MediaType::Image, Default::default())
             .await?;
         let message = whatsapp::Message {
             sticker_message: MessageField::some(StickerMessage {

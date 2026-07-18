@@ -8,32 +8,39 @@ A fast and modular WhatsApp bot framework for Rust with procedural macro command
 - Procedural macro command system
 - Low memory footprint
 - Native Rust performance
-- Auto-generated configuration
+- Auto-generated project scaffolding
 
 ## Getting Started
 
 ```bash
 git clone https://github.com/arsa0x/viola.git
 cd viola
-cargo run
+cargo build --release
 ```
 
-On first launch, Viola will:
+Then, from wherever you want your bot's data to live:
 
-- generate configuration files
-- create storage directories
-- display a pairing QR code
+```bash
+/path/to/viola/target/release/viola init
+cd viola
+../path/to/viola/target/release/viola
+```
+
+- `viola init` creates a new `viola/` project directory containing the config file, a `download/` folder, and a `cache/` folder.
+- Running `viola` **must be done from inside that generated folder** — it looks for `config`, `download/`, and `cache/` in the current directory and refuses to start if they're missing.
+- On first run inside the project folder, it will display a pairing QR code to link your WhatsApp account.
 
 ## Example
 
 ```rs
-use viola_core::context::Context;
+use viola_core::Context;
 use viola_macros::command;
+use whatsapp_rust::anyhow;
 
 #[command(
     triggers = [""],    // required
     category = "",      // required
-    owner = false,      // optional
+    owner_only = false, // optional
     group_only = false, // optional
     description = "",   // optional
     help = ""           // optional
@@ -48,41 +55,42 @@ See [`viola_core/src/message/README.md`](./viola_core/src/message/README.md#mess
 
 ## Configuration
 
-Viola automatically stores configuration files inside your system home directory.
+Each project folder created by `viola init` has its own `config` file — there is no global config in your home directory. Multiple projects (e.g. for multiple bot accounts) can live side by side, each with its own folder.
 
 ### Config Location
 
-| Platform | Example Path                         |
-| -------- | ------------------------------------- |
-| Linux    | `/home/username/viola/config.toml`    |
-| macOS    | `/Users/UserName/viola/config.toml`   |
-| Windows  | `C:\Users\UserName\viola\config.toml` |
+The config file is simply `config`, sitting next to `download/` and `cache/` inside the project directory you `cd` into before running the bot:
 
-The config file will be automatically generated on first run.
-
-### Example Config
-
-```toml
-[bot]
-name   = "viola"
-prefix = "."
-owners = ["628123456789"]
-mode   = "public"
+```
+viola/
+├── config
+├── download/
+└── cache/
 ```
 
-`owners` accepts a list, so multiple bot owners can be configured. `mode` must be one of `public`, `group`, `owner`, or `disabled`.
+### Config Format
+
+The config is a plain `key=value` file — one setting per line, `#` for comments:
+
+```
+# prefixes accepts multiple single-character prefixes, separated by |
+prefixes=.|!
+
+# owners accepts a list of WhatsApp numbers, separated by |
+owners=628123456789|628123456780
+
+# mode must be one of: public, group, owner
+mode=public
+```
 
 ## Project Structure
 
 ```sh
 .
-├── src                 # bot entry point
-├── viola_core          # command system, router, context, config, and state
+├── src                 # bot entry point (CLI: init / run)
+├── viola_core          # command system, context and config
 ├── viola_macros        # procedural macros for command registration
-└── viola_plugin        # collection of all bot plugins
-    └── src
-        ├── downloader
-        └── tools
+└── viola_command       # collection of all bot commands
 ```
 
 ## Documentation

@@ -1,6 +1,6 @@
 use super::{DEVICE_TABLE, RedbStore};
-use async_trait::async_trait;
 use whatsapp_rust::{
+    async_trait,
     store::{
         DeviceStore,
         error::{Result, StoreError},

@@ -1,45 +1,40 @@
-pub fn parse(prefix: &str, message: &str) -> Option<(String, Vec<String>)> {
-    let without_prefix = message.strip_prefix(prefix)?;
-    let parts = split_message(without_prefix);
-    let (cmd, args) = parts.split_first()?;
-    Some((cmd.to_string(), args.to_vec()))
-}
-
-fn split_message(message: &str) -> Vec<String> {
+pub fn parse(input: &str) -> Vec<String> {
     let mut result = Vec::new();
 
-    let mut in_quotes = false;
-    let mut start = None;
+    let mut iq = false;
+    let mut st = None;
 
-    for (idx, ch) in message.char_indices() {
+    for (idx, ch) in input.char_indices() {
         match ch {
             '"' => {
-                if in_quotes {
-                    if let Some(s) = start {
-                        result.push(String::from(&message[s..idx]));
+                if iq {
+                    if let Some(s) = st {
+                        result.push(String::from(&input[s..idx]));
                     }
-                    start = None;
+                    st = None;
                 } else {
-                    start = Some(idx + 1);
+                    st = Some(idx + 1);
                 }
 
-                in_quotes = !in_quotes;
+                iq = !iq;
             }
-            ' ' | '\n' if !in_quotes => {
-                if let Some(s) = start {
-                    result.push(String::from(&message[s..idx]));
-                    start = None;
+            ' ' | '\n' if !iq => {
+                if let Some(s) = st {
+                    result.push(String::from(&input[s..idx]));
+                    st = None;
                 }
             }
             _ => {
-                if start.is_none() {
-                    start = Some(idx);
+                if st.is_none() {
+                    st = Some(idx);
                 }
             }
         }
     }
-    if let Some(s) = start {
-        result.push(String::from(&message[s..]));
+
+    if let Some(s) = st {
+        result.push(String::from(&input[s..]));
     }
+
     result
 }

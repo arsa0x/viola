@@ -1,3 +1,5 @@
+use whatsapp_rust::{anyhow, serde::Serialize};
+
 use super::request::HttpRequestBuilder;
 use crate::context::Context;
 
@@ -22,7 +24,7 @@ impl<'a> HttpPostBuilder<'a> {
         self
     }
 
-    pub fn json<T: serde::Serialize>(mut self, value: &T) -> anyhow::Result<Self> {
+    pub fn json<T: Serialize>(mut self, value: &T) -> anyhow::Result<Self> {
         self.inner = self.inner.json(value)?;
         Ok(self)
     }

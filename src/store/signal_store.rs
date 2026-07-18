@@ -2,12 +2,14 @@ use super::{
     IDENTITIES_TABLE, PREKEYS_TABLE, PreKeyRecord, RedbStore, SENDER_KEYS_TABLE, SESSIONS_TABLE,
     SIGNED_PREKEYS_TABLE,
 };
-use async_trait::async_trait;
 use bytes::Bytes;
 use redb::ReadableTable;
-use whatsapp_rust::store::{
-    SignalStore,
-    error::{Result, StoreError},
+use whatsapp_rust::{
+    async_trait,
+    store::{
+        SignalStore,
+        error::{Result, StoreError},
+    },
 };
 
 #[async_trait]

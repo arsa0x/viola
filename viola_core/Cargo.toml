@@ -4,22 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-ahash.workspace = true
-anyhow.workspace = true
-async-trait.workspace = true
 bytes.workspace = true
-compact_str.workspace = true
-dirs.workspace = true
-ffmpeg-next.workspace = true
-futures.workspace = true
-image.workspace = true
 isahc.workspace = true
 linkme.workspace = true
-log.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-tempfile.workspace = true
-tokio.workspace = true
-toml.workspace = true
-unicase = "2.9.0"
 whatsapp-rust.workspace = true
+log.workspace = true

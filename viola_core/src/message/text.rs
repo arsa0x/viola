@@ -1,6 +1,7 @@
 use crate::Context;
 use std::pin::Pin;
 use whatsapp_rust::{
+    anyhow,
     buffa::MessageField,
     waproto::whatsapp::{self, message::ExtendedTextMessage},
 };
@@ -18,7 +19,7 @@ impl<'a> TextBuilder<'a> {
     }
     pub async fn send(self) -> anyhow::Result<()> {
         let quoted = if self.quoted {
-            MessageField::some(self.ctx.info().ctx_info())
+            MessageField::some(self.ctx.build_ctx_info())
         } else {
             MessageField::none()
         };

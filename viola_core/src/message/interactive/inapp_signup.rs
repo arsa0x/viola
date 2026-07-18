@@ -1,7 +1,10 @@
 use std::pin::Pin;
 
-use whatsapp_rust::waproto::whatsapp::message::interactive_message::{
-    self, NativeFlowMessage, native_flow_message::NativeFlowButton,
+use whatsapp_rust::{
+    anyhow,
+    waproto::whatsapp::message::interactive_message::{
+        self, NativeFlowMessage, native_flow_message::NativeFlowButton,
+    },
 };
 
 use crate::Context;

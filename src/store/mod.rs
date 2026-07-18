@@ -8,7 +8,10 @@ use bincode;
 use redb::{ReadOnlyTable, ReadableDatabase, Table, TableDefinition};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use whatsapp_rust::store::error::{Result, StoreError};
+use whatsapp_rust::{
+    anyhow,
+    store::error::{Result, StoreError},
+};
 
 #[derive(Clone)]
 pub struct RedbStore {
@@ -135,6 +138,7 @@ impl RedbStore {
         Ok(())
     }
 
+    #[allow(unused)]
     pub fn new_with_device_id(database_url: &str, device_id: u8) -> Result<Self> {
         Ok(Self {
             connection: Arc::new(

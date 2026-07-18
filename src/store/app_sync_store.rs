@@ -2,9 +2,9 @@ use super::{
     APP_STATE_KEYS_TABLE, APP_STATE_MUTATION_MACS_TABLE, APP_STATE_VERSIONS_TABLE,
     AppStateMutationMacRecord, RedbStore,
 };
-use async_trait::async_trait;
 use redb::ReadableTable;
 use whatsapp_rust::{
+    async_trait,
     store::{
         AppStateSyncKey, AppSyncStore,
         error::{Result, StoreError},
