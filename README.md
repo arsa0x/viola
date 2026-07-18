@@ -30,7 +30,11 @@ cd viola
 - Running `viola` **must be done from inside that generated folder** — it looks for `config`, `download/`, and `cache/` in the current directory and refuses to start if they're missing.
 - On first run inside the project folder, it will display a pairing QR code to link your WhatsApp account.
 
-## Example
+## Creating Commands
+
+There are two ways to register a command: the **procedural macro** (recommended for most commands), or **manual registration** via `linkme::distributed_slice` when you need direct control over the `Command` struct.
+
+### Procedural Macro
 
 ```rs
 use viola_core::Context;
@@ -51,7 +55,31 @@ async fn command_name(ctx: Context) -> anyhow::Result<()> {
 }
 ```
 
-See [`viola_core/src/message/README.md`](./viola_core/src/message/README.md#message-module) for the full API used to build and send messages (text, media, reactions, interactive buttons/lists) via `ctx.send()`.
+### Manual Registration
+
+```rs
+use linkme::distributed_slice;
+use viola_core::{COMMANDS, Command, Context};
+use whatsapp_rust::anyhow;
+
+#[distributed_slice(COMMANDS)]
+static CMD: Command = Command {
+    name: "",
+    triggers: &[""],
+    category: "",
+    owner_only: false,
+    group_only: false,
+    help: None,
+    description: None,
+    execute: |ctx: Context| Box::pin(execute(ctx)),
+};
+
+async fn execute(ctx: Context) -> anyhow::Result<()> {
+    ctx.send().text("manual").await
+}
+```
+
+Both approaches register into the same `COMMANDS` distributed slice, so commands defined either way are discovered and dispatched identically at runtime — pick whichever fits the command better.
 
 ## Configuration
 
