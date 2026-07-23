@@ -1,10 +1,10 @@
-use crate::Context;
+use crate::{Context, message::media::MediaSource};
 use std::pin::Pin;
 use whatsapp_rust::{anyhow, download::MediaType, media::ImageOptions};
 
 pub struct ImageBuilder<'a> {
     pub ctx: &'a Context,
-    pub bytes: Vec<u8>,
+    pub source: MediaSource<'a>,
     pub caption: Option<String>,
     pub thumbnail: Option<Vec<u8>>,
     pub quoted: bool,
@@ -38,10 +38,12 @@ impl<'a> ImageBuilder<'a> {
             None => Some(Vec::new()), // to do
         };
 
+        let bytes = self.source.get_media(self.ctx).await?;
+
         let upload = self
             .ctx
             .wa_client
-            .upload(self.bytes, MediaType::Image, Default::default())
+            .upload(bytes, MediaType::Image, Default::default())
             .await?;
 
         let message = whatsapp_rust::media::image_message(

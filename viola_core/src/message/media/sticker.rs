@@ -1,4 +1,4 @@
-use crate::context::Context;
+use crate::{context::Context, message::media::MediaSource};
 use std::pin::Pin;
 use whatsapp_rust::{
     anyhow,
@@ -9,7 +9,7 @@ use whatsapp_rust::{
 
 pub struct StickerBuilder<'a> {
     pub ctx: &'a Context,
-    pub bytes: Vec<u8>,
+    pub source: MediaSource<'a>,
     pub thumbnail: Option<Vec<u8>>,
     pub quoted: bool,
 }
@@ -35,10 +35,13 @@ impl<'a> StickerBuilder<'a> {
             Some(t) => Some(t),
             None => Some(Vec::new()), // to do
         };
+
+        let bytes = self.source.get_media(self.ctx).await?;
+
         let upload = self
             .ctx
             .wa_client
-            .upload(self.bytes, MediaType::Image, Default::default())
+            .upload(bytes, MediaType::Image, Default::default())
             .await?;
         let message = whatsapp::Message {
             sticker_message: MessageField::some(StickerMessage {

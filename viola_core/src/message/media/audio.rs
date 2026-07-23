@@ -1,10 +1,10 @@
-use crate::Context;
+use crate::{Context, message::media::MediaSource};
 use std::pin::Pin;
 use whatsapp_rust::{anyhow, download::MediaType, media::AudioOptions};
 
 pub struct AudioBuilder<'a> {
     pub ctx: &'a Context,
-    pub bytes: Vec<u8>,
+    pub source: MediaSource<'a>,
     pub quoted: bool,
     pub ptt: bool,
     pub mime_type: Option<String>,
@@ -39,10 +39,12 @@ impl<'a> AudioBuilder<'a> {
             None
         };
 
+        let bytes = self.source.get_media(self.ctx).await?;
+
         let upload = self
             .ctx
             .wa_client
-            .upload(self.bytes, MediaType::Audio, Default::default())
+            .upload(bytes, MediaType::Audio, Default::default())
             .await?;
 
         let message = whatsapp_rust::media::audio_message(

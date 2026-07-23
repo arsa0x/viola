@@ -1,12 +1,8 @@
-pub mod audio;
-pub mod document;
 pub mod extended;
-pub mod image;
 pub mod interactive;
+pub mod media;
 pub mod reaction;
-pub mod sticker;
 pub mod text;
-pub mod video;
 
 use whatsapp_rust::{
     anyhow,
@@ -16,9 +12,13 @@ use whatsapp_rust::{
 use crate::{
     Context,
     message::{
-        audio::AudioBuilder, document::DocumentBuilder, image::ImageBuilder,
-        interactive::InteractiveFactory, reaction::ReactionBuilder, sticker::StickerBuilder,
-        text::TextBuilder, video::VideoBuilder,
+        interactive::InteractiveFactory,
+        media::{
+            MediaSource, audio::AudioBuilder, document::DocumentBuilder, image::ImageBuilder,
+            sticker::StickerBuilder, video::VideoBuilder,
+        },
+        reaction::ReactionBuilder,
+        text::TextBuilder,
     },
 };
 
@@ -48,29 +48,29 @@ impl<'a> MessageFactory<'a> {
         }
     }
 
-    pub fn video(self, video: Vec<u8>) -> VideoBuilder<'a> {
+    pub fn video(self, source: MediaSource<'a>) -> VideoBuilder<'a> {
         VideoBuilder {
             ctx: self.ctx,
-            bytes: video,
+            source,
             quoted: false,
             caption: None,
             thumbnail: None,
         }
     }
 
-    pub fn image(self, image: Vec<u8>) -> ImageBuilder<'a> {
+    pub fn image(self, source: MediaSource<'a>) -> ImageBuilder<'a> {
         ImageBuilder {
+            source,
             ctx: self.ctx,
-            bytes: image,
             quoted: false,
             caption: None,
             thumbnail: None,
         }
     }
 
-    pub fn audio(self, audio: Vec<u8>) -> AudioBuilder<'a> {
+    pub fn audio(self, source: MediaSource<'a>) -> AudioBuilder<'a> {
         AudioBuilder {
-            bytes: audio,
+            source,
             ctx: self.ctx,
             quoted: false,
             ptt: false,
@@ -79,9 +79,9 @@ impl<'a> MessageFactory<'a> {
         }
     }
 
-    pub fn document(self, document: Vec<u8>) -> DocumentBuilder<'a> {
+    pub fn document(self, source: MediaSource<'a>) -> DocumentBuilder<'a> {
         DocumentBuilder {
-            bytes: document,
+            source,
             caption: None,
             ctx: self.ctx,
             quoted: false,
@@ -92,9 +92,9 @@ impl<'a> MessageFactory<'a> {
         }
     }
 
-    pub fn sticker(self, sticker: Vec<u8>) -> StickerBuilder<'a> {
+    pub fn sticker(self, source: MediaSource<'a>) -> StickerBuilder<'a> {
         StickerBuilder {
-            bytes: sticker,
+            source,
             ctx: self.ctx,
             quoted: false,
             thumbnail: None,

@@ -1,9 +1,9 @@
-use crate::context::Context;
+use crate::{context::Context, message::media::MediaSource};
 use whatsapp_rust::{anyhow, download::MediaType, media::DocumentOptions};
 
 pub struct DocumentBuilder<'a> {
     pub ctx: &'a Context,
-    pub bytes: Vec<u8>,
+    pub source: MediaSource<'a>,
     pub caption: Option<String>,
     pub thumbnail: Option<Vec<u8>>,
     pub quoted: bool,
@@ -50,10 +50,12 @@ impl<'a> DocumentBuilder<'a> {
             None
         };
 
+        let bytes = self.source.get_media(self.ctx).await?;
+
         let upload = self
             .ctx
             .wa_client
-            .upload(self.bytes, MediaType::Image, Default::default())
+            .upload(bytes, MediaType::Image, Default::default())
             .await?;
 
         let message = whatsapp_rust::media::document_message(

@@ -1,10 +1,10 @@
-use crate::Context;
+use crate::{Context, message::media::MediaSource};
 use std::pin::Pin;
 use whatsapp_rust::{anyhow, download::MediaType, media::VideoOptions};
 
 pub struct VideoBuilder<'a> {
     pub ctx: &'a Context,
-    pub bytes: Vec<u8>,
+    pub source: MediaSource<'a>,
     pub caption: Option<String>,
     pub thumbnail: Option<Vec<u8>>,
     pub quoted: bool,
@@ -33,16 +33,17 @@ impl<'a> VideoBuilder<'a> {
             None
         };
 
-        let video_data = bytes::Bytes::from(self.bytes);
+        let bytes = self.source.get_media(self.ctx).await?;
 
         let thumbnail = match self.thumbnail {
             Some(t) => Some(t),
             None => Some(Vec::new()), // to do
         };
+
         let upload = self
             .ctx
             .wa_client
-            .upload(video_data.to_vec(), MediaType::Video, Default::default())
+            .upload(bytes, MediaType::Video, Default::default())
             .await?;
 
         let message = whatsapp_rust::media::video_message(
