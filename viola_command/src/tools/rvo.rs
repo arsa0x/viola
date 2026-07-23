@@ -1,4 +1,4 @@
-use viola_core::Context;
+use viola_core::{Context, message::media::MediaSource};
 use viola_macros::command;
 use whatsapp_rust::{anyhow, download::MediaType};
 
@@ -12,15 +12,24 @@ async fn read_view_once(ctx: Context) -> anyhow::Result<()> {
         let download = ctx.wa_client.download(media).await?;
         match mtype {
             MediaType::Image => {
-                ctx.send().image(download).quoted().await?;
+                ctx.send()
+                    .image(MediaSource::Bytes(download))
+                    .quoted()
+                    .await?;
                 Ok(())
             }
             MediaType::Video => {
-                ctx.send().video(download).quoted().await?;
+                ctx.send()
+                    .video(MediaSource::Bytes(download))
+                    .quoted()
+                    .await?;
                 Ok(())
             }
             MediaType::Audio => {
-                ctx.send().audio(download).quoted().await?;
+                ctx.send()
+                    .audio(MediaSource::Bytes(download))
+                    .quoted()
+                    .await?;
                 Ok(())
             }
             _ => ctx.send().failed().await,

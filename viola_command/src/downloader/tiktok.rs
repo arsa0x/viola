@@ -11,7 +11,7 @@ use base64::{Engine as _, engine::general_purpose};
 use isahc::AsyncReadResponseExt;
 use serde::Deserialize;
 use url::Url;
-use viola_core::context::Context;
+use viola_core::{context::Context, message::media::MediaSource};
 use viola_macros::command;
 use whatsapp_rust::{anyhow, serde_json};
 
@@ -74,10 +74,8 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
         if audio_only {
             let bytes = general_purpose::STANDARD.decode(result.audio_id)?;
             let url = String::from_utf8(bytes)?;
-            let mut response = ctx.http_client.get_async(&url).await?;
-            let media = response.bytes().await?;
             ctx.send()
-                .audio(media)
+                .audio(MediaSource::Url(&url))
                 .quoted()
                 .mime_type("audio/mpeg")
                 .await?;
@@ -85,10 +83,9 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
         } else {
             let bytes = general_purpose::STANDARD.decode(result.video_id)?;
             let url = String::from_utf8(bytes)?;
-            let mut response = ctx.http_client.get_async(&url).await?;
-            let media = response.bytes().await?;
+
             ctx.send()
-                .video(media)
+                .video(MediaSource::Url(&url))
                 .caption(format!("author: {}", result.author))
                 .quoted()
                 .await?;

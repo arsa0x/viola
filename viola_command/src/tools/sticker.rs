@@ -1,5 +1,5 @@
 use image::{RgbaImage, imageops::overlay, load_from_memory};
-use viola_core::context::Context;
+use viola_core::{context::Context, message::media::MediaSource};
 use viola_macros::command;
 use webp::Encoder;
 use whatsapp_rust::{anyhow, download::MediaType};
@@ -33,7 +33,10 @@ async fn sticker(ctx: Context) -> anyhow::Result<()> {
                     webp_memory.to_vec()
                 };
 
-                ctx.send().sticker(webp).quoted().await?;
+                ctx.send()
+                    .sticker(MediaSource::Bytes(webp))
+                    .quoted()
+                    .await?;
             }
             _ => {
                 ctx.send().failed().await?;
