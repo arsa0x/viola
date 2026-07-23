@@ -1,3 +1,4 @@
+pub mod carousel;
 pub mod cta_url;
 pub mod inapp_signup;
 pub mod quick_reply;
@@ -20,6 +21,7 @@ use whatsapp_rust::{
 use crate::{
     context::Context,
     message::interactive::{
+        carousel::CarouselBuilder,
         cta_url::{CtaButton, CtaUrlBuilder},
         inapp_signup::InappSignupBuilder,
         quick_reply::{QuickReplyBuilder, QuickReplyButton},
@@ -43,6 +45,15 @@ impl<'a> InteractiveFactory<'a> {
             footer: MessageField::none(),
             interactive: Some(interactive),
             quoted: false,
+        }
+    }
+    pub fn carousel(self, body_text: impl Into<String>) -> CarouselBuilder<'a> {
+        CarouselBuilder {
+            ctx: self.ctx,
+            quoted: false,
+            body_text: body_text.into(),
+            footer_text: None,
+            cards: Vec::new(),
         }
     }
     pub fn inapp_signup(self, text_body: impl Into<String>) -> InappSignupBuilder<'a> {
