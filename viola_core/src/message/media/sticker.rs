@@ -1,10 +1,12 @@
-use crate::{context::Context, message::media::MediaSource};
-use std::pin::Pin;
 use whatsapp_rust::{
-    anyhow,
+    anyhow::{self, Ok},
     buffa::MessageField,
-    download::MediaType,
-    waproto::whatsapp::{self, message::StickerMessage},
+    waproto::whatsapp,
+};
+
+use crate::{
+    Context,
+    message::{context_info_slot, media::MediaSource, sendable_builder},
 };
 
 pub struct StickerBuilder<'a> {
@@ -15,36 +17,30 @@ pub struct StickerBuilder<'a> {
 }
 
 impl<'a> StickerBuilder<'a> {
-    pub fn thumbnail(mut self, thumbnail: Vec<u8>) -> Self {
-        self.thumbnail = Some(thumbnail);
-        self
-    }
-
     pub fn quoted(mut self) -> Self {
         self.quoted = true;
         self
     }
 
-    pub async fn send(self) -> anyhow::Result<()> {
-        let quoted = if self.quoted {
-            MessageField::some(self.ctx.build_ctx_info())
-        } else {
-            MessageField::none()
-        };
-        let thumbnail = match self.thumbnail {
-            Some(t) => Some(t),
-            None => Some(Vec::new()), // to do
-        };
+    pub fn thumbnail(mut self, thumbnail: Vec<u8>) -> Self {
+        self.thumbnail = Some(thumbnail);
+        self
+    }
 
-        let bytes = self.source.get_media(self.ctx).await?;
-
+    pub async fn into_message(self) -> anyhow::Result<whatsapp::Message> {
+        let bytes = self.source.get_media_bytes(self.ctx).await?;
         let upload = self
             .ctx
             .wa_client
-            .upload(bytes, MediaType::Image, Default::default())
+            .upload(
+                bytes,
+                whatsapp_rust::download::MediaType::Sticker,
+                Default::default(),
+            )
             .await?;
-        let message = whatsapp::Message {
-            sticker_message: MessageField::some(StickerMessage {
+
+        Ok(whatsapp::Message {
+            sticker_message: MessageField::some(whatsapp::message::StickerMessage {
                 url: Some(upload.url.clone()),
                 file_sha256: Some(upload.file_sha256.to_vec()),
                 file_enc_sha256: Some(upload.file_enc_sha256.to_vec()),
@@ -53,22 +49,13 @@ impl<'a> StickerBuilder<'a> {
                 mimetype: Some("image/webp".to_string()),
                 direct_path: Some(upload.direct_path.clone()),
                 file_length: Some(upload.file_length),
-                context_info: quoted,
-                png_thumbnail: thumbnail,
+                context_info: context_info_slot(self.ctx, self.quoted),
+                png_thumbnail: self.thumbnail,
                 ..Default::default()
             }),
             ..Default::default()
-        };
-        self.ctx.send().raw(message).await
+        })
     }
 }
 
-impl<'a> IntoFuture for StickerBuilder<'a> {
-    type Output = anyhow::Result<()>;
-
-    type IntoFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'a>>;
-
-    fn into_future(self) -> Self::IntoFuture {
-        Box::pin(async move { self.send().await })
-    }
-}
+sendable_builder!(StickerBuilder);

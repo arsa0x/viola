@@ -1,18 +1,24 @@
-use crate::{context::Context, message::media::MediaSource};
-use whatsapp_rust::{anyhow, download::MediaType, media::DocumentOptions};
+use whatsapp_rust::{anyhow, waproto::whatsapp};
+
+use crate::{
+    Context,
+    message::{context_info_slot, media::MediaSource, sendable_builder},
+};
 
 pub struct DocumentBuilder<'a> {
     pub ctx: &'a Context,
     pub source: MediaSource<'a>,
-    pub caption: Option<String>,
     pub thumbnail: Option<Vec<u8>>,
+    pub caption: Option<String>,
     pub quoted: bool,
-    pub mime_type: Option<String>,
-    pub file_name: Option<String>,
-    pub title: Option<String>,
 }
 
 impl<'a> DocumentBuilder<'a> {
+    pub fn quoted(mut self) -> Self {
+        self.quoted = true;
+        self
+    }
+
     pub fn caption(mut self, text: impl Into<String>) -> Self {
         self.caption = Some(text.into());
         self
@@ -23,55 +29,30 @@ impl<'a> DocumentBuilder<'a> {
         self
     }
 
-    pub fn quoted(mut self) -> Self {
-        self.quoted = true;
-        self
-    }
-
-    pub fn mime_type(mut self, mime: impl Into<String>) -> Self {
-        self.mime_type = Some(mime.into());
-        self
-    }
-
-    pub fn title(mut self, title: impl Into<String>) -> Self {
-        self.title = Some(title.into());
-        self
-    }
-
-    pub fn file_name(mut self, file_name: impl Into<String>) -> Self {
-        self.file_name = Some(file_name.into());
-        self
-    }
-
-    pub async fn send(self) -> anyhow::Result<()> {
-        let quoted = if self.quoted {
-            Some(Box::new(self.ctx.build_ctx_info()))
-        } else {
-            None
-        };
-
-        let bytes = self.source.get_media(self.ctx).await?;
-
+    pub async fn into_message(self) -> anyhow::Result<whatsapp::Message> {
+        let bytes = self.source.get_media_bytes(self.ctx).await?;
         let upload = self
             .ctx
             .wa_client
-            .upload(bytes, MediaType::Image, Default::default())
+            .upload(
+                bytes,
+                whatsapp_rust::download::MediaType::Document,
+                Default::default(),
+            )
             .await?;
-
-        let message = whatsapp_rust::media::document_message(
+        Ok(whatsapp_rust::media::document_message(
             upload,
-            DocumentOptions {
+            whatsapp_rust::media::DocumentOptions {
                 // mimetype: (),
                 // file_name: (),
                 // title: (),
-                // page_count: (),
-                context_info: quoted,
-                jpeg_thumbnail: self.thumbnail,
                 caption: self.caption,
+                jpeg_thumbnail: self.thumbnail,
+                context_info: context_info_slot(self.ctx, self.quoted),
                 ..Default::default()
             },
-        );
-
-        self.ctx.send().raw(message).await
+        ))
     }
 }
+
+sendable_builder!(DocumentBuilder);
