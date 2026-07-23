@@ -8,12 +8,13 @@ use whatsapp_rust::{
     waproto::whatsapp::{self, ContextInfo},
 };
 
-use crate::{http::Http, message::MessageFactory};
+use crate::{Config, http::Http, message::MessageFactory};
 
 pub struct Context {
     pub http_client: isahc::HttpClient,
     pub wa_client: Arc<whatsapp_rust::Client>,
     pub message: Arc<whatsapp::Message>,
+    pub config: Arc<Config>,
     pub info: Arc<MessageInfo>,
     pub args: Vec<String>,
 }

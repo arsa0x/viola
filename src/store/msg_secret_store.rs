@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::{MSG_SECRETS_TABLE, MsgSecretRecord, RedbStore};
 use redb::ReadableTable;
 use whatsapp_rust::{
@@ -6,7 +8,7 @@ use whatsapp_rust::{
         MsgSecretEntry, MsgSecretStore,
         error::{Result, StoreError},
     },
-    wacore,
+    wacore::{self, reporting_token::MESSAGE_SECRET_SIZE},
 };
 
 #[async_trait]
@@ -26,13 +28,13 @@ impl MsgSecretStore for RedbStore {
         chat: &str,
         sender: &str,
         msg_id: &str,
-        secret: &[u8],
+        secret: &[u8; MESSAGE_SECRET_SIZE],
     ) -> Result<()> {
         self.put_msg_secrets(vec![MsgSecretEntry {
-            chat: chat.to_string(),
-            sender: sender.to_string(),
-            msg_id: msg_id.to_string(),
-            secret: secret.to_vec(),
+            chat: Arc::from(chat),
+            sender: Arc::from(sender),
+            msg_id: Arc::from(msg_id),
+            secret: *secret,
             expires_at: 0,
             message_ts: 0,
         }])
@@ -65,9 +67,9 @@ impl MsgSecretStore for RedbStore {
 
             for entry in &entries {
                 let key = (
-                    entry.chat.as_str(),
-                    entry.sender.as_str(),
-                    entry.msg_id.as_str(),
+                    entry.chat.as_ref(),
+                    entry.sender.as_ref(),
+                    entry.msg_id.as_ref(),
                     device_id,
                 );
 
@@ -78,7 +80,7 @@ impl MsgSecretStore for RedbStore {
                     Some(existing) => {
                         let mut record: MsgSecretRecord = self.decode(existing.value())?;
 
-                        record.secret = entry.secret.clone();
+                        record.secret = entry.secret.to_vec();
                         record.created_at = now;
 
                         // expires_at logic sama seperti SQLite
@@ -92,7 +94,7 @@ impl MsgSecretStore for RedbStore {
                         record
                     }
                     None => MsgSecretRecord {
-                        secret: entry.secret.clone(),
+                        secret: entry.secret.to_vec(),
                         created_at: now,
                         expires_at: entry.expires_at,
                         message_ts: entry.message_ts,

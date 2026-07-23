@@ -35,7 +35,7 @@ impl<'a> MessageFactory<'a> {
     pub async fn raw(&self, message: whatsapp::Message) -> anyhow::Result<()> {
         self.ctx
             .wa_client
-            .send_message(self.ctx.info.source.sender.clone(), message)
+            .send_message(self.ctx.info.source.chat.clone(), message)
             .await?;
         Ok(())
     }

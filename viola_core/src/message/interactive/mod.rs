@@ -3,16 +3,8 @@ pub mod inapp_signup;
 pub mod quick_reply;
 pub mod single_select;
 
-use crate::{
-    context::Context,
-    message::interactive::{
-        cta_url::{CtaButton, CtaUrlBuilder},
-        inapp_signup::InappSignupBuilder,
-        quick_reply::{QuickReplyBuilder, QuickReplyButton},
-        single_select::{SingleSelectBuilder, SingleSelectSection},
-    },
-};
 use std::pin::Pin;
+
 use whatsapp_rust::{
     anyhow,
     buffa::MessageField,
@@ -22,6 +14,16 @@ use whatsapp_rust::{
             InteractiveMessage,
             interactive_message::{self, Body, Footer, Header},
         },
+    },
+};
+
+use crate::{
+    context::Context,
+    message::interactive::{
+        cta_url::{CtaButton, CtaUrlBuilder},
+        inapp_signup::InappSignupBuilder,
+        quick_reply::{QuickReplyBuilder, QuickReplyButton},
+        single_select::{SingleSelectBuilder, SingleSelectSection},
     },
 };
 

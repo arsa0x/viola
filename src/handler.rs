@@ -26,6 +26,9 @@ pub async fn event_handler(
 
         Event::Messages(batch) => {
             for inb in batch {
+                // if let Err(e) = debug::log_message(&inb.info.source.chat.user, &inb.message) {
+                //    log::error!("{e}");
+                // }
                 let Some(text) = incoming::get_text_content(&inb.message) else {
                     continue;
                 };
@@ -38,8 +41,6 @@ pub async fn event_handler(
                     continue;
                 }
 
-                let cmd_text = &text[prefix.len_utf8()..];
-
                 match config.mode {
                     viola_core::Mode::Group => {
                         if !inb.info.source.is_group {
@@ -48,7 +49,7 @@ pub async fn event_handler(
                     }
                     viola_core::Mode::Owner => {
                         if let Some(sender) = &inb.info.source.sender_alt {
-                            if !config.owners.contains(&sender.to_string()) {
+                            if !config.owners.contains(&sender.user.to_string()) {
                                 continue;
                             }
                         }
@@ -56,6 +57,7 @@ pub async fn event_handler(
                     viola_core::Mode::Public => {}
                 }
 
+                let cmd_text = &text[prefix.len_utf8()..];
                 let cmd_args = parser::parse(cmd_text);
 
                 if let Some(first) = cmd_args.first()
@@ -67,6 +69,7 @@ pub async fn event_handler(
                         wa_client: wa_client.clone(),
                         info: inb.info.clone(),
                         message: inb.message.clone(),
+                        config: config.clone(),
                     };
 
                     tokio::spawn(async move {
