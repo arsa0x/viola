@@ -16,6 +16,7 @@ use crate::{
             MediaSource, audio::AudioBuilder, document::DocumentBuilder, image::ImageBuilder,
             sticker::StickerBuilder, video::VideoBuilder,
         },
+        reaction::ReactionBuilder,
         text::TextBuilder,
     },
 };
@@ -82,6 +83,13 @@ impl<'a> MessageFactory<'a> {
             source,
             thumbnail: None,
             quoted: false,
+        }
+    }
+
+    pub fn reaction(&self, react: impl Into<String>) -> ReactionBuilder<'a> {
+        ReactionBuilder {
+            ctx: self.ctx,
+            reaction: Some(react.into()),
         }
     }
 }

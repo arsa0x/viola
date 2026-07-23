@@ -1,14 +1,18 @@
-use crate::context::Context;
-use std::pin::Pin;
-use whatsapp_rust::{anyhow, waproto::whatsapp::MessageKey};
+use whatsapp_rust::{
+    anyhow,
+    buffa::MessageField,
+    waproto::whatsapp::{self, MessageKey},
+};
+
+use crate::{Context, message::sendable_builder};
 
 pub struct ReactionBuilder<'a> {
     pub ctx: &'a Context,
-    pub reaction: &'a str,
+    pub reaction: Option<String>,
 }
 
 impl<'a> ReactionBuilder<'a> {
-    pub async fn send(self) -> anyhow::Result<()> {
+    pub async fn into_message(self) -> anyhow::Result<whatsapp::Message> {
         let chat = self.ctx.info.source.chat.clone();
         let sender = self.ctx.info.source.sender.clone();
         let id = self.ctx.info.id.clone();
@@ -20,20 +24,15 @@ impl<'a> ReactionBuilder<'a> {
             participant: Some(sender.to_string()),
         };
 
-        self.ctx
-            .wa_client
-            .send_reaction(&chat, key, self.reaction)
-            .await?;
-        Ok(())
+        Ok(whatsapp::Message {
+            reaction_message: MessageField::some(whatsapp::message::ReactionMessage {
+                key: MessageField::some(key),
+                text: self.reaction,
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
     }
 }
 
-impl<'a> IntoFuture for ReactionBuilder<'a> {
-    type Output = anyhow::Result<()>;
-
-    type IntoFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'a>>;
-
-    fn into_future(self) -> Self::IntoFuture {
-        Box::pin(async move { self.send().await })
-    }
-}
+sendable_builder!(ReactionBuilder);
