@@ -3,8 +3,8 @@
 This module provides a fluent, type-safe API for constructing and sending
 outbound WhatsApp messages (text, media, reactions, and interactive
 messages). It is the "outgoing" counterpart to `Context` — while `Context`
-gives you information about an *incoming* message, `message::MessageFactory`
-(accessed via `ctx.send()`) lets you build and dispatch a *new* one.
+gives you information about an _incoming_ message, `message::MessageFactory`
+(accessed via `ctx.send()`) lets you build and dispatch a _new_ one.
 
 Every concrete message type follows the same **builder pattern**:
 
@@ -40,20 +40,20 @@ lifetime (`'a`), you always `.await` inside the same scope as `ctx`.
 one constructor per message type, plus a low-level `raw()` escape hatch and a
 few reaction shortcuts.
 
-| Method | Returns | Purpose |
-|---|---|---|
-| `raw(whatsapp::Message)` | `anyhow::Result<()>` (awaited immediately) | Send a fully custom `whatsapp::Message` protobuf, bypassing all builders. Every builder ultimately calls this internally. |
-| `text(impl Into<String>)` | `TextBuilder` | Plain or quoted text message. |
-| `image(Vec<u8>)` | `ImageBuilder` | Image message (uploads bytes first). |
-| `video(Vec<u8>)` | `VideoBuilder` | Video message (uploads bytes first). |
-| `audio(Vec<u8>)` | `AudioBuilder` | Audio message, optionally a voice note (PTT). |
-| `document(Vec<u8>)` | `DocumentBuilder` | Document/file attachment. |
-| `sticker(Vec<u8>)` | `StickerBuilder` | Sticker message. |
-| `interactive()` | `InteractiveFactory` | Entry point for buttons/list messages (see [Interactive messages](#interactive-messages)). |
-| `reaction(&str)` | `ReactionBuilder` | React to the *current inbound message* with an emoji. |
-| `success()` | `anyhow::Result<()>` (awaited immediately) | Shortcut for `.reaction("✅")`. |
-| `wait()` | `anyhow::Result<()>` (awaited immediately) | Shortcut for `.reaction("⏳")`. |
-| `failed()` | `anyhow::Result<()>` (awaited immediately) | Shortcut for `.reaction("❌")`. |
+| Method                      | Returns                                    | Purpose                                                                                                                   |
+| --------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `raw(whatsapp::Message)`    | `anyhow::Result<()>` (awaited immediately) | Send a fully custom `whatsapp::Message` protobuf, bypassing all builders. Every builder ultimately calls this internally. |
+| `text(impl Into<String>)`   | `TextBuilder`                              | Plain or quoted text message.                                                                                             |
+| `image(MediaSource<'a>)`    | `ImageBuilder`                             | Image message (supports bytes or URL).                                                                                    |
+| `video(MediaSource<'a>)`    | `VideoBuilder`                             | Video message (supports bytes or URL).                                                                                    |
+| `audio(MediaSource<'a>)`    | `AudioBuilder`                             | Audio message (supports bytes or URL). optionally a voice note (PTT).                                                     |
+| `document(MediaSource<'a>)` | `DocumentBuilder`                          | Document/file attachment (supports bytes or URL).                                                                         |
+| `sticker(MediaSource<'a>)`  | `StickerBuilder`                           | Sticker message (supports bytes or URL)..                                                                                 |
+| `interactive()`             | `InteractiveFactory`                       | Entry point for buttons/list messages (see [Interactive messages](#interactive-messages)).                                |
+| `reaction(&str)`            | `ReactionBuilder`                          | React to the _current inbound message_ with an emoji.                                                                     |
+| `success()`                 | `anyhow::Result<()>` (awaited immediately) | Shortcut for `.reaction("✅")`.                                                                                           |
+| `wait()`                    | `anyhow::Result<()>` (awaited immediately) | Shortcut for `.reaction("⏳")`.                                                                                           |
+| `failed()`                  | `anyhow::Result<()>` (awaited immediately) | Shortcut for `.reaction("❌")`.                                                                                           |
 
 `raw()` sends via `ctx.msg_ctx.client.send_message(chat_jid, message)` — this
 is the single choke point all outbound messages pass through, so any
@@ -85,12 +85,12 @@ ctx.send().text("Hello!").await?;
 ctx.send().text("Hello!").quoted().await?;
 ```
 
-| Setter | Effect |
-|---|---|
+| Setter      | Effect                        |
+| ----------- | ----------------------------- |
 | `.quoted()` | Reply to the current message. |
 
-Internally: an *unquoted* text is sent as a plain `conversation` field (the
-cheapest message shape WhatsApp supports); a *quoted* text is upgraded to an
+Internally: an _unquoted_ text is sent as a plain `conversation` field (the
+cheapest message shape WhatsApp supports); a _quoted_ text is upgraded to an
 `extended_text_message` so `context_info` has somewhere to live. This means
 quoting a text message is not free — it changes the wire representation —
 but this is handled for you automatically.
@@ -99,22 +99,22 @@ but this is handled for you automatically.
 
 ```rust
 ctx.send()
-    .image(bytes)
+    .image(MediaSource::Url("https://example.com/image.jpg"))
     .caption("look at this")
     .thumbnail(thumb_bytes)
     .quoted()
     .await?;
 ```
 
-| Setter | Effect |
-|---|---|
-| `.quoted()` | Reply to the current message. |
-| `.caption(impl Into<String>)` | Caption shown under the image. |
-| `.thumbnail(Vec<u8>)` | JPEG thumbnail bytes (used for the chat-list preview). |
+| Setter                        | Effect                                                 |
+| ----------------------------- | ------------------------------------------------------ |
+| `.quoted()`                   | Reply to the current message.                          |
+| `.caption(impl Into<String>)` | Caption shown under the image.                         |
+| `.thumbnail(Vec<u8>)`         | JPEG thumbnail bytes (used for the chat-list preview). |
 
 ### `VideoBuilder`
 
-Constructed via `ctx.send().video(bytes)`. Based on the fields wired up in
+Constructed via `ctx.send().video(MediaSource)`. Based on the fields wired up in
 `MessageFactory::video`, it exposes the same shape as `ImageBuilder`:
 `.quoted()`, `.caption(...)`, `.thumbnail(...)`.
 
@@ -122,19 +122,19 @@ Constructed via `ctx.send().video(bytes)`. Based on the fields wired up in
 
 ```rust
 ctx.send()
-    .audio(bytes)
+    .audio(MediaSource::Bytes(bytes))
     .ptt()
     .duration(12)
     .mime_type("audio/ogg; codecs=opus")
     .await?;
 ```
 
-| Setter | Effect |
-|---|---|
-| `.quoted()` | Reply to the current message. |
-| `.ptt()` | Marks the audio as a push-to-talk voice note rather than a regular audio file. |
-| `.duration(u32)` | Duration in seconds. |
-| `.mime_type(impl Into<String>)` | Overrides the audio MIME type. |
+| Setter                          | Effect                                                                         |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| `.quoted()`                     | Reply to the current message.                                                  |
+| `.ptt()`                        | Marks the audio as a push-to-talk voice note rather than a regular audio file. |
+| `.duration(u32)`                | Duration in seconds.                                                           |
+| `.mime_type(impl Into<String>)` | Overrides the audio MIME type.                                                 |
 
 > **Note:** as of this writing, `AudioOptions` is constructed with
 > `mimetype`, `duration_seconds`, and `waveform` left at their defaults
@@ -145,13 +145,13 @@ ctx.send()
 
 ### `DocumentBuilder`
 
-Constructed via `ctx.send().document(bytes)`. Exposed setters (inferred from
+Constructed via `ctx.send().document(MediaSource)`. Exposed setters (inferred from
 its field set): `.quoted()`, `.caption(...)`, `.thumbnail(...)`,
 `.mime_type(...)`, `.file_name(...)`, `.title(...)`.
 
 ### `StickerBuilder`
 
-Constructed via `ctx.send().sticker(bytes)`. Exposed setters: `.quoted()`,
+Constructed via `ctx.send().sticker(MediaSource::Bytes(bytes))`. Exposed setters: `.quoted()`,
 `.thumbnail(...)`.
 
 ## Interactive messages
@@ -163,13 +163,13 @@ four interactive builders wrap the same underlying primitive: a WhatsApp
 `NativeFlowButton`s, each carrying a `name` (the flow type) and a
 `button_params_json` blob (the flow-specific payload, JSON-encoded).
 
-| Factory method | Returns | Native flow name | Use case |
-|---|---|---|---|
-| `.raw(interactive_message::InteractiveMessage)` | `InteractiveBuilder` | — | Fully custom interactive payload. |
-| `.inapp_signup(text_body)` | `InappSignupBuilder` | `inapp_signup` | WhatsApp's built-in signup flow button. |
-| `.quick_reply(Vec<QuickReplyButton>)` | `QuickReplyBuilder` | `quick_reply` | Up to a handful of quick-tap reply buttons. |
-| `.single_select(Vec<SingleSelectSection>)` | `SingleSelectBuilder` | `single_select` | A scrollable, sectioned list picker (one selectable option). |
-| `.cta_url(Vec<CtaButton>)` | `CtaUrlBuilder` | `cta_url` | Buttons that open an external URL. |
+| Factory method                                  | Returns               | Native flow name | Use case                                                     |
+| ----------------------------------------------- | --------------------- | ---------------- | ------------------------------------------------------------ |
+| `.raw(interactive_message::InteractiveMessage)` | `InteractiveBuilder`  | —                | Fully custom interactive payload.                            |
+| `.inapp_signup(text_body)`                      | `InappSignupBuilder`  | `inapp_signup`   | WhatsApp's built-in signup flow button.                      |
+| `.quick_reply(Vec<QuickReplyButton>)`           | `QuickReplyBuilder`   | `quick_reply`    | Up to a handful of quick-tap reply buttons.                  |
+| `.single_select(Vec<SingleSelectSection>)`      | `SingleSelectBuilder` | `single_select`  | A scrollable, sectioned list picker (one selectable option). |
+| `.cta_url(Vec<CtaButton>)`                      | `CtaUrlBuilder`       | `cta_url`        | Buttons that open an external URL.                           |
 
 All interactive builders share `.quoted()`, `.title(...)`, `.text_body(...)`,
 and (except `inapp_signup`) `.footer(...)`, then send by either calling
@@ -208,8 +208,8 @@ ctx.send()
     .await?;
 ```
 
-| Setter | Effect |
-|---|---|
+| Setter                             | Effect                                                                              |
+| ---------------------------------- | ----------------------------------------------------------------------------------- |
 | `.select_label(impl Into<String>)` | Text on the button that opens the list (defaults to `"Select Options"` if omitted). |
 
 ### `CtaUrlBuilder`

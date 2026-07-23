@@ -21,6 +21,7 @@ pub async fn run() {
         .with_transport_factory(TokioWebSocketTransportFactory::new())
         .with_runtime(TokioRuntime)
         .with_backend(backend)
+        .skip_history_sync()
         .on_event(move |event, wa_client| {
             let http_client = http_client.clone();
             let config = Arc::clone(&config);
