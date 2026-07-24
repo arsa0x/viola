@@ -13,5 +13,4 @@ pub mod tools {
    pub mod ping; 
    pub mod rvo; 
    pub mod sticker; 
-   pub mod test; 
 }

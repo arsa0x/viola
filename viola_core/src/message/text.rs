@@ -1,57 +1,46 @@
-use crate::Context;
-use std::pin::Pin;
-use whatsapp_rust::{
-    anyhow,
-    buffa::MessageField,
-    waproto::whatsapp::{self, message::ExtendedTextMessage},
+use whatsapp_rust::{anyhow, buffa::MessageField, waproto::whatsapp};
+
+use crate::{
+    Context,
+    message::{context_info_slot, sendable_builder},
 };
 
 pub struct TextBuilder<'a> {
     pub ctx: &'a Context,
-    pub text: String,
+    pub message: whatsapp::Message,
     pub quoted: bool,
 }
 
 impl<'a> TextBuilder<'a> {
+    pub fn new(ctx: &'a Context, text: impl Into<String>) -> Self {
+        Self {
+            ctx,
+            message: whatsapp::Message {
+                conversation: Some(text.into()),
+                ..Default::default()
+            },
+            quoted: false,
+        }
+    }
+
     pub fn quoted(mut self) -> Self {
         self.quoted = true;
         self
     }
-    pub async fn send(self) -> anyhow::Result<()> {
-        let quoted = if self.quoted {
-            MessageField::some(self.ctx.build_ctx_info())
-        } else {
-            MessageField::none()
-        };
 
-        let message = if self.quoted {
-            whatsapp::Message {
-                extended_text_message: MessageField::some(ExtendedTextMessage {
-                    text: Some(self.text.into()),
-                    context_info: quoted,
-                    ..Default::default()
-                }),
-                ..Default::default()
+    pub async fn into_message(mut self) -> anyhow::Result<whatsapp::Message> {
+        if self.quoted {
+            if let Some(text) = self.message.conversation.take() {
+                self.message.extended_text_message =
+                    MessageField::some(whatsapp::message::ExtendedTextMessage {
+                        text: Some(text),
+                        context_info: context_info_slot(self.ctx, true),
+                        ..Default::default()
+                    })
             }
-        } else {
-            whatsapp::Message {
-                conversation: Some(self.text.into()),
-                ..Default::default()
-            }
-        };
-
-        self.ctx.send().raw(message).await?;
-
-        Ok(())
+        }
+        Ok(self.message)
     }
 }
 
-impl<'a> IntoFuture for TextBuilder<'a> {
-    type Output = anyhow::Result<()>;
-
-    type IntoFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'a>>;
-
-    fn into_future(self) -> Self::IntoFuture {
-        Box::pin(async move { self.send().await })
-    }
-}
+sendable_builder!(TextBuilder);

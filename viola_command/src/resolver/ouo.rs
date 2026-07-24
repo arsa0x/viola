@@ -91,7 +91,6 @@ pub async fn ouo_bypass(ctx: &Context, url: &str) -> anyhow::Result<Option<Strin
         return Ok(None);
     };
 
-    // --- Step 2: POST token untuk melewati gate ---
     let next_url = url.replacen(&format!("{domain}/"), &format!("{domain}/xreallcygo/"), 1);
     let referer = url.replacen(&format!("{domain}/"), &format!("{domain}/go/"), 1);
 
@@ -156,7 +155,6 @@ async fn ouo(ctx: Context) -> anyhow::Result<()> {
     match ouo_bypass(&ctx, url).await? {
         Some(result) => {
             ctx.send()
-                .interactive()
                 .inapp_signup(&result)
                 .title("Success")
                 .quoted()

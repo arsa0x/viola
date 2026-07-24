@@ -1,67 +1,106 @@
-use std::pin::Pin;
-
 use whatsapp_rust::{
     anyhow,
-    waproto::whatsapp::message::interactive_message::{
-        self, NativeFlowMessage, native_flow_message::NativeFlowButton,
+    buffa::MessageField,
+    waproto::whatsapp::{
+        self,
+        message::{
+            InteractiveMessage,
+            interactive_message::{
+                self, Body, Footer, Header, NativeFlowMessage,
+                native_flow_message::NativeFlowButton,
+            },
+        },
     },
 };
 
-use crate::Context;
+use crate::{
+    Context,
+    message::{
+        context_info_slot,
+        interactive::media::{
+            FooterMediaInput, HeaderMediaInput, footer_media_setters, header_media_setters,
+        },
+        sendable_builder,
+    },
+};
 
 pub struct InappSignupBuilder<'a> {
     pub ctx: &'a Context,
     pub quoted: bool,
-    pub title: Option<String>,
-    pub text_body: Option<String>,
+    pub header: Header,
+    pub body: Body,
+    pub footer: Footer,
+    pub header_media: Option<HeaderMediaInput<'a>>,
+    pub footer_media: Option<FooterMediaInput<'a>>,
 }
 
 impl<'a> InappSignupBuilder<'a> {
+    pub fn new(ctx: &'a Context, text_body: impl Into<String>) -> Self {
+        Self {
+            ctx,
+            quoted: false,
+            header: Header::default(),
+            body: Body {
+                text: Some(text_body.into()),
+            },
+            footer: Footer::default(),
+            header_media: None,
+            footer_media: None,
+        }
+    }
+
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.header.title = Some(title.into());
+        self
+    }
+
+    pub fn footer(mut self, footer: impl Into<String>) -> Self {
+        self.footer.text = Some(footer.into());
+        self
+    }
+
     pub fn quoted(mut self) -> Self {
         self.quoted = true;
         self
     }
-    pub fn title(mut self, title: impl Into<String>) -> Self {
-        self.title = Some(title.into());
-        self
-    }
-    pub async fn send(self) -> anyhow::Result<()> {
-        let message = self
-            .ctx
-            .send()
-            .interactive()
-            .raw(interactive_message::InteractiveMessage::NativeFlowMessage(
-                Box::new(NativeFlowMessage {
-                    message_params_json: Some("{}".into()),
-                    message_version: Some(1),
-                    buttons: vec![NativeFlowButton {
-                        button_params_json: Some("{}".into()),
-                        name: Some("inapp_signup".into()),
-                    }],
-                }),
-            ))
-            .body(interactive_message::Body {
-                text: self.text_body,
-            })
-            .header(interactive_message::Header {
-                title: self.title,
-                has_media_attachment: Some(false),
-                ..Default::default()
-            });
-        if self.quoted {
-            message.quoted().await
-        } else {
-            message.await
+
+    header_media_setters!();
+
+    footer_media_setters!();
+
+    pub async fn into_message(mut self) -> anyhow::Result<whatsapp::Message> {
+        if let Some(input) = self.header_media {
+            self.header.media = Some(input.resolve(self.ctx).await?);
+            self.header.has_media_attachment = Some(true);
         }
+        if let Some(input) = self.footer_media {
+            self.footer.media = Some(input.resolve(self.ctx).await?);
+            self.footer.has_media_attachment = Some(true);
+        }
+
+        let native_flow = interactive_message::InteractiveMessage::NativeFlowMessage(Box::new(
+            NativeFlowMessage {
+                message_params_json: Some("{}".into()),
+                message_version: Some(1),
+                buttons: vec![NativeFlowButton {
+                    button_params_json: Some("{}".into()),
+                    name: Some("inapp_signup".into()),
+                }],
+            },
+        ));
+
+        Ok(whatsapp::Message {
+            interactive_message: MessageField::some(InteractiveMessage {
+                header: MessageField::some(self.header),
+                body: MessageField::some(self.body),
+                footer: MessageField::some(self.footer),
+                interactive_message: Some(native_flow),
+                context_info: context_info_slot(self.ctx, self.quoted),
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
     }
 }
 
-impl<'a> IntoFuture for InappSignupBuilder<'a> {
-    type Output = anyhow::Result<()>;
-
-    type IntoFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'a>>;
-
-    fn into_future(self) -> Self::IntoFuture {
-        Box::pin(async move { self.send().await })
-    }
-}
+sendable_builder!(InappSignupBuilder);

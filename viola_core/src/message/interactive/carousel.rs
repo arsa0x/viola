@@ -1,14 +1,11 @@
-use crate::{Context, message::media::MediaSource};
-use std::pin::Pin;
 use whatsapp_rust::{
     NodeBuilder, anyhow,
     buffa::MessageField,
-    download::MediaType,
     serde_json,
     waproto::whatsapp::{
         self,
         message::{
-            self as wa_message, ImageMessage,
+            InteractiveMessage,
             interactive_message::{
                 self, Body, CarouselMessage, Footer, Header, NativeFlowMessage,
                 native_flow_message::NativeFlowButton,
@@ -16,6 +13,27 @@ use whatsapp_rust::{
         },
     },
 };
+
+use crate::{
+    Context,
+    message::{
+        context_info_slot,
+        interactive::media::{
+            FooterMediaInput, HeaderMediaInput, footer_media_setters, header_media_setters,
+        },
+    },
+};
+
+pub struct CarouselBuilder<'a> {
+    pub ctx: &'a Context,
+    pub quoted: bool,
+    pub header: Header,
+    pub body: Body,
+    pub footer: Footer,
+    pub header_media: Option<HeaderMediaInput<'a>>,
+    pub footer_media: Option<FooterMediaInput<'a>>,
+    pub cards: Vec<CarouselCard<'a>>,
+}
 
 pub enum CarouselButton {
     CtaUrl {
@@ -46,7 +64,6 @@ pub struct CarouselSelectSection {
     pub title: String,
     pub rows: Vec<CarouselSelectRow>,
 }
-
 pub struct CarouselSelectRow {
     pub title: String,
     pub description: Option<String>,
@@ -54,11 +71,18 @@ pub struct CarouselSelectRow {
 }
 
 pub struct CarouselCard<'a> {
-    pub title: String,
-    pub subtitle: Option<String>,
-    pub body_text: String,
-    pub image: MediaSource<'a>,
+    pub header: Header,
+    pub body: Body,
+    pub footer: Footer,
+    pub header_media: Option<HeaderMediaInput<'a>>,
+    pub footer_media: Option<FooterMediaInput<'a>>,
     pub buttons: Vec<CarouselButton>,
+}
+
+impl<'a> CarouselCard<'a> {
+    header_media_setters!();
+
+    footer_media_setters!();
 }
 
 fn build_native_flow_button(btn: &CarouselButton) -> NativeFlowButton {
@@ -70,8 +94,7 @@ fn build_native_flow_button(btn: &CarouselButton) -> NativeFlowButton {
         } => (
             "cta_url",
             serde_json::json!({
-                "display_text": display_text,
-                "url": url,
+                "display_text": display_text, "url": url,
                 "merchant_url": merchant_url.clone().unwrap_or_else(|| url.clone()),
                 "webview_interaction": true,
             }),
@@ -82,8 +105,7 @@ fn build_native_flow_button(btn: &CarouselButton) -> NativeFlowButton {
         } => (
             "cta_call",
             serde_json::json!({
-                "display_text": display_text,
-                "phone_number": phone_number,
+                "display_text": display_text, "phone_number": phone_number,
             }),
         ),
         CarouselButton::CtaCopy {
@@ -93,97 +115,89 @@ fn build_native_flow_button(btn: &CarouselButton) -> NativeFlowButton {
         } => (
             "cta_copy",
             serde_json::json!({
-                "display_text": display_text,
-                "copy_code": copy_code,
+                "display_text": display_text, "copy_code": copy_code,
                 "id": id.clone().unwrap_or_else(|| copy_code.clone()),
             }),
         ),
         CarouselButton::QuickReply { display_text, id } => (
             "quick_reply",
             serde_json::json!({
-                "display_text": display_text,
-                "id": id,
+                "display_text": display_text, "id": id,
             }),
         ),
         CarouselButton::SingleSelect { title, sections } => (
             "single_select",
             serde_json::json!({
                 "title": title,
-                "sections": sections.iter().map(|s| {
-                    serde_json::json!({
-                        "title": s.title,
-                        "rows": s.rows.iter().map(|r| serde_json::json!({
-                            "id": r.id,
-                            "title": r.title,
-                            "description": r.description,
-                        })).collect::<Vec<_>>(),
-                    })
-                }).collect::<Vec<_>>(),
+                "sections": sections.iter().map(|s| serde_json::json!({
+                    "title": s.title,
+                    "rows": s.rows.iter().map(|r| serde_json::json!({
+                        "id": r.id, "title": r.title, "description": r.description,
+                    })).collect::<Vec<_>>(),
+                })).collect::<Vec<_>>(),
             }),
         ),
     };
-
     NativeFlowButton {
         name: Some(name.into()),
         button_params_json: Some(params.to_string()),
     }
 }
 
-pub struct CarouselBuilder<'a> {
-    pub ctx: &'a Context,
-    pub quoted: bool,
-    pub body_text: String,
-    pub footer_text: Option<String>,
-    pub cards: Vec<CarouselCard<'a>>,
-}
-
 impl<'a> CarouselBuilder<'a> {
-    pub fn footer(mut self, footer: impl Into<String>) -> Self {
-        self.footer_text = Some(footer.into());
-        self
+    pub fn new(ctx: &'a Context, body_text: impl Into<String>) -> Self {
+        Self {
+            ctx,
+            quoted: false,
+            header: Header::default(),
+            body: Body {
+                text: Some(body_text.into()),
+            },
+            footer: Footer::default(),
+            footer_media: None,
+            header_media: None,
+            cards: Vec::new(),
+        }
     }
 
+    pub fn footer(mut self, footer: impl Into<String>) -> Self {
+        self.footer.text = Some(footer.into());
+        self
+    }
     pub fn quoted(mut self) -> Self {
         self.quoted = true;
         self
     }
-
     pub fn card(mut self, card: CarouselCard<'a>) -> Self {
         self.cards.push(card);
         self
     }
 
-    pub async fn send(self) -> anyhow::Result<()> {
+    header_media_setters!();
+
+    footer_media_setters!();
+
+    pub async fn into_message(mut self) -> anyhow::Result<whatsapp::Message> {
+        if let Some(input) = self.header_media {
+            self.header.media = Some(input.resolve(self.ctx).await?);
+            self.header.has_media_attachment = Some(true);
+        }
+        if let Some(input) = self.footer_media {
+            self.footer.media = Some(input.resolve(self.ctx).await?);
+            self.footer.has_media_attachment = Some(true);
+        }
+
         let mut cards = Vec::with_capacity(self.cards.len());
 
-        for card in self.cards {
-            let image = card.image.get_media(self.ctx).await?;
-
-            let upload = self
-                .ctx
-                .wa_client
-                .upload(image, MediaType::Image, Default::default())
-                .await?;
-
-            let header = Header {
-                title: Some(card.title.clone()),
-                subtitle: card.subtitle.clone(),
-                has_media_attachment: Some(true),
-                media: Some(interactive_message::header::Media::ImageMessage(Box::new(
-                    ImageMessage {
-                        url: Some(upload.url.clone()),
-                        file_sha256: Some(upload.file_sha256.to_vec()),
-                        file_enc_sha256: Some(upload.file_enc_sha256.to_vec()),
-                        media_key: Some(upload.media_key.to_vec()),
-                        media_key_timestamp: Some(upload.media_key_timestamp),
-                        direct_path: Some(upload.direct_path.clone()),
-                        file_length: Some(upload.file_length),
-                        mimetype: Some("image/jpeg".to_string()),
-                        ..Default::default()
-                    },
-                ))),
-                ..Default::default()
-            };
+        for mut card in self.cards {
+            if let Some(input) = card.header_media.take() {
+                card.header.media = Some(input.resolve(self.ctx).await?);
+                card.header.has_media_attachment = Some(true);
+            }
+            if let Some(input) = card.footer_media.take() {
+                card.footer.media = Some(input.resolve(self.ctx).await?);
+                card.footer.has_media_attachment = Some(true);
+            }
 
             let native_flow = interactive_message::InteractiveMessage::NativeFlowMessage(Box::new(
                 NativeFlowMessage {
@@ -193,46 +207,37 @@ impl<'a> CarouselBuilder<'a> {
                 },
             ));
 
-            cards.push(wa_message::InteractiveMessage {
-                header: MessageField::some(header),
-                body: MessageField::some(Body {
-                    text: Some(card.body_text),
-                }),
+            cards.push(InteractiveMessage {
+                header: MessageField::some(card.header),
+                body: MessageField::some(card.body),
+                footer: MessageField::some(card.footer),
                 interactive_message: Some(native_flow),
                 ..Default::default()
             });
         }
 
-        let quoted = if self.quoted {
-            MessageField::some(self.ctx.build_ctx_info())
-        } else {
-            MessageField::none()
-        };
-
         let carousel =
             interactive_message::InteractiveMessage::CarouselMessage(Box::new(CarouselMessage {
                 cards,
                 message_version: Some(1),
-                // carousel_card_type: Some(CarouselCardType::ALBUM_IMAGE),
                 ..Default::default()
             }));
 
-        let message = wa_message::InteractiveMessage {
-            body: MessageField::some(Body {
-                text: Some(self.body_text),
-            }),
-            footer: MessageField::some(Footer {
-                text: self.footer_text,
+        Ok(whatsapp::Message {
+            interactive_message: MessageField::some(InteractiveMessage {
+                body: MessageField::some(self.body),
+                footer: MessageField::some(self.footer),
+                header: MessageField::some(self.header),
+                interactive_message: Some(carousel),
+                context_info: context_info_slot(self.ctx, self.quoted),
                 ..Default::default()
             }),
-            header: MessageField::some(Header {
-                has_media_attachment: Some(false),
-                ..Default::default()
-            }),
-            interactive_message: Some(carousel),
-            context_info: quoted,
             ..Default::default()
-        };
+        })
+    }
+
+    pub async fn send(self) -> anyhow::Result<()> {
+        let ctx = self.ctx;
 
         let biz_node = NodeBuilder::new("biz")
             .children([NodeBuilder::new("interactive")
@@ -245,20 +250,15 @@ impl<'a> CarouselBuilder<'a> {
                 .build()])
             .build();
 
-        let opt = whatsapp_rust::send::SendOptions {
-            extra_stanza_nodes: vec![biz_node],
-            ..Default::default()
-        };
-
-        self.ctx
-            .wa_client
+        let message = self.into_message().await?;
+        ctx.wa_client
             .send_message_with_options(
-                self.ctx.info.source.chat.clone(),
-                whatsapp::Message {
-                    interactive_message: MessageField::some(message),
+                ctx.info.source.chat.clone(),
+                message,
+                whatsapp_rust::SendOptions {
+                    extra_stanza_nodes: vec![biz_node],
                     ..Default::default()
                 },
-                opt,
             )
             .await?;
         Ok(())
@@ -267,8 +267,8 @@ impl<'a> CarouselBuilder<'a> {
 
 impl<'a> IntoFuture for CarouselBuilder<'a> {
     type Output = anyhow::Result<()>;
-    type IntoFuture = Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'a>>;
+    type IntoFuture = std::pin::Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'a>>;
     fn into_future(self) -> Self::IntoFuture {
-        Box::pin(async move { self.send().await })
+        Box::pin(self.send())
     }
 }

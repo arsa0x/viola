@@ -74,11 +74,7 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
         if audio_only {
             let bytes = general_purpose::STANDARD.decode(result.audio_id)?;
             let url = String::from_utf8(bytes)?;
-            ctx.send()
-                .audio(MediaSource::Url(&url))
-                .quoted()
-                .mime_type("audio/mpeg")
-                .await?;
+            ctx.send().audio(MediaSource::Url(&url)).quoted().await?;
             ctx.send().success().await?;
         } else {
             let bytes = general_purpose::STANDARD.decode(result.video_id)?;
