@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 bytes.workspace = true
-isahc.workspace = true
+reqwest.workspace = true
 linkme.workspace = true
 whatsapp-rust.workspace = true
 log.workspace = true

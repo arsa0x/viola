@@ -10,13 +10,9 @@ members = [".", "viola_command", "viola_core", "viola_macros"]
 [workspace.dependencies]
 ahash = { version = "0.8.12", features = [] }
 bytes = { version = "1.12.1" }
-isahc = {
-  version = "2.0.1",
-  default-features = false,
-  features = ["cookies", "http2", "rustls-tls", "text-decoding"]
-}
 linkme = "0.3.36"
 log = "0.4.33"
+reqwest = { version = "0.13.4" }
 serde = { version = "1.0.228", features = ["derive"] }
 viola_command = { path = "viola_command/" }
 viola_core = { path = "viola_core/" }
@@ -38,10 +34,11 @@ ahash.workspace = true
 bincode = { version = "2.0.1", features = ["serde"] }
 bytes.workspace = true
 env_logger = { version = "0.11.11", default-features = false }
-isahc.workspace = true
+futures-util = "0.3.33"
 log.workspace = true
 qrcode = { version = "0.14.1", default-features = false }
 redb = { version = "4.1.0" }
+reqwest = { workspace = true, features = ["stream"] }
 serde.workspace = true
 tokio = { version = "1.52.4", features = ["rt-multi-thread"] }
 viola_command.workspace = true

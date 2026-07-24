@@ -1,10 +1,9 @@
 pub mod audio;
 pub mod document;
-pub mod sticker;
 pub mod image;
+pub mod sticker;
 pub mod video;
 
-use isahc::AsyncReadResponseExt;
 use whatsapp_rust::anyhow;
 
 use crate::Context;
@@ -19,9 +18,9 @@ impl<'a> MediaSource<'a> {
         match self {
             MediaSource::Bytes(b) => Ok(b),
             MediaSource::Url(url) => {
-                let mut response = ctx.http_client.get_async(url).await?;
+                let response = ctx.http_client.get(url).send().await?;
                 let bytes = response.bytes().await?;
-                Ok(bytes)
+                Ok(bytes.to_vec())
             }
         }
     }

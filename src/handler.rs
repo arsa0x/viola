@@ -8,7 +8,8 @@ use crate::{COMMAND_MAP, incoming, parser};
 pub async fn event_handler(
     event: Arc<Event>,
     wa_client: Arc<Client>,
-    http_client: isahc::HttpClient,
+    http_client: reqwest::Client,
+    http_client_no_redirect: reqwest::Client,
     config: Arc<viola_core::Config>,
 ) {
     match &*event {
@@ -66,6 +67,7 @@ pub async fn event_handler(
                     let ctx = viola_core::Context {
                         args: cmd_args,
                         http_client: http_client.clone(),
+                        http_client_no_redirect: http_client_no_redirect.clone(),
                         wa_client: wa_client.clone(),
                         info: inb.info.clone(),
                         message: inb.message.clone(),

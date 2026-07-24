@@ -1,8 +1,4 @@
 use anyhow::Context as AnyhowContext;
-use isahc::{
-    AsyncReadResponseExt,
-    config::{Configurable, RedirectPolicy},
-};
 use url::{Url, form_urlencoded};
 use viola_core::context::Context;
 use viola_macros::command;
@@ -68,12 +64,13 @@ pub async fn ouo_bypass(ctx: &Context, url: &str) -> anyhow::Result<Option<Strin
     let domain = url_obj.host_str().context("failed getting domain")?;
     let origin = format!("{}://{}", url_obj.scheme(), domain);
 
-    let mut init_req = ctx.http().raw("GET", url).header("User-Agent", UA);
+    let mut init_req = ctx.http_client.get(url).header("User-Agent", UA);
+
     for (key, value) in GET_HEADERS {
         init_req = init_req.header(key, value);
     }
 
-    let mut init_res = init_req.send().await?;
+    let init_res = init_req.send().await?;
     if !init_res.status().is_success() {
         return Ok(None);
     }
@@ -98,10 +95,10 @@ pub async fn ouo_bypass(ctx: &Context, url: &str) -> anyhow::Result<Option<Strin
         .extend_pairs([("_token", token_value.as_str()), ("x-token", "")])
         .finish();
 
-    let mut post_req = isahc::Request::builder()
-        .redirect_policy(RedirectPolicy::None)
-        .method("POST")
-        .uri(&next_url)
+    let mut post_req = ctx
+        .http_client_no_redirect
+        .post(&next_url)
+        .body(body)
         .header("User-Agent", UA)
         .header(
             "Accept",
@@ -122,7 +119,7 @@ pub async fn ouo_bypass(ctx: &Context, url: &str) -> anyhow::Result<Option<Strin
         post_req = post_req.header("Cookie", cookies);
     }
 
-    let mut post_res = ctx.http_client.send_async(post_req.body(body)?).await?;
+    let post_res = post_req.send().await?;
 
     if let Some(location) = post_res.headers().get("location") {
         if let Ok(location) = location.to_str() {
