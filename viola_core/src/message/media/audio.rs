@@ -2,7 +2,7 @@ use whatsapp_rust::{anyhow, waproto::whatsapp};
 
 use crate::{
     Context,
-    message::{context_info_slot, media::MediaSource},
+    message::{context_info_slot, media::MediaSource, sendable_builder},
 };
 
 pub struct AudioBuilder<'a> {
@@ -45,3 +45,5 @@ impl<'a> AudioBuilder<'a> {
         ))
     }
 }
+
+sendable_builder!(AudioBuilder);

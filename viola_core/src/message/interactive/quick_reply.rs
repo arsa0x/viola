@@ -11,7 +11,6 @@ use whatsapp_rust::{
                 native_flow_message::NativeFlowButton,
             },
         },
-        template_button::QuickReplyButton,
     },
 };
 
@@ -35,6 +34,11 @@ pub struct QuickReplyBuilder<'a> {
     pub buttons: Vec<QuickReplyButton>,
     pub header_media: Option<HeaderMediaInput<'a>>,
     pub footer_media: Option<FooterMediaInput<'a>>,
+}
+
+pub struct QuickReplyButton {
+    pub display_text: String,
+    pub id: String,
 }
 
 impl<'a> QuickReplyBuilder<'a> {

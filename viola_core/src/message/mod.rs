@@ -12,6 +12,14 @@ use whatsapp_rust::{
 use crate::{
     Context,
     message::{
+        interactive::{
+            InteractiveBuilder,
+            carousel::CarouselBuilder,
+            cta_url::{CtaButton, CtaUrlBuilder},
+            inapp_signup::InappSignupBuilder,
+            quick_reply::{QuickReplyBuilder, QuickReplyButton},
+            single_select::{SingleSelectBuilder, SingleSelectSection},
+        },
         media::{
             MediaSource, audio::AudioBuilder, document::DocumentBuilder, image::ImageBuilder,
             sticker::StickerBuilder, video::VideoBuilder,
@@ -91,6 +99,49 @@ impl<'a> MessageFactory<'a> {
             ctx: self.ctx,
             reaction: Some(react.into()),
         }
+    }
+
+    pub async fn success(self) -> anyhow::Result<()> {
+        self.reaction("✅").await
+    }
+
+    pub async fn wait(self) -> anyhow::Result<()> {
+        self.reaction("⏳").await
+    }
+
+    pub async fn failed(self) -> anyhow::Result<()> {
+        self.reaction("❌").await
+    }
+
+    pub fn raw_interactive(&self) -> InteractiveBuilder<'a> {
+        InteractiveBuilder {
+            ctx: self.ctx,
+            quoted: false,
+            header: MessageField::none(),
+            body: MessageField::none(),
+            footer: MessageField::none(),
+            interactive: None,
+        }
+    }
+
+    pub fn cta_url(&self, cta: Vec<CtaButton>) -> CtaUrlBuilder<'a> {
+        CtaUrlBuilder::new(self.ctx, cta)
+    }
+
+    pub fn inapp_signup(&self, text: impl Into<String>) -> InappSignupBuilder<'a> {
+        InappSignupBuilder::new(self.ctx, text.into())
+    }
+
+    pub fn quick_reply(&self, buttons: Vec<QuickReplyButton>) -> QuickReplyBuilder<'a> {
+        QuickReplyBuilder::new(self.ctx, buttons)
+    }
+
+    pub fn single_select(&self, sections: Vec<SingleSelectSection>) -> SingleSelectBuilder<'a> {
+        SingleSelectBuilder::new(self.ctx, sections)
+    }
+
+    pub fn carousel(&self, text: impl Into<String>) -> CarouselBuilder<'a> {
+        CarouselBuilder::new(self.ctx, text.into())
     }
 }
 

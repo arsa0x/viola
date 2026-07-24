@@ -9,15 +9,13 @@ use whatsapp_rust::anyhow;
 )]
 async fn debug(ctx: Context) -> anyhow::Result<()> {
     ctx.send()
-        .interactive()
-        .inapp_signup(&format!("message: \n\n```{:#?}```", ctx.message))
+        .inapp_signup(format!("message: \n\n```{:#?}```", ctx.message))
         .title("Message")
         .quoted()
         .await?;
 
     ctx.send()
-        .interactive()
-        .inapp_signup(&format!("info: \n\n```{:#?}```", ctx.info))
+        .inapp_signup(format!("info: \n\n```{:#?}```", ctx.info))
         .title("MessageInfo")
         .quoted()
         .await?;

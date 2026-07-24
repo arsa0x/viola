@@ -76,10 +76,6 @@ pub struct CarouselCard<'a> {
     pub footer: Footer,
     pub header_media: Option<HeaderMediaInput<'a>>,
     pub footer_media: Option<FooterMediaInput<'a>>,
-    // pub title: String,
-    // pub subtitle: Option<String>,
-    // pub body_text: String,
-    // pub image: MediaSource<'a>,
     pub buttons: Vec<CarouselButton>,
 }
 
@@ -181,10 +177,28 @@ impl<'a> CarouselBuilder<'a> {
 
     footer_media_setters!();
 
-    pub async fn into_message(self) -> anyhow::Result<whatsapp::Message> {
+    pub async fn into_message(mut self) -> anyhow::Result<whatsapp::Message> {
+        if let Some(input) = self.header_media {
+            self.header.media = Some(input.resolve(self.ctx).await?);
+            self.header.has_media_attachment = Some(true);
+        }
+        if let Some(input) = self.footer_media {
+            self.footer.media = Some(input.resolve(self.ctx).await?);
+            self.footer.has_media_attachment = Some(true);
+        }
+
         let mut cards = Vec::with_capacity(self.cards.len());
 
-        for card in self.cards {
+        for mut card in self.cards {
+            if let Some(input) = card.header_media.take() {
+                card.header.media = Some(input.resolve(self.ctx).await?);
+                card.header.has_media_attachment = Some(true);
+            }
+            if let Some(input) = card.footer_media.take() {
+                card.footer.media = Some(input.resolve(self.ctx).await?);
+                card.footer.has_media_attachment = Some(true);
+            }
+
             let native_flow = interactive_message::InteractiveMessage::NativeFlowMessage(Box::new(
                 NativeFlowMessage {
                     message_params_json: Some("{}".into()),
@@ -213,10 +227,7 @@ impl<'a> CarouselBuilder<'a> {
             interactive_message: MessageField::some(InteractiveMessage {
                 body: MessageField::some(self.body),
                 footer: MessageField::some(self.footer),
-                header: MessageField::some(Header {
-                    has_media_attachment: Some(false),
-                    ..Default::default()
-                }),
+                header: MessageField::some(self.header),
                 interactive_message: Some(carousel),
                 context_info: context_info_slot(self.ctx, self.quoted),
                 ..Default::default()

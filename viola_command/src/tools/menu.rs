@@ -42,7 +42,6 @@ async fn menu(ctx: Context) -> anyhow::Result<()> {
         .collect();
 
     ctx.send()
-        .interactive()
         .single_select(sections)
         .title("Viola Bot Menu")
         .text_body("Select the command you want to run")
