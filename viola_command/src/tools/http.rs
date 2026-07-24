@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use isahc::AsyncReadResponseExt;
+use reqwest::Method;
 use url::Url;
 use viola_core::Context;
 use viola_macros::command;
@@ -123,7 +123,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
         }
     }
 
-    let method = match isahc::http::Method::from_bytes(method_str.as_bytes()) {
+    let method = match Method::from_bytes(method_str.as_bytes()) {
         Ok(method) => method,
         Err(_) => {
             ctx.send().text("invalid http method").await?;
@@ -132,7 +132,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
         }
     };
 
-    let mut request = ctx.http().raw(method.as_str(), url_str.as_str());
+    let mut request = ctx.http_client.request(method, url_str.as_str());
 
     for (key, value) in headers {
         request = request.header(key, value);
@@ -143,7 +143,7 @@ async fn http_request(ctx: Context) -> anyhow::Result<()> {
     }
 
     match request.send().await {
-        Ok(mut res) => {
+        Ok(res) => {
             let status = res.status();
             let body_text = match res.text().await {
                 Ok(text) => text,

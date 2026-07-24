@@ -1,60 +1,87 @@
-use isahc::{AsyncBody, AsyncReadResponseExt, Body, Request};
 use std::io::Read;
-use std::sync::Mutex;
+
+use bytes::Bytes;
+use futures_util::StreamExt;
 use whatsapp_rust::{
-    anyhow, async_trait,
+    HttpResourceReport, anyhow, async_trait,
     http::{HttpClient, HttpRequest, HttpResponse},
     wacore::net::{StreamingHttpResponse, UploadBody},
 };
 
-pub struct IsahcClient {
-    pub client: isahc::HttpClient,
+pub const DEFAULT_MAX_BODY_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+
+pub struct ReqwestClient {
+    client: reqwest::Client,
+    max_body_bytes: u64,
 }
 
-impl IsahcClient {
-    pub fn new() -> Self {
-        Self {
-            client: isahc::HttpClient::builder()
-                .build()
-                .expect("failed to build http client"),
+struct BlockingBodyReader {
+    handle: tokio::runtime::Handle,
+    resp: reqwest::Response,
+    buf: Bytes,
+    pos: usize,
+}
+
+impl Read for BlockingBodyReader {
+    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+        loop {
+            if self.pos < self.buf.len() {
+                let n = out.len().min(self.buf.len() - self.pos);
+                out[..n].copy_from_slice(&self.buf[self.pos..self.pos + n]);
+                self.pos += n;
+                return Ok(n);
+            }
+            let chunk = self
+                .handle
+                .block_on(self.resp.chunk())
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            match chunk {
+                Some(c) => {
+                    self.buf = c;
+                    self.pos = 0;
+                }
+                None => return Ok(0),
+            }
         }
     }
 }
 
-struct ThreadSafeReader {
-    inner: Mutex<UploadBody>,
-}
-
-impl std::io::Read for ThreadSafeReader {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-        guard.read(buf)
+impl ReqwestClient {
+    pub fn new() -> Self {
+        Self {
+            client: reqwest::Client::builder()
+                .pool_max_idle_per_host(2)
+                .build()
+                .expect("failed to build reqwest client"),
+            max_body_bytes: DEFAULT_MAX_BODY_BYTES,
+        }
     }
 }
 
 #[async_trait]
-impl HttpClient for IsahcClient {
+impl HttpClient for ReqwestClient {
     /// Executes a given HTTP request and returns the response.
     async fn execute(&self, request: HttpRequest) -> anyhow::Result<HttpResponse> {
-        let method = isahc::http::Method::from_bytes(request.method.as_bytes())?;
-        let mut req_builder = isahc::Request::builder().method(&method).uri(request.url);
-
-        for (key, value) in request.headers {
-            req_builder = req_builder.header(key, value);
+        let mut req = self.client.request(request.method.parse()?, &request.url);
+        for (k, v) in &request.headers {
+            req = req.header(k, v);
         }
+        if let Some(body) = request.body {
+            req = req.body(body);
+        }
+        let res = req.send().await?;
+        let status_code = res.status().as_u16();
 
-        let body_content = request.body.unwrap_or_default();
-        let req: Request<AsyncBody> =
-            req_builder.body(AsyncBody::from_bytes_static(body_content))?;
+        let mut body = Vec::new();
+        let mut stream = res.bytes_stream();
 
-        let mut response = self.client.send_async(req).await?;
-
-        let body = response.bytes().await?;
-        let status_code = response.status().as_u16();
-
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            if body.len() as u64 + chunk.len() as u64 > self.max_body_bytes {
+                anyhow::bail!("response body exceeds max_body_bytes cap");
+            }
+            body.extend_from_slice(&chunk);
+        }
         Ok(HttpResponse { status_code, body })
     }
 
@@ -66,22 +93,30 @@ impl HttpClient for IsahcClient {
     /// Synchronous streaming variant — returns a reader over the response body.
     /// Must be called from a blocking context.
     fn execute_streaming(&self, request: HttpRequest) -> anyhow::Result<StreamingHttpResponse> {
-        let method = isahc::http::Method::from_bytes(request.method.as_bytes())?;
-        let mut req_builder = isahc::Request::builder().method(method).uri(request.url);
+        let handle = tokio::runtime::Handle::current();
+        let client = self.client.clone();
+        let url = request.url.clone();
+        let headers = request.headers.clone();
 
-        for (key, value) in request.headers {
-            req_builder = req_builder.header(key, value);
-        }
+        let resp = handle.block_on(async move {
+            let mut req = client.get(&url);
+            for (k, v) in &headers {
+                req = req.header(k, v);
+            }
+            req.send().await
+        })?;
 
-        let body_content = request.body.unwrap_or_default();
-        let req: Request<Body> = req_builder.body(Body::from_bytes_static(body_content))?;
-
-        let response = self.client.send(req)?;
-        let status_code = response.status().as_u16();
-
+        let status_code = resp.status().as_u16();
+        let reader = BlockingBodyReader {
+            handle,
+            resp,
+            buf: Bytes::new(),
+            pos: 0,
+        };
+        let capped = std::io::Read::take(reader, self.max_body_bytes);
         Ok(StreamingHttpResponse {
             status_code,
-            body: Box::new(response.into_body()),
+            body: Box::new(capped),
         })
     }
 
@@ -100,30 +135,35 @@ impl HttpClient for IsahcClient {
         body: UploadBody,
         content_length: u64,
     ) -> anyhow::Result<HttpResponse> {
-        let method = isahc::http::Method::from_bytes(request.method.as_bytes())?;
-        let mut req_builder = isahc::Request::builder().method(method).uri(request.url);
+        let handle = tokio::runtime::Handle::current();
+        let client = self.client.clone();
+        let url = request.url.clone();
+        let headers = request.headers.clone();
+        let max_body = self.max_body_bytes;
 
-        for (key, value) in request.headers {
-            req_builder = req_builder.header(key, value);
-        }
+        let mut buf = Vec::with_capacity(content_length.min(max_body) as usize);
+        let mut body = body;
+        std::io::Read::read_to_end(&mut body, &mut buf)?;
 
-        req_builder = req_builder.header("Content-Length", content_length.to_string());
-
-        let reader_proxy = ThreadSafeReader {
-            inner: Mutex::new(body),
-        };
-
-        let req_body = Body::from_reader_sized(reader_proxy, content_length);
-        let req: Request<Body> = req_builder.body(req_body)?;
-
-        let mut response = self.client.send(req)?;
-        let status_code = response.status().as_u16();
-        let mut resp_body = Vec::new();
-        response.body_mut().read_to_end(&mut resp_body)?;
-
-        Ok(HttpResponse {
-            status_code,
-            body: resp_body,
+        handle.block_on(async move {
+            let mut req = client.post(&url);
+            for (k, v) in &headers {
+                req = req.header(k, v);
+            }
+            req = req.body(reqwest::Body::from(buf));
+            let res = req.send().await?;
+            let status_code = res.status().as_u16();
+            let body = res.bytes().await?.to_vec();
+            Ok(HttpResponse { status_code, body })
         })
+    }
+
+    /// Best-effort per-session footprint of this client: idle connection-pool
+    /// buffers plus any in-flight download/media buffering the impl can see.
+    /// `None` by default; `ureq`/`reqwest`-backed clients report what their
+    /// (limited) introspection allows. Media downloads are a real transient-RAM
+    /// source, so a coarse estimate is still worth reporting.
+    fn resource_report(&self) -> Option<HttpResourceReport> {
+        None
     }
 }

@@ -11,7 +11,7 @@ image = {
   default-features = false,
   features = ["gif", "jpeg", "png", "webp"]
 }
-isahc.workspace = true
+reqwest.workspace = true
 linkme.workspace = true
 serde.workspace = true
 sysinfo = "0.39.6"

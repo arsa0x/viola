@@ -6,9 +6,7 @@
  * Sumber: https://whatsapp.com/channel/0029VbCHRSDAzNboLatr0W0o
  * Note: -
  */
-
 use base64::{Engine as _, engine::general_purpose};
-use isahc::AsyncReadResponseExt;
 use serde::Deserialize;
 use url::Url;
 use viola_core::{context::Context, message::media::MediaSource};
@@ -52,18 +50,19 @@ async fn tiktok(ctx: Context) -> anyhow::Result<()> {
     }
 
     if let Err(e) = async {
-        let req = isahc::Request::get(&uri)
+        let res = ctx
+            .http_client
+            .get(&uri)
             .header(
                 "User-Agent",
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             )
-            .body(())?;
+            .send()
+            .await?;
 
-        let mut response = ctx.http_client.send_async(req).await?;
+        let res_text = res.text().await?;
 
-        let res = response.text().await?;
-
-        let result: TikTokData = serde_json::from_str(&res)?;
+        let result: TikTokData = serde_json::from_str(&res_text)?;
 
         if !result.status {
             ctx.send().text("failed").await?;
