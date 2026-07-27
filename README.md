@@ -4,13 +4,16 @@ A fast and modular WhatsApp bot framework for Rust with procedural macro command
 
 ## Features
 
-- Tokio async runtime
-- Procedural macro command system
-- Low memory footprint
+- High-performance asynchronous runtime powered by Tokio
+- Native Rust performance with a low memory footprint
 - Native Rust performance
+- Procedural macro command system
 - Auto-generated project scaffolding
+- Multi-session support (run one or multiple WhatsApp accounts)
 
 ## Getting Started
+
+### Installation
 
 ```bash
 git clone https://github.com/arsa0x/viola.git
@@ -18,17 +21,118 @@ cd viola
 cargo build --release
 ```
 
-Then, from wherever you want your bot's data to live:
+The compiled binary will be located at:
 
 ```bash
-/path/to/viola/target/release/viola init
-cd viola
-../path/to/viola/target/release/viola
+target/release/viola
 ```
 
-- `viola init` creates a new `viola/` project directory containing the config file, a `download/` folder, and a `cache/` folder.
-- Running `viola` **must be done from inside that generated folder** — it looks for `config`, `download/`, and `cache/` in the current directory and refuses to start if they're missing.
-- On first run inside the project folder, it will display a pairing QR code to link your WhatsApp account.
+You can place the binary anywhere or add it to your `$PATH`.
+
+### Create a session
+
+Create your first WhatsApp session:
+
+```bash
+viola session new
+```
+
+Or specify a custom name:
+
+```bash
+viola session new personal
+```
+
+This creates a directory for the session containing its own configuration and authentication data.
+
+### Session Storage
+
+Viola stores all session data in your operating system's standard configuration directory using the [`directories`](https://crates.io/crates/directories) crate.
+
+The layout looks like this:
+
+```text
+viola/
+└── sessions
+    ├── personal
+    │   ├── config
+    │   └── store.redb
+    └── default
+        ├── config
+        └── store.redb
+```
+
+Typical locations are:
+
+| Platform | Location                               |
+| -------- | -------------------------------------- |
+| Linux    | `~/.config/viola/`                     |
+| macOS    | `~/Library/Application Support/viola/` |
+| Windows  | `%APPDATA%\viola\`                     |
+
+### Edit the configuration
+
+Each session has its own `config` file.
+
+For example:
+
+```text
+~/.config/viola/
+└── sessions/
+    └── personal/
+        ├── config
+        └── store.redb
+```
+
+Edit the configuration before starting the bot.
+
+### Start the bot
+
+Run the only available session:
+
+```bash
+viola
+```
+
+or
+
+```bash
+viola run
+```
+
+Run a specific session:
+
+```bash
+viola run --session personal
+```
+
+Run every session simultaneously:
+
+```bash
+viola run --all
+```
+
+On the first launch, Viola will display a QR code for pairing with WhatsApp.
+
+## Session Management
+
+Create a session:
+
+```bash
+viola session new [name]
+```
+
+List all sessions:
+
+```bash
+viola session list
+```
+
+Remove a session:
+
+```bash
+viola session remove <name>
+```
 
 ## Creating Commands
 
@@ -83,31 +187,19 @@ Both approaches register into the same `COMMANDS` distributed slice, so commands
 
 ## Configuration
 
-Each project folder created by `viola init` has its own `config` file — there is no global config in your home directory. Multiple projects (e.g. for multiple bot accounts) can live side by side, each with its own folder.
+Each session maintains its own configuration file.
 
-### Config Location
+Example:
 
-The config file is simply `config`, sitting next to `download/` and `cache/` inside the project directory you `cd` into before running the bot:
-
-```
-viola/
-├── config
-├── download/
-└── cache/
-```
-
-### Config Format
-
-The config is a plain `key=value` file — one setting per line, `#` for comments:
-
-```
-# prefixes accepts multiple single-character prefixes, separated by |
+```text
+# Multiple prefixes separated by |
 prefixes=.|!
 
-# owners accepts a list of WhatsApp numbers, separated by |
+# WhatsApp owner numbers separated by |
 owners=628123456789|628123456780
 
-# mode must be one of: public, group, owner
+# Available modes:
+# public | group | owner
 mode=public
 ```
 
