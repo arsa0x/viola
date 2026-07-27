@@ -18,7 +18,7 @@ viola_command = { path = "viola_command/" }
 viola_core = { path = "viola_core/" }
 whatsapp-rust = {
   git = "https://github.com/oxidezap/whatsapp-rust",
-  rev = "013a328",
+  rev = "d2a3a16",
   default-features = false,
   features = [
     "signal",

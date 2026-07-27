@@ -239,26 +239,26 @@ impl<'a> CarouselBuilder<'a> {
     pub async fn send(self) -> anyhow::Result<()> {
         let ctx = self.ctx;
 
-        let biz_node = NodeBuilder::new("biz")
-            .children([NodeBuilder::new("interactive")
-                .attr("type", "native_flow")
-                .attr("v", "1")
-                .children([NodeBuilder::new("native_flow")
-                    .attr("v", "9")
-                    .attr("name", "mixed")
+        let nodes = vec![
+            NodeBuilder::new("biz")
+                .children([NodeBuilder::new("interactive")
+                    .attr("type", "native_flow")
+                    .attr("v", "1")
+                    .children([NodeBuilder::new("native_flow")
+                        .attr("v", "9")
+                        .attr("name", "mixed")
+                        .build()])
                     .build()])
-                .build()])
-            .build();
+                .build(),
+        ];
 
         let message = self.into_message().await?;
+
         ctx.wa_client
             .send_message_with_options(
                 ctx.info.source.chat.clone(),
                 message,
-                whatsapp_rust::SendOptions {
-                    extra_stanza_nodes: vec![biz_node],
-                    ..Default::default()
-                },
+                whatsapp_rust::SendOptions::default().with_extra_stanza_nodes(nodes),
             )
             .await?;
         Ok(())
