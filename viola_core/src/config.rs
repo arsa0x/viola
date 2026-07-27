@@ -1,9 +1,11 @@
 use std::{
-    fs,
     path::{Path, PathBuf},
     str::FromStr,
-    sync::LazyLock,
 };
+
+use whatsapp_rust::anyhow;
+
+use crate::session;
 
 const TEMPLATE_CONFIG: &str = include_str!("../../config.template");
 
@@ -11,11 +13,19 @@ pub const CONFIG_FILE: &str = "config";
 pub const DOWNLOAD_DIR: &str = "download";
 pub const CACHE_DIR: &str = "cache";
 
-pub fn binary_name() -> String {
-    std::env::current_exe()
-        .ok()
-        .and_then(|path| path.file_stem().map(|s| s.to_string_lossy().into_owned()))
-        .unwrap_or_else(|| "viola".to_string())
+pub fn ensure_config_file(session_dir: &Path) -> anyhow::Result<PathBuf> {
+    let path = session_dir.join("config");
+    if !path.exists() {
+        std::fs::write(&path, TEMPLATE_CONFIG)?;
+    }
+    Ok(path)
+}
+
+pub fn load_for_session(name: &str) -> anyhow::Result<Config> {
+    let dir = session::ensure_session_dir(name)?;
+    let path = ensure_config_file(&dir)?;
+    let text = std::fs::read_to_string(path)?;
+    Ok(Config::parse(&text))
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -56,7 +66,7 @@ impl Default for Config {
 
 impl Config {
     pub fn load() -> std::io::Result<Self> {
-        let content = fs::read_to_string(CONFIG_FILE)?;
+        let content = std::fs::read_to_string(CONFIG_FILE)?;
         Ok(Self::parse(&content))
     }
 
@@ -92,65 +102,4 @@ impl Config {
         }
         cfg
     }
-}
-
-pub static CONFIG: LazyLock<Config> = LazyLock::new(|| {
-    if let Err(err) = validate_project_dir() {
-        log::error!("{err}");
-        std::process::exit(1);
-    }
-
-    Config::load().unwrap_or_else(|err| {
-        log::error!("failed to read config file: {err}");
-        std::process::exit(1);
-    })
-});
-
-pub fn init_project() -> std::io::Result<PathBuf> {
-    let project_name = binary_name();
-    let root = Path::new(&project_name);
-
-    if root.exists() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::AlreadyExists,
-            format!(
-                "'./{project_name}' already exists, remove or rename it before running init again"
-            ),
-        ));
-    }
-
-    fs::create_dir(root)?;
-    fs::create_dir(root.join(DOWNLOAD_DIR))?;
-    fs::create_dir(root.join(CACHE_DIR))?;
-    fs::write(root.join(CONFIG_FILE), TEMPLATE_CONFIG)?;
-
-    Ok(root.to_path_buf())
-}
-
-pub fn validate_project_dir() -> std::io::Result<()> {
-    let name = binary_name();
-    let mut missing = Vec::new();
-
-    if !Path::new(CONFIG_FILE).is_file() {
-        missing.push(CONFIG_FILE);
-    }
-    if !Path::new(DOWNLOAD_DIR).is_dir() {
-        missing.push(DOWNLOAD_DIR);
-    }
-    if !Path::new(CACHE_DIR).is_dir() {
-        missing.push(CACHE_DIR);
-    }
-
-    if missing.is_empty() {
-        return Ok(());
-    }
-
-    Err(std::io::Error::new(
-        std::io::ErrorKind::NotFound,
-        format!(
-            "this doesn't look like a {name} project directory (missing: {}).\n\
-             run `{name} init` first, then `cd` into the generated folder before starting the bot.",
-            missing.join(", ")
-        ),
-    ))
 }

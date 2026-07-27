@@ -6,6 +6,7 @@ use whatsapp_rust::{Client, types::events::Event};
 use crate::{COMMAND_MAP, incoming, parser};
 
 pub async fn event_handler(
+    session: String,
     event: Arc<Event>,
     wa_client: Arc<Client>,
     http_client: reqwest::Client,
@@ -19,10 +20,10 @@ pub async fn event_handler(
                     .render::<unicode::Dense1x2>()
                     .quiet_zone(false)
                     .build();
-                println!("{}", qr_str);
+                println!("[{session}] scan for pairing:\n{qr_str}");
             }
 
-            Err(e) => log::error!("failed to generate qr: {}", e),
+            Err(e) => log::error!("[{session}] failed to generate qr: {e}"),
         },
 
         Event::Messages(batch) => {
@@ -87,11 +88,11 @@ pub async fn event_handler(
             }
         }
 
-        Event::Connected(_) => log::info!("Bot connected!"),
+        Event::Connected(_) => log::info!("[{session}] Bot connected!"),
 
-        Event::Disconnected(_) => log::info!("Bot was disconnected!"),
+        Event::Disconnected(_) => log::info!("[{session}] Bot was disconnected!"),
 
-        Event::LoggedOut(_) => log::info!("Bot was logged out!"),
+        Event::LoggedOut(_) => log::info!("[{session}] Bot was logged out!"),
 
         _ => {}
     }

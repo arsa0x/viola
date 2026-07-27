@@ -5,7 +5,8 @@ edition = "2024"
 
 [dependencies]
 bytes.workspace = true
-reqwest.workspace = true
+directories = "6.0"
 linkme.workspace = true
-whatsapp-rust.workspace = true
 log.workspace = true
+reqwest.workspace = true
+whatsapp-rust.workspace = true
