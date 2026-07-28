@@ -76,10 +76,13 @@ Each session has its own `config` file.
 
 For example:
 
-```text
+```bash
 ~/.config/viola/
-└── sessions/
-    └── personal/
+└── sessions
+    ├── personal
+    │   ├── config
+    │   └── store.redb
+    └── default
         ├── config
         └── store.redb
 ```
@@ -207,7 +210,7 @@ mode=public
 
 ```sh
 .
-├── src                 # bot entry point (CLI: init / run)
+├── src                 # bot entry point
 ├── viola_core          # command system, context and config
 ├── viola_macros        # procedural macros for command registration
 └── viola_command       # collection of all bot commands

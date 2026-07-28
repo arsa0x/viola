@@ -5,6 +5,8 @@ pub mod downloader {
 }
 pub mod resolver {
    pub mod ouo; 
+   pub mod playmogo; 
+   pub mod streampoi; 
 }
 pub mod tools {
    pub mod debug; 
