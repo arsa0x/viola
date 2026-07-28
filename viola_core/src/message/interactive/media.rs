@@ -8,15 +8,15 @@ use crate::{
     message::{AudioBuilder, DocumentBuilder, ImageBuilder, MediaSource, VideoBuilder},
 };
 
-pub enum HeaderMediaInput<'a> {
-    Image(MediaSource<'a>),
-    Video(MediaSource<'a>),
-    Document(MediaSource<'a>),
+pub enum HeaderMediaInput {
+    Image(MediaSource),
+    Video(MediaSource),
+    Document(MediaSource),
     Thumbnail(Vec<u8>),
     Raw(header::Media),
 }
 
-impl<'a> HeaderMediaInput<'a> {
+impl<'a> HeaderMediaInput {
     pub async fn resolve(self, ctx: &'a Context) -> anyhow::Result<header::Media> {
         Ok(match self {
             HeaderMediaInput::Image(source) => {
@@ -70,12 +70,12 @@ impl<'a> HeaderMediaInput<'a> {
     }
 }
 
-pub enum FooterMediaInput<'a> {
-    Audio(MediaSource<'a>),
+pub enum FooterMediaInput {
+    Audio(MediaSource),
     Raw(footer::Media),
 }
 
-impl<'a> FooterMediaInput<'a> {
+impl<'a> FooterMediaInput {
     pub async fn resolve(self, ctx: &'a Context) -> anyhow::Result<footer::Media> {
         Ok(match self {
             FooterMediaInput::Audio(source) => {
@@ -99,19 +99,19 @@ impl<'a> FooterMediaInput<'a> {
 
 macro_rules! header_media_setters {
     () => {
-        pub fn header_image(mut self, source: crate::message::media::MediaSource<'a>) -> Self {
+        pub fn header_image(mut self, source: crate::message::media::MediaSource) -> Self {
             self.header_media = Some(crate::message::interactive::media::HeaderMediaInput::Image(
                 source,
             ));
             self
         }
-        pub fn header_video(mut self, source: crate::message::media::MediaSource<'a>) -> Self {
+        pub fn header_video(mut self, source: crate::message::media::MediaSource) -> Self {
             self.header_media = Some(crate::message::interactive::media::HeaderMediaInput::Video(
                 source,
             ));
             self
         }
-        pub fn header_document(mut self, source: crate::message::media::MediaSource<'a>) -> Self {
+        pub fn header_document(mut self, source: crate::message::media::MediaSource) -> Self {
             self.header_media =
                 Some(crate::message::interactive::media::HeaderMediaInput::Document(source));
             self
@@ -135,7 +135,7 @@ macro_rules! header_media_setters {
 
 macro_rules! footer_media_setters {
     () => {
-        pub fn footer_audio(mut self, source: crate::message::media::MediaSource<'a>) -> Self {
+        pub fn footer_audio(mut self, source: crate::message::media::MediaSource) -> Self {
             self.footer_media = Some(crate::message::interactive::media::FooterMediaInput::Audio(
                 source,
             ));

@@ -6,7 +6,7 @@ use super::{
 use redb::ReadableTable;
 use std::collections::HashSet;
 use whatsapp_rust::{
-    async_trait, serde_json,
+    async_trait,
     store::{
         DeviceListRecord, LidPnMappingEntry, ProtocolStore, TcTokenEntry,
         error::{Result, StoreError},
@@ -166,7 +166,7 @@ impl ProtocolStore for RedbStore {
                 .get((lid, self.device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
-                let decoded: LidPnMappingEntry = self.decode(data.value())?;
+                let decoded: LidPnMappingEntry = super::decode(data.value())?;
                 Ok(Some(decoded))
             } else {
                 Ok(None)
@@ -185,7 +185,7 @@ impl ProtocolStore for RedbStore {
                 let (_, db_device_id) = k.value();
 
                 if db_device_id == self.device_id {
-                    let decoded: LidPnMappingEntry = self.decode(v.value())?;
+                    let decoded: LidPnMappingEntry = super::decode(v.value())?;
                     if decoded.phone_number == phone {
                         return Ok(Some(decoded));
                     }
@@ -197,7 +197,7 @@ impl ProtocolStore for RedbStore {
 
     /// Store or update a LID-PN mapping.
     async fn put_lid_mapping(&self, entry: &LidPnMappingEntry) -> Result<()> {
-        let encoded = self.encode(entry)?;
+        let encoded = super::encode(entry)?;
         let device_id = self.device_id;
         let lid = entry.lid.to_string();
 
@@ -220,7 +220,7 @@ impl ProtocolStore for RedbStore {
 
         let mut prepared_entries = Vec::with_capacity(entries.len());
         for entry in entries {
-            let encoded = self.encode(entry)?;
+            let encoded = super::encode(entry)?;
             prepared_entries.push((entry.lid.to_string(), encoded));
         }
 
@@ -249,7 +249,7 @@ impl ProtocolStore for RedbStore {
                 let (_, db_device_id) = k.value();
 
                 if db_device_id == self.device_id {
-                    let decoded: LidPnMappingEntry = self.decode(v.value())?;
+                    let decoded: LidPnMappingEntry = super::decode(v.value())?;
                     results.push(decoded);
                 }
             }
@@ -265,7 +265,7 @@ impl ProtocolStore for RedbStore {
             base_key: base_key.to_vec(),
             created_at: wacore::time::now_secs() as i32,
         };
-        let encoded = self.encode(&record)?;
+        let encoded = super::encode(&record)?;
         let address = address.to_string();
         let device_id = self.device_id;
         let message_id = message_id.to_string();
@@ -294,7 +294,7 @@ impl ProtocolStore for RedbStore {
                 .get((address, message_id, self.device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
-                let decoded: BaseKeyRecord = self.decode(data.value())?;
+                let decoded: BaseKeyRecord = super::decode(data.value())?;
                 Ok(decoded.base_key == current_base_key)
             } else {
                 Ok(false)
@@ -321,7 +321,7 @@ impl ProtocolStore for RedbStore {
 
     /// Update the device list for a user (called after usync responses).
     async fn update_device_list(&self, record: DeviceListRecord) -> Result<()> {
-        let encoded = self.encode(&record)?;
+        let encoded = super::encode(&record)?;
         let device_id = self.device_id;
 
         self.with_write_txn(DEVICE_REGISTRY_TABLE, move |table| {
@@ -346,11 +346,10 @@ impl ProtocolStore for RedbStore {
             return Ok(());
         }
         let device_id = self.device_id;
-        let this = self.clone();
 
         self.with_write_txn(DEVICE_REGISTRY_TABLE, move |table| {
             for record in records {
-                let encoded = this.encode(&record)?;
+                let encoded = super::encode(&record)?;
                 table
                     .insert((record.user.as_str(), device_id), encoded.as_slice())
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
@@ -367,7 +366,7 @@ impl ProtocolStore for RedbStore {
                 .get((user, self.device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
-                let decoded: DeviceListRecord = self.decode(data.value())?;
+                let decoded: DeviceListRecord = super::decode(data.value())?;
                 Ok(Some(decoded))
             } else {
                 Ok(None)
@@ -448,7 +447,7 @@ impl ProtocolStore for RedbStore {
                 .get((jid, self.device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
-                let decoded: TcTokenEntry = self.decode(data.value())?;
+                let decoded: TcTokenEntry = super::decode(data.value())?;
                 Ok(Some(decoded))
             } else {
                 Ok(None)
@@ -458,7 +457,7 @@ impl ProtocolStore for RedbStore {
 
     /// Store or update a trusted contact token for a JID.
     async fn put_tc_token(&self, jid: &str, entry: &TcTokenEntry) -> Result<()> {
-        let encoded = self.encode(entry)?;
+        let encoded = super::encode(entry)?;
         let jid = jid.to_string();
         let device_id = self.device_id;
 
@@ -526,8 +525,7 @@ impl ProtocolStore for RedbStore {
                     continue;
                 }
 
-                let entry: TcTokenEntry = serde_json::from_slice(v.value())
-                    .map_err(|e| StoreError::Database(Box::new(e)))?;
+                let entry: TcTokenEntry = super::decode(v.value())?;
 
                 let token_expired = entry.token_timestamp < token_cutoff;
 
@@ -568,7 +566,7 @@ impl ProtocolStore for RedbStore {
             payload: payload.to_vec(),
             created_at: wacore::time::now_secs() as i64,
         };
-        let encoded = self.encode(&record)?;
+        let encoded = super::encode(&record)?;
         let device_id = self.device_id;
         let chat_jid = chat_jid.to_string();
         let message_id = message_id.to_string();
@@ -591,7 +589,6 @@ impl ProtocolStore for RedbStore {
         let chat_jid = chat_jid.to_string();
         let message_id = message_id.to_string();
         let device_id = self.device_id;
-        let this = self.clone();
 
         self.with_write_txn(SENT_MESSAGES_TABLE, move |table| {
             let mut record_opt = None;
@@ -600,7 +597,7 @@ impl ProtocolStore for RedbStore {
                     .get((chat_jid.as_str(), message_id.as_str(), device_id))
                     .map_err(|e| StoreError::Database(Box::new(e)))?
                 {
-                    let decoded: SentMessageRecord = this.decode(data.value())?;
+                    let decoded: SentMessageRecord = super::decode(data.value())?;
                     record_opt = Some(decoded.payload);
                 }
             }
@@ -620,7 +617,6 @@ impl ProtocolStore for RedbStore {
     /// Delete sent messages older than cutoff (unix timestamp seconds). Returns count deleted.
     async fn delete_expired_sent_messages(&self, cutoff_timestamp: i64) -> Result<u32> {
         let device_id = self.device_id;
-        let this = self.clone();
 
         self.with_write_txn(SENT_MESSAGES_TABLE, move |table| {
             let mut to_remove = Vec::new();
@@ -632,7 +628,7 @@ impl ProtocolStore for RedbStore {
                 let (db_chat, db_msg_id, db_device_id) = k.value();
 
                 if db_device_id == device_id {
-                    let decoded: SentMessageRecord = this.decode(v.value())?;
+                    let decoded: SentMessageRecord = super::decode(v.value())?;
                     if decoded.created_at < cutoff_timestamp {
                         to_remove.push((db_chat.to_string(), db_msg_id.to_string()));
                     }

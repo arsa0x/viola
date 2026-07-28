@@ -7,7 +7,7 @@ use crate::{
 
 pub struct AudioBuilder<'a> {
     pub ctx: &'a Context,
-    pub source: MediaSource<'a>,
+    pub source: MediaSource,
     pub quoted: bool,
     pub ptt: Option<bool>,
 }

@@ -10,10 +10,16 @@ members = [".", "viola_command", "viola_core", "viola_macros"]
 [workspace.dependencies]
 ahash = { version = "0.8.12", features = [] }
 bytes = { version = "1.12.1" }
+image = {
+  version = "0.25.10",
+  default-features = false,
+  features = ["gif", "jpeg", "png", "webp"]
+}
 linkme = "0.3.36"
 log = "0.4.33"
 reqwest = { version = "0.13.4" }
 serde = { version = "1.0.228", features = ["derive"] }
+tokio = { version = "1.52.4", features = ["rt-multi-thread"] }
 viola_command = { path = "viola_command/" }
 viola_core = { path = "viola_core/" }
 whatsapp-rust = {
@@ -40,7 +46,7 @@ qrcode = { version = "0.14.1", default-features = false }
 redb = { version = "4.1.0" }
 reqwest = { workspace = true, features = ["stream"] }
 serde.workspace = true
-tokio = { version = "1.52.4", features = ["rt-multi-thread"] }
+tokio.workspace = true
 viola_command.workspace = true
 viola_core.workspace = true
 whatsapp-rust.workspace = true

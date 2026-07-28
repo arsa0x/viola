@@ -3,6 +3,9 @@
 pub mod downloader {
    pub mod tiktok; 
 }
+pub mod nsfw {
+   pub mod nekopoi; 
+}
 pub mod resolver {
    pub mod ouo; 
    pub mod playmogo; 

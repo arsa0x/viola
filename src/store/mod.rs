@@ -98,6 +98,19 @@ pub const SENT_MESSAGES_TABLE: TableDefinition<(&str, &str, u8), &[u8]> =
 
 pub const DEVICE_TABLE: TableDefinition<u32, &[u8]> = TableDefinition::new("device_store");
 
+// helper
+pub fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>> {
+    bincode::serde::encode_to_vec(value, bincode::config::standard())
+        .map_err(|e| StoreError::Database(Box::new(e)))
+}
+
+pub fn decode<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T> {
+    let (decoded, _): (T, usize) =
+        bincode::serde::decode_from_slice(bytes, bincode::config::standard())
+            .map_err(|e| StoreError::Database(Box::new(e)))?;
+    Ok(decoded)
+}
+
 impl RedbStore {
     pub fn new(database_url: &str) -> Result<Self> {
         let connection = Arc::new(
@@ -196,17 +209,5 @@ impl RedbStore {
             .open_table(definition)
             .map_err(|e| StoreError::Database(Box::new(e)))?;
         f(&table)
-    }
-
-    pub fn encode<T: Serialize>(&self, value: &T) -> Result<Vec<u8>> {
-        bincode::serde::encode_to_vec(value, bincode::config::standard())
-            .map_err(|e| StoreError::Database(Box::new(e)))
-    }
-
-    pub fn decode<T: serde::de::DeserializeOwned>(&self, bytes: &[u8]) -> Result<T> {
-        let (decoded, _): (T, usize) =
-            bincode::serde::decode_from_slice(bytes, bincode::config::standard())
-                .map_err(|e| StoreError::Database(Box::new(e)))?;
-        Ok(decoded)
     }
 }

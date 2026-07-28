@@ -78,7 +78,7 @@ impl MsgSecretStore for RedbStore {
                     .map_err(|e| StoreError::Database(Box::new(e)))?
                 {
                     Some(existing) => {
-                        let mut record: MsgSecretRecord = self.decode(existing.value())?;
+                        let mut record: MsgSecretRecord = super::decode(existing.value())?;
 
                         record.secret = entry.secret.to_vec();
                         record.created_at = now;
@@ -100,7 +100,7 @@ impl MsgSecretStore for RedbStore {
                         message_ts: entry.message_ts,
                     },
                 };
-                let encoded = self.encode(&record)?;
+                let encoded = super::encode(&record)?;
                 table
                     .insert(key, encoded.as_slice())
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
@@ -132,7 +132,7 @@ impl MsgSecretStore for RedbStore {
 
             match value {
                 Some(v) => {
-                    let record: MsgSecretRecord = self.decode(v.value())?;
+                    let record: MsgSecretRecord = super::decode(v.value())?;
                     Ok(Some(record.secret))
                 }
                 None => Ok(None),
@@ -161,7 +161,7 @@ impl MsgSecretStore for RedbStore {
 
             match value {
                 Some(v) => {
-                    let record: MsgSecretRecord = self.decode(v.value())?;
+                    let record: MsgSecretRecord = super::decode(v.value())?;
 
                     Ok(Some((record.secret, record.message_ts)))
                 }
@@ -204,7 +204,7 @@ impl MsgSecretStore for RedbStore {
                     continue;
                 }
 
-                let record: MsgSecretRecord = self.decode(value.value())?;
+                let record: MsgSecretRecord = super::decode(value.value())?;
 
                 // expires_at == 0 => never expire
                 if record.expires_at != 0 && record.expires_at <= cutoff_timestamp {

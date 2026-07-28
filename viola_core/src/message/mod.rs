@@ -46,7 +46,7 @@ impl<'a> MessageFactory<'a> {
         TextBuilder::new(self.ctx, text)
     }
 
-    pub fn image(&self, source: MediaSource<'a>) -> ImageBuilder<'a> {
+    pub fn image(&self, source: MediaSource) -> ImageBuilder<'a> {
         ImageBuilder {
             ctx: self.ctx,
             source,
@@ -56,7 +56,7 @@ impl<'a> MessageFactory<'a> {
         }
     }
 
-    pub fn video(&self, source: MediaSource<'a>) -> VideoBuilder<'a> {
+    pub fn video(&self, source: MediaSource) -> VideoBuilder<'a> {
         VideoBuilder {
             ctx: self.ctx,
             source,
@@ -66,7 +66,7 @@ impl<'a> MessageFactory<'a> {
         }
     }
 
-    pub fn audio(&self, source: MediaSource<'a>) -> AudioBuilder<'a> {
+    pub fn audio(&self, source: MediaSource) -> AudioBuilder<'a> {
         AudioBuilder {
             ctx: self.ctx,
             source,
@@ -75,7 +75,7 @@ impl<'a> MessageFactory<'a> {
         }
     }
 
-    pub fn document(&self, source: MediaSource<'a>) -> DocumentBuilder<'a> {
+    pub fn document(&self, source: MediaSource) -> DocumentBuilder<'a> {
         DocumentBuilder {
             ctx: self.ctx,
             source,
@@ -85,7 +85,7 @@ impl<'a> MessageFactory<'a> {
         }
     }
 
-    pub fn sticker(&self, source: MediaSource<'a>) -> StickerBuilder<'a> {
+    pub fn sticker(&self, source: MediaSource) -> StickerBuilder<'a> {
         StickerBuilder {
             ctx: self.ctx,
             source,

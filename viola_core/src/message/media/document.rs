@@ -7,7 +7,7 @@ use crate::{
 
 pub struct DocumentBuilder<'a> {
     pub ctx: &'a Context,
-    pub source: MediaSource<'a>,
+    pub source: MediaSource,
     pub thumbnail: Option<Vec<u8>>,
     pub caption: Option<String>,
     pub quoted: bool,

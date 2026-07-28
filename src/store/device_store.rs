@@ -14,7 +14,7 @@ const DEVICE_ROW_ID: u32 = 1;
 impl DeviceStore for RedbStore {
     /// Save device data.
     async fn save(&self, device: &Device) -> Result<()> {
-        let encoded = self.encode(device)?;
+        let encoded = super::encode(device)?;
         self.with_write_txn(DEVICE_TABLE, move |table| {
             table
                 .insert(DEVICE_ROW_ID, encoded.as_slice())
@@ -31,7 +31,7 @@ impl DeviceStore for RedbStore {
                 .get(DEVICE_ROW_ID)
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
-                let decoded: Device = self.decode(data.value())?;
+                let decoded: Device = super::decode(data.value())?;
                 Ok(Some(decoded))
             } else {
                 Ok(None)
@@ -53,7 +53,7 @@ impl DeviceStore for RedbStore {
     /// Create a new device row and return its generated device_id.
     async fn create(&self) -> Result<i32> {
         let device = Device::new();
-        let encoded = self.encode(&device)?;
+        let encoded = super::encode(&device)?;
 
         self.with_write_txn(DEVICE_TABLE, move |table| {
             table

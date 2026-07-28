@@ -7,7 +7,7 @@ use crate::{
 
 pub struct VideoBuilder<'a> {
     pub ctx: &'a Context,
-    pub source: MediaSource<'a>,
+    pub source: MediaSource,
     pub caption: Option<String>,
     pub thumbnail: Option<Vec<u8>>,
     pub quoted: bool,

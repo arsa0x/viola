@@ -30,9 +30,9 @@ pub struct CarouselBuilder<'a> {
     pub header: Header,
     pub body: Body,
     pub footer: Footer,
-    pub header_media: Option<HeaderMediaInput<'a>>,
-    pub footer_media: Option<FooterMediaInput<'a>>,
-    pub cards: Vec<CarouselCard<'a>>,
+    pub header_media: Option<HeaderMediaInput>,
+    pub footer_media: Option<FooterMediaInput>,
+    pub cards: Vec<CarouselCard>,
 }
 
 pub enum CarouselButton {
@@ -70,16 +70,16 @@ pub struct CarouselSelectRow {
     pub id: String,
 }
 
-pub struct CarouselCard<'a> {
+pub struct CarouselCard {
     pub header: Header,
     pub body: Body,
     pub footer: Footer,
-    pub header_media: Option<HeaderMediaInput<'a>>,
-    pub footer_media: Option<FooterMediaInput<'a>>,
+    pub header_media: Option<HeaderMediaInput>,
+    pub footer_media: Option<FooterMediaInput>,
     pub buttons: Vec<CarouselButton>,
 }
 
-impl<'a> CarouselCard<'a> {
+impl<'a> CarouselCard {
     header_media_setters!();
 
     footer_media_setters!();
@@ -168,7 +168,7 @@ impl<'a> CarouselBuilder<'a> {
         self.quoted = true;
         self
     }
-    pub fn card(mut self, card: CarouselCard<'a>) -> Self {
+    pub fn card(&mut self, card: CarouselCard) -> &mut Self {
         self.cards.push(card);
         self
     }

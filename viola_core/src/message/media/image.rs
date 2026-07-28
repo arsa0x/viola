@@ -7,7 +7,7 @@ use crate::{
 
 pub struct ImageBuilder<'a> {
     pub ctx: &'a Context,
-    pub source: MediaSource<'a>,
+    pub source: MediaSource,
     pub caption: Option<String>,
     pub thumbnail: Option<Vec<u8>>,
     pub quoted: bool,
@@ -31,6 +31,12 @@ impl<'a> ImageBuilder<'a> {
 
     pub async fn into_message(self) -> anyhow::Result<whatsapp::Message> {
         let bytes = self.source.get_media_bytes(self.ctx).await?;
+
+        let thumbnail = match self.thumbnail {
+            Some(t) => Some(t),
+            None => super::image_thumbnail_async(bytes.clone()).await.ok(),
+        };
+
         let upload = self
             .ctx
             .wa_client
@@ -44,7 +50,7 @@ impl<'a> ImageBuilder<'a> {
             upload,
             whatsapp_rust::media::ImageOptions {
                 caption: self.caption,
-                jpeg_thumbnail: self.thumbnail,
+                jpeg_thumbnail: thumbnail,
                 context_info: context_info_slot(self.ctx, self.quoted),
                 ..Default::default()
             },

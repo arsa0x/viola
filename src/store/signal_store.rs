@@ -112,7 +112,7 @@ impl SignalStore for RedbStore {
             uploaded,
         };
 
-        let encoded = self.encode(&record)?;
+        let encoded = super::encode(&record)?;
 
         let device_id = self.device_id;
 
@@ -135,7 +135,7 @@ impl SignalStore for RedbStore {
                 uploaded,
             };
 
-            let encoded = self.encode(&data)?;
+            let encoded = super::encode(&data)?;
             r.push((*id, encoded));
         }
 
@@ -158,7 +158,7 @@ impl SignalStore for RedbStore {
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => {
-                    let decoded: PreKeyRecord = self.decode(data.value())?;
+                    let decoded: PreKeyRecord = super::decode(data.value())?;
                     Ok(Some(Bytes::from(decoded.key)))
                 }
                 None => Ok(None),
@@ -176,7 +176,7 @@ impl SignalStore for RedbStore {
                     .get((*id, self.device_id))
                     .map_err(|e| StoreError::Database(Box::new(e)))?
                 {
-                    let decoded: PreKeyRecord = self.decode(data.value())?;
+                    let decoded: PreKeyRecord = super::decode(data.value())?;
                     result.push((*id, Bytes::from(decoded.key)));
                 }
             }
@@ -193,8 +193,6 @@ impl SignalStore for RedbStore {
         let ids = ids.to_vec();
         let device_id = self.device_id;
 
-        let this = self.clone();
-
         self.with_write_txn(PREKEYS_TABLE, move |table| {
             for id in ids {
                 let mut record_to_update = None;
@@ -203,13 +201,13 @@ impl SignalStore for RedbStore {
                         .get((id, device_id))
                         .map_err(|e| StoreError::Database(Box::new(e)))?
                     {
-                        let record: PreKeyRecord = this.decode(data.value())?;
+                        let record: PreKeyRecord = super::decode(data.value())?;
                         record_to_update = Some(record);
                     }
                 }
                 if let Some(mut record) = record_to_update {
                     record.uploaded = true;
-                    let encoded = this.encode(&record)?;
+                    let encoded = super::encode(&record)?;
                     table
                         .insert((id, device_id), encoded.as_slice())
                         .map_err(|e| StoreError::Database(Box::new(e)))?;

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -47,11 +48,62 @@ impl FromStr for Mode {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct ParsedConfig {
+    values: HashMap<String, String>,
+}
+
 #[derive(Debug)]
 pub struct Config {
     pub prefixes: Vec<char>,
     pub owners: Vec<String>,
     pub mode: Mode,
+    pub parsed: ParsedConfig,
+}
+
+impl ParsedConfig {
+    pub fn parse(input: &str) -> Self {
+        let mut values = HashMap::new();
+
+        for line in input.lines() {
+            let line = line.trim();
+
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+
+            let Some((key, value)) = line.split_once('=') else {
+                continue;
+            };
+
+            values.insert(key.trim().to_owned(), value.trim().to_owned());
+        }
+
+        Self { values }
+    }
+
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.values.get(key).map(String::as_str)
+    }
+
+    pub fn get_list(&self, key: &str) -> Vec<String> {
+        self.get(key)
+            .unwrap_or("")
+            .split('|')
+            .map(|s| s.trim().to_owned())
+            .collect()
+    }
+
+    pub fn get_chars(&self, key: &str) -> Vec<char> {
+        self.get(key)
+            .unwrap_or("")
+            .split('|')
+            .filter_map(|s| {
+                let s = s.trim();
+                (s.chars().count() == 1).then(|| s.chars().next().unwrap())
+            })
+            .collect()
+    }
 }
 
 impl Default for Config {
@@ -60,6 +112,7 @@ impl Default for Config {
             prefixes: vec!['.'],
             owners: Vec::new(),
             mode: Mode::Public,
+            parsed: ParsedConfig::default(),
         }
     }
 }
@@ -71,35 +124,16 @@ impl Config {
     }
 
     pub fn parse(input: &str) -> Self {
-        let mut cfg = Self::default();
-        for line in input.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-            let Some((key, value)) = line.split_once('=') else {
-                continue;
-            };
-            let key = key.trim();
-            let value = value.trim();
-            match key {
-                "prefixes" => {
-                    cfg.prefixes = value
-                        .split('|')
-                        .map(str::trim)
-                        .filter(|s| s.chars().count() == 1)
-                        .map(|s| s.chars().next().unwrap())
-                        .collect();
-                }
-                "owners" => {
-                    cfg.owners = value.split('|').map(|s| s.trim().to_owned()).collect();
-                }
-                "mode" => {
-                    cfg.mode = value.parse().unwrap_or(Mode::Public);
-                }
-                _ => {}
-            }
+        let parsed = ParsedConfig::parse(input);
+
+        Self {
+            prefixes: parsed.get_chars("prefixes"),
+            owners: parsed.get_list("owners"),
+            mode: parsed
+                .get("mode")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(Mode::Public),
+            parsed,
         }
-        cfg
     }
 }

@@ -31,5 +31,9 @@ pub fn get_text_content(msg: &whatsapp::Message) -> Option<&str> {
         }
     }
 
+    if let Some(id) = &msg.template_button_reply_message.selected_id {
+        return Some(id);
+    }
+
     None
 }

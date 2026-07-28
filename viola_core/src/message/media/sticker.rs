@@ -11,7 +11,7 @@ use crate::{
 
 pub struct StickerBuilder<'a> {
     pub ctx: &'a Context,
-    pub source: MediaSource<'a>,
+    pub source: MediaSource,
     pub thumbnail: Option<Vec<u8>>,
     pub quoted: bool,
 }

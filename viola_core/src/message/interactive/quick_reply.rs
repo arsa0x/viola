@@ -32,8 +32,8 @@ pub struct QuickReplyBuilder<'a> {
     pub footer: Footer,
     pub body: Body,
     pub buttons: Vec<QuickReplyButton>,
-    pub header_media: Option<HeaderMediaInput<'a>>,
-    pub footer_media: Option<FooterMediaInput<'a>>,
+    pub header_media: Option<HeaderMediaInput>,
+    pub footer_media: Option<FooterMediaInput>,
 }
 
 pub struct QuickReplyButton {

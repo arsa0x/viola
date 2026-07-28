@@ -22,7 +22,7 @@ impl AppSyncStore for RedbStore {
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => {
-                    let decoded = self.decode(data.value())?;
+                    let decoded = super::decode(data.value())?;
                     Ok(Some(decoded))
                 }
                 None => Ok(None),
@@ -32,7 +32,7 @@ impl AppSyncStore for RedbStore {
 
     /// Set an app state sync key.
     async fn set_sync_key(&self, key_id: &[u8], key: AppStateSyncKey) -> Result<()> {
-        let encoded = self.encode(&key)?;
+        let encoded = super::encode(&key)?;
         let device_id = self.device_id;
         let key_id = key_id.to_vec();
 
@@ -53,7 +53,7 @@ impl AppSyncStore for RedbStore {
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => {
-                    let decoded = self.decode(data.value())?;
+                    let decoded = super::decode(data.value())?;
                     Ok(decoded)
                 }
                 None => Ok(HashState::default()),
@@ -63,7 +63,7 @@ impl AppSyncStore for RedbStore {
 
     /// Set the app state version for a collection.
     async fn set_version(&self, name: &str, state: HashState) -> Result<()> {
-        let encoded = self.encode(&state)?;
+        let encoded = super::encode(&state)?;
         let name = name.to_string();
         let device_id = self.device_id;
 
@@ -88,7 +88,7 @@ impl AppSyncStore for RedbStore {
         }
         let name = name.to_string();
         let device_id = self.device_id;
-        let this = self.clone();
+
         let mutations = mutations.to_vec();
 
         self.with_write_txn(APP_STATE_MUTATION_MACS_TABLE, move |table| {
@@ -97,7 +97,7 @@ impl AppSyncStore for RedbStore {
                     version,
                     value_mac: m.value_mac.clone(),
                 };
-                let encoded = this.encode(&record)?;
+                let encoded = super::encode(&record)?;
                 table
                     .insert(
                         (name.as_str(), device_id, m.index_mac.as_slice()),
@@ -118,7 +118,7 @@ impl AppSyncStore for RedbStore {
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => {
-                    let decoded: AppStateMutationMacRecord = self.decode(data.value())?;
+                    let decoded: AppStateMutationMacRecord = super::decode(data.value())?;
                     Ok(Some(decoded.value_mac))
                 }
                 None => Ok(None),
@@ -153,7 +153,7 @@ impl AppSyncStore for RedbStore {
                     .get((name, self.device_id, index_mac.as_slice()))
                     .map_err(|e| StoreError::Database(Box::new(e)))?
                 {
-                    let decoded: AppStateMutationMacRecord = self.decode(data.value())?;
+                    let decoded: AppStateMutationMacRecord = super::decode(data.value())?;
                     out.insert(index_mac.clone(), decoded.value_mac);
                 }
             }
@@ -221,10 +221,11 @@ impl AppSyncStore for RedbStore {
                 .map_err(|e| StoreError::Database(Box::new(e)))?
                 .rev()
             {
-                let (k, _) = result.map_err(|e| StoreError::Database(Box::new(e)))?;
+                let (k, v) = result.map_err(|e| StoreError::Database(Box::new(e)))?;
                 let (db_key_id, db_device_id) = k.value();
-
-                if db_device_id == self.device_id {
+                if db_device_id == self.device_id
+                    && super::decode::<AppStateSyncKey>(v.value()).is_ok()
+                {
                     return Ok(Some(db_key_id.to_vec()));
                 }
             }

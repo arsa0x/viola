@@ -31,8 +31,8 @@ pub struct CtaUrlBuilder<'a> {
     pub header: Header,
     pub body: Body,
     pub footer: Footer,
-    pub header_media: Option<HeaderMediaInput<'a>>,
-    pub footer_media: Option<FooterMediaInput<'a>>,
+    pub header_media: Option<HeaderMediaInput>,
+    pub footer_media: Option<FooterMediaInput>,
     pub cta: Vec<CtaButton>,
 }
 

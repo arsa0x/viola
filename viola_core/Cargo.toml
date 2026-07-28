@@ -6,7 +6,10 @@ edition = "2024"
 [dependencies]
 bytes.workspace = true
 directories = "6.0"
+image.workspace = true
 linkme.workspace = true
 log.workspace = true
 reqwest.workspace = true
+tokio.workspace = true
 whatsapp-rust.workspace = true
+ahash.workspace = true
