@@ -1,0 +1,56 @@
+MessageField::Set(
+    Header {
+        title: None,
+        subtitle: None,
+        has_media_attachment: Some(
+            true,
+        ),
+        bloks_widget: MessageField::Unset,
+        media: Some(
+            ImageMessage(
+                ImageMessage {
+                    url: Some(
+                        "https://mmg.whatsapp.net/o1/v/t24/f2/m234/AQM80l8QMayJKrV8TPFUvna0srFj3Hh-a7DC5LO7gcFkB9XQT-0zlJyPx-iRJTF7UuTJ-Ro5LVeoV7txFNqWy2e-LsC7QZ1A62Jp0TJaDA?ccb=9-4&oh=01_Q5Aa5AHSCKSfkY0MAIAQXybtIfLYlH8uSyo1KsrcqIfhl6MuBw&oe=6A910F28&_nc_sid=e6ed6c&mms3=true",
+                    ),
+                    mimetype: Some(
+                        "image/jpeg",
+                    ),
+                    caption: None,
+                    file_sha256: Some(/* disembunyikan karena terlalu panjang */),
+                    file_length: Some(
+                        34855,
+                    ),
+                    height: None,
+                    width: None,
+                    media_key: Some(/* disembunyikan karena terlalu panjang */),
+                    file_enc_sha256: Some(),
+                    interactive_annotations: [],
+                    direct_path: Some(
+                        "/o1/v/t24/f2/m234/AQM80l8QMayJKrV8TPFUvna0srFj3Hh-a7DC5LO7gcFkB9XQT-0zlJyPx-iRJTF7UuTJ-Ro5LVeoV7txFNqWy2e-LsC7QZ1A62Jp0TJaDA?ccb=9-4&oh=01_Q5Aa5AHSCKSfkY0MAIAQXybtIfLYlH8uSyo1KsrcqIfhl6MuBw&oe=6A910F28&_nc_sid=e6ed6c",
+                    ),
+                    media_key_timestamp: Some(
+                        1785307547,
+                    ),
+                    jpeg_thumbnail: Some(/* disembunyikan karena terlalu panjang */),
+                    context_info: MessageField::Unset,
+                    first_scan_sidecar: None,
+                    first_scan_length: None,
+                    experiment_group_id: None,
+                    scans_sidecar: None,
+                    scan_lengths: [],
+                    mid_quality_file_sha256: None,
+                    mid_quality_file_enc_sha256: None,
+                    view_once: None,
+                    thumbnail_direct_path: None,
+                    thumbnail_sha256: None,
+                    thumbnail_enc_sha256: None,
+                    static_url: None,
+                    annotations: [],
+                    image_source_type: None,
+                    accessibility_label: None,
+                    qr_url: None,
+                },
+            ),
+        ),
+    },
+)

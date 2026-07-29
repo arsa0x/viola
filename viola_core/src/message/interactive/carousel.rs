@@ -35,6 +35,7 @@ pub struct CarouselBuilder<'a> {
     pub cards: Vec<CarouselCard>,
 }
 
+#[derive(Debug)]
 pub enum CarouselButton {
     CtaUrl {
         display_text: String,
@@ -60,16 +61,20 @@ pub enum CarouselButton {
     },
 }
 
+#[derive(Debug)]
 pub struct CarouselSelectSection {
     pub title: String,
     pub rows: Vec<CarouselSelectRow>,
 }
+
+#[derive(Debug)]
 pub struct CarouselSelectRow {
     pub title: String,
     pub description: Option<String>,
     pub id: String,
 }
 
+#[derive(Debug)]
 pub struct CarouselCard {
     pub header: Header,
     pub body: Body,
@@ -80,6 +85,44 @@ pub struct CarouselCard {
 }
 
 impl<'a> CarouselCard {
+    pub fn new(body_text: impl Into<String>) -> Self {
+        Self {
+            body: Body {
+                text: Some(body_text.into()),
+            },
+            footer: Footer::default(),
+            header: Header::default(),
+            header_media: None,
+            footer_media: None,
+            buttons: Vec::new(),
+        }
+    }
+
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.header.title = Some(title.into());
+        self
+    }
+
+    pub fn subtitle(mut self, subtitle: impl Into<String>) -> Self {
+        self.header.subtitle = Some(subtitle.into());
+        self
+    }
+
+    pub fn footer(mut self, footer: impl Into<String>) -> Self {
+        self.footer.text = Some(footer.into());
+        self
+    }
+
+    pub fn button(mut self, button: CarouselButton) -> Self {
+        self.buttons.push(button);
+        self
+    }
+
+    pub fn buttons(mut self, buttons: impl IntoIterator<Item = CarouselButton>) -> Self {
+        self.buttons.extend(buttons);
+        self
+    }
+
     header_media_setters!();
 
     footer_media_setters!();
@@ -168,8 +211,14 @@ impl<'a> CarouselBuilder<'a> {
         self.quoted = true;
         self
     }
-    pub fn card(&mut self, card: CarouselCard) -> &mut Self {
+
+    pub fn card(mut self, card: CarouselCard) -> Self {
         self.cards.push(card);
+        self
+    }
+
+    pub fn cards(mut self, cards: impl IntoIterator<Item = CarouselCard>) -> Self {
+        self.cards.extend(cards);
         self
     }
 

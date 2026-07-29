@@ -8,6 +8,7 @@ use crate::{
     message::{AudioBuilder, DocumentBuilder, ImageBuilder, MediaSource, VideoBuilder},
 };
 
+#[derive(Debug)]
 pub enum HeaderMediaInput {
     Image(MediaSource),
     Video(MediaSource),
@@ -70,6 +71,7 @@ impl<'a> HeaderMediaInput {
     }
 }
 
+#[derive(Debug)]
 pub enum FooterMediaInput {
     Audio(MediaSource),
     Raw(footer::Media),

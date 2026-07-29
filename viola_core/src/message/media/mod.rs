@@ -9,6 +9,7 @@ use whatsapp_rust::anyhow;
 
 use crate::Context;
 
+#[derive(Debug)]
 pub enum MediaSource {
     Url(String),
     Bytes(Vec<u8>),
