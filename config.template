@@ -11,3 +11,10 @@ owners=
 # - group  : commands only work in group chats
 # - owner  : only configured owners can use commands
 mode=public
+
+# nekopoi (optional)
+nekopoi_base=
+nekopoi_token=
+nekopoi_signature=
+nekopoi_build_code=
+nekopoi_user_agent=

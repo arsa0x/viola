@@ -26,7 +26,7 @@ pub const fn flag_value(names: &'static [&'static str]) -> FlagSpec {
 pub struct Args {
     positional: Vec<String>,
     bools: AHashSet<&'static str>,
-    values: AHashMap<&'static str, String>,
+    values: AHashMap<&'static str, Option<String>>,
 }
 
 impl Args {
@@ -64,7 +64,9 @@ impl Args {
                             }
 
                             if !value.is_empty() {
-                                values.insert(canonical, value.join(" "));
+                                values.insert(canonical, None);
+                            } else {
+                                values.insert(canonical, Some(value.join(" ")));
                             }
 
                             continue 'tokens;
@@ -90,8 +92,12 @@ impl Args {
         self.bools.contains(canonical)
     }
 
+    pub fn has(&self, canonical: &str) -> bool {
+        self.values.contains_key(canonical) || self.bools.contains(canonical)
+    }
+
     pub fn value(&self, canonical: &str) -> Option<&str> {
-        self.values.get(canonical).map(String::as_str)
+        self.values.get(canonical).and_then(|v| v.as_deref())
     }
 
     pub fn value_parsed<T: std::str::FromStr>(&self, canonical: &str) -> Option<T> {

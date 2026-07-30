@@ -68,7 +68,7 @@ async fn run_one(name: String) {
 
     let session_name = name.clone();
     let bot = bot::Bot::builder()
-        .with_http_client(ReqwestClient::new())
+        .with_http_client(ReqwestClient::new(http_client.clone()))
         .with_transport_factory(TokioWebSocketTransportFactory::new())
         .with_runtime(TokioRuntime)
         .with_backend(backend)

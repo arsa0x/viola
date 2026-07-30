@@ -1,5 +1,5 @@
 use whatsapp_rust::{
-    NodeBuilder, anyhow,
+    anyhow,
     buffa::MessageField,
     serde_json,
     waproto::whatsapp::{
@@ -21,6 +21,7 @@ use crate::{
         interactive::media::{
             FooterMediaInput, HeaderMediaInput, footer_media_setters, header_media_setters,
         },
+        sendable_builder,
     },
 };
 
@@ -284,40 +285,6 @@ impl<'a> CarouselBuilder<'a> {
             ..Default::default()
         })
     }
-
-    pub async fn send(self) -> anyhow::Result<()> {
-        let ctx = self.ctx;
-
-        let nodes = vec![
-            NodeBuilder::new("biz")
-                .children([NodeBuilder::new("interactive")
-                    .attr("type", "native_flow")
-                    .attr("v", "1")
-                    .children([NodeBuilder::new("native_flow")
-                        .attr("v", "9")
-                        .attr("name", "mixed")
-                        .build()])
-                    .build()])
-                .build(),
-        ];
-
-        let message = self.into_message().await?;
-
-        ctx.wa_client
-            .send_message_with_options(
-                ctx.info.source.chat.clone(),
-                message,
-                whatsapp_rust::SendOptions::default().with_extra_stanza_nodes(nodes),
-            )
-            .await?;
-        Ok(())
-    }
 }
 
-impl<'a> IntoFuture for CarouselBuilder<'a> {
-    type Output = anyhow::Result<()>;
-    type IntoFuture = std::pin::Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'a>>;
-    fn into_future(self) -> Self::IntoFuture {
-        Box::pin(self.send())
-    }
-}
+sendable_builder!(CarouselBuilder);

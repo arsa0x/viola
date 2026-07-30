@@ -47,12 +47,9 @@ impl Read for BlockingBodyReader {
 }
 
 impl ReqwestClient {
-    pub fn new() -> Self {
+    pub fn new(client: reqwest::Client) -> Self {
         Self {
-            client: reqwest::Client::builder()
-                .pool_max_idle_per_host(2)
-                .build()
-                .expect("failed to build reqwest client"),
+            client,
             max_body_bytes: DEFAULT_MAX_BODY_BYTES,
         }
     }
