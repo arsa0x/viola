@@ -1,0 +1,16 @@
+statement      := assign | if_stmt | expr_stmt
+assign         := IDENT '=' expr NEWLINE
+if_stmt        := 'if' expr '{' statement* '}' ('else' '{' statement* '}')?
+expr_stmt      := expr NEWLINE
+
+expr           := equality
+equality       := comparison (('==' | '!=') comparison)*
+comparison     := additive (('<' | '<=' | '>' | '>=') additive)*
+additive       := multiplicative (('+' | '-') multiplicative)*
+multiplicative := unary (('*' | '/') unary)*
+unary          := '!' unary | primary
+
+primary        := literal | VAR | native_call | '(' expr ')'
+native_call    := NATIVE (METHOD)? arg_list?
+
+arg_list       := expr (',' expr)*

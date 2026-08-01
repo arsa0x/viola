@@ -1,0 +1,10 @@
+@trigger ping
+@category tools
+
+text = :args .at 0
+
+if $text == "" {
+    :send .text "pong"
+} else {
+    :send .text $text
+}
