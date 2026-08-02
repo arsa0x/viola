@@ -277,9 +277,11 @@ impl Parser {
                 let value = self.parse_expr()?;
                 return Ok(Stmt::Assign { name, value, line });
             }
+
             if &*name == "if" {
-                // parse if
+                return self.parse_if();
             }
+
             return Err(CompileError::new(
                 line,
                 format!("unknown statement: `{}`", name),
@@ -288,6 +290,51 @@ impl Parser {
         let expr = self.parse_expr()?;
 
         Ok(Stmt::ExprStmt { expr, line })
+    }
+
+    fn parse_if(&mut self) -> Result<Stmt, CompileError> {
+        let line = self.line();
+
+        self.advance();
+
+        let cond = self.parse_expr()?;
+        let then_blk = self.parse_block()?;
+
+        self.skip_newlines();
+
+        let else_blk = if let Token::Ident(kw) = self.peek().clone() {
+            if &*kw == "else" {
+                self.advance();
+                Some(self.parse_block()?)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        Ok(Stmt::If {
+            cond,
+            then_blk,
+            else_blk,
+            line,
+        })
+    }
+
+    fn parse_block(&mut self) -> Result<Vec<Stmt>, CompileError> {
+        self.consume(&Token::LBrace)?;
+        self.skip_newlines();
+
+        let mut stmts = Vec::new();
+
+        while !self.check(&Token::RBrace) {
+            stmts.push(self.parse_stmt()?);
+            self.skip_newlines();
+        }
+
+        self.consume(&Token::RBrace)?;
+
+        Ok(stmts)
     }
 
     pub fn parse_script(&mut self) -> Result<Script, CompileError> {
@@ -485,6 +532,42 @@ x = 1
         assert_eq!(script.meta.triggers[0].as_ref(), "hello");
         assert_eq!(script.meta.triggers[1].as_ref(), "helo");
         assert_eq!(script.meta.triggers[2].as_ref(), "hi");
+    }
+
+    #[test]
+    fn parse_if_statement() {
+        let script = parse(
+            r#"
+    if true {
+        x = 1
+    }
+    "#,
+        );
+
+        assert_eq!(script.body.len(), 1);
+
+        match &script.body[0] {
+            Stmt::If {
+                cond,
+                then_blk,
+                else_blk,
+                ..
+            } => {
+                assert!(matches!(cond, Expr::Literal(Literal::Bool(true), _)));
+
+                assert!(else_blk.is_none());
+                assert_eq!(then_blk.len(), 1);
+
+                match &then_blk[0] {
+                    Stmt::Assign { name, value, .. } => {
+                        assert_eq!(name.as_ref(), "x");
+                        assert!(matches!(value, Expr::Literal(Literal::Int(1), _)));
+                    }
+                    _ => panic!("expected assignment"),
+                }
+            }
+            other => panic!("expected if statement, got {:?}", other),
+        }
     }
 
     #[test]
