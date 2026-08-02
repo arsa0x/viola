@@ -132,6 +132,7 @@ impl Parser {
             Token::True => Ok(Expr::Literal(Literal::Bool(true), line)),
             Token::False => Ok(Expr::Literal(Literal::Bool(false), line)),
             Token::Var(name) => Ok(Expr::Var(name, line)),
+            Token::Native(n) => self.parse_native(n, line),
             Token::LParen => {
                 let e = self.parse_expr()?;
                 self.consume(&Token::RParen)?;
@@ -142,6 +143,41 @@ impl Parser {
                 format!("invalid expression found {:?}", other),
             )),
         }
+    }
+
+    fn parse_native(&mut self, command: Rc<str>, line: u16) -> Result<Expr, CompileError> {
+        let method = if let Token::Method(m) = self.peek().clone() {
+            self.advance();
+
+            Some(m)
+        } else {
+            None
+        };
+
+        let mut args = Vec::new();
+
+        if self.can_start_expr() {
+            args.push(self.parse_expr()?);
+            while self.check(&Token::Comma) {
+                self.advance();
+
+                args.push(self.parse_expr()?);
+            }
+        }
+
+        Ok(Expr::NativeCall {
+            command,
+            method,
+            args,
+            line,
+        })
+    }
+
+    fn can_start_expr(&mut self) -> bool {
+        !matches!(
+            self.peek(),
+            Token::Newline | Token::RBrace | Token::RParen | Token::Comma | Token::EOF
+        )
     }
 
     fn parse_equality(&mut self) -> Result<Expr, CompileError> {
@@ -567,6 +603,56 @@ x = 1
                 }
             }
             other => panic!("expected if statement, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_native_without_method() {
+        let script = parse(":send");
+
+        match &script.body[0] {
+            Stmt::ExprStmt { expr, .. } => match expr {
+                Expr::NativeCall {
+                    command,
+                    method,
+                    args,
+                    ..
+                } => {
+                    assert_eq!(command.as_ref(), "send");
+                    assert!(method.is_none());
+                    assert!(args.is_empty());
+                }
+                _ => panic!("expected native call"),
+            },
+            _ => panic!("expected expression statement"),
+        }
+    }
+
+    #[test]
+    fn parse_native_with_method() {
+        let script = parse(":args .at 0");
+
+        match &script.body[0] {
+            Stmt::ExprStmt { expr, .. } => match expr {
+                Expr::NativeCall {
+                    command,
+                    method,
+                    args,
+                    ..
+                } => {
+                    assert_eq!(command.as_ref(), "args");
+                    assert!(method.is_some());
+
+                    assert_eq!(args.len(), 1);
+
+                    assert!(matches!(
+                        &args[0],
+                        Expr::Literal(Literal::Int(n), _) if *n == 0
+                    ));
+                }
+                _ => panic!("expected native call"),
+            },
+            _ => panic!("expected expression statement"),
         }
     }
 
