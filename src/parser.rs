@@ -2,27 +2,13 @@ use std::rc::Rc;
 
 use crate::{
     ast::{BinOp, Expr, Literal, Script, ScriptMeta, Stmt, UnOp},
+    error::CompileError,
     lexer::Token,
 };
 
 pub struct Parser {
     tokens: Vec<(Token, u16)>,
     pos: usize,
-}
-
-#[derive(Debug)]
-pub struct CompileError {
-    pub line: u16,
-    pub message: String,
-}
-
-impl CompileError {
-    pub fn new(line: u16, message: impl Into<String>) -> Self {
-        Self {
-            line,
-            message: message.into(),
-        }
-    }
 }
 
 impl Parser {
