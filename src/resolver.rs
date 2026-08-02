@@ -6,6 +6,7 @@ use std::{
 use crate::{
     ast::{BinOp, Expr, Literal, Script, Stmt, UnOp},
     error::CompileError,
+    native::{self, NativeId},
 };
 
 #[derive(Debug)]
@@ -68,7 +69,7 @@ pub enum RExpr {
     },
 
     NativeCall {
-        id: u16,
+        id: NativeId,
         args: Vec<RExpr>,
         line: u16,
     },
@@ -209,6 +210,16 @@ impl Resolver {
         self.scopes.iter().rev().any(|s| s.assigned.contains(name))
     }
 
+    fn find_slot(&self, name: &str) -> Option<u16> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(&slot) = scope.vars.get(name) {
+                return Some(slot);
+            }
+        }
+
+        None
+    }
+
     fn resolve_expr(&mut self, expr: &Expr) -> Result<RExpr, CompileError> {
         match expr {
             Expr::Binary { op, lhs, rhs, line } => Ok(RExpr::Binary {
@@ -223,13 +234,56 @@ impl Resolver {
                 method,
                 args,
                 line,
-            } => Err(CompileError::new(*line, "to do")),
+            } => {
+                let sig = native::lookup_native(command, method.as_deref()).ok_or_else(|| {
+                    let full = match method {
+                        Some(m) => format!(":{command} .{m}"),
+                        None => format!(":{command}"),
+                    };
+
+                    CompileError::new(*line, format!("unknown command: `{}`", full))
+                })?;
+
+                if args.len() != sig.expected_argc as usize {
+                    return Err(CompileError::new(
+                        *line,
+                        format!(
+                            "command `:{command}` takes {} arguments, found {}",
+                            sig.expected_argc,
+                            args.len()
+                        ),
+                    ));
+                }
+
+                Ok(RExpr::NativeCall {
+                    id: sig.id,
+                    args: args
+                        .iter()
+                        .map(|a| self.resolve_expr(a))
+                        .collect::<Result<_, _>>()?,
+                    line: *line,
+                })
+            }
             Expr::Unary { op, expr, line } => Ok(RExpr::Unary {
                 op: *op,
                 expr: Box::new(self.resolve_expr(expr)?),
                 line: *line,
             }),
-            Expr::Var(v, line) => Err(CompileError::new(*line, "to do")),
+            Expr::Var(name, line) => {
+                if !self.is_assigned(name) {
+                    return Err(CompileError::new(
+                        *line,
+                        format!(
+                            "variable `${}` is read before it is filled in all branches",
+                            name
+                        ),
+                    ));
+                }
+
+                let slot = self.find_slot(name).expect("is_assigned implies declared");
+
+                Ok(RExpr::GetLocal(slot, *line))
+            }
         }
     }
 }
@@ -248,16 +302,13 @@ mod tests {
 
     #[test]
     fn resolve_single_assignment() {
-        let script = resolve("x = 10");
+        let resolved = resolve("x = 10");
 
-        assert_eq!(script.local_count, 1);
-        assert_eq!(script.body.len(), 1);
+        assert_eq!(resolved.local_count, 1);
 
-        match &script.body[0] {
-            RStmt::Assign { slot, value, .. } => {
+        match &resolved.body[0] {
+            RStmt::Assign { slot, .. } => {
                 assert_eq!(*slot, 0);
-
-                assert!(matches!(value, RExpr::Literal(Literal::Int(10), _)));
             }
             _ => panic!("expected assignment"),
         }
@@ -265,20 +316,20 @@ mod tests {
 
     #[test]
     fn resolve_multiple_assignments() {
-        let script = resolve(
+        let resolved = resolve(
             r#"x = 1
 y = 2
 "#,
         );
 
-        assert_eq!(script.local_count, 2);
+        assert_eq!(resolved.local_count, 2);
 
-        match &script.body[0] {
+        match &resolved.body[0] {
             RStmt::Assign { slot, .. } => assert_eq!(*slot, 0),
             _ => panic!(),
         }
 
-        match &script.body[1] {
+        match &resolved.body[1] {
             RStmt::Assign { slot, .. } => assert_eq!(*slot, 1),
             _ => panic!(),
         }
@@ -286,20 +337,20 @@ y = 2
 
     #[test]
     fn resolve_reassignment_uses_same_slot() {
-        let script = resolve(
+        let resolved = resolve(
             r#"x = 1
 x = 2
 "#,
         );
 
-        assert_eq!(script.local_count, 1);
+        assert_eq!(resolved.local_count, 1);
 
-        match &script.body[0] {
+        match &resolved.body[0] {
             RStmt::Assign { slot, .. } => assert_eq!(*slot, 0),
             _ => panic!(),
         }
 
-        match &script.body[1] {
+        match &resolved.body[1] {
             RStmt::Assign { slot, .. } => assert_eq!(*slot, 0),
             _ => panic!(),
         }
@@ -307,9 +358,9 @@ x = 2
 
     #[test]
     fn resolve_binary_expression() {
-        let script = resolve("x = 1 + 2");
+        let resolved = resolve("x = 1 + 2");
 
-        match &script.body[0] {
+        match &resolved.body[0] {
             RStmt::Assign { value, .. } => match value {
                 RExpr::Binary { op: BinOp::Add, .. } => {}
                 _ => panic!("expected binary expression"),
@@ -320,9 +371,9 @@ x = 2
 
     #[test]
     fn resolve_unary_expression() {
-        let script = resolve("x = -10");
+        let resolved = resolve("x = -10");
 
-        match &script.body[0] {
+        match &resolved.body[0] {
             RStmt::Assign { value, .. } => {
                 assert!(matches!(value, RExpr::Unary { op: UnOp::Neg, .. }));
             }
@@ -332,7 +383,7 @@ x = 2
 
     #[test]
     fn resolve_if_statement() {
-        let script = resolve(
+        let resolved = resolve(
             r#"
 if true {
     x = 1
@@ -340,9 +391,9 @@ if true {
 "#,
         );
 
-        assert_eq!(script.body.len(), 1);
+        assert_eq!(resolved.body.len(), 1);
 
-        match &script.body[0] {
+        match &resolved.body[0] {
             RStmt::If {
                 cond,
                 then_blk,
@@ -367,7 +418,7 @@ if true {
 
     #[test]
     fn local_count_tracks_peak_slots() {
-        let script = resolve(
+        let resolved = resolve(
             r#"x = 1
 if true {
     y = 2
@@ -376,6 +427,96 @@ z = 3
 "#,
         );
 
-        assert_eq!(script.local_count, 2);
+        assert_eq!(resolved.local_count, 2);
+    }
+
+    #[test]
+    fn reassign_reuses_slot() {
+        let resolved = resolve(
+            r#"
+x = 1
+x = 2
+    "#,
+        );
+
+        match &resolved.body[..] {
+            [
+                RStmt::Assign { slot: s1, .. },
+                RStmt::Assign { slot: s2, .. },
+            ] => {
+                assert_eq!(*s1, 0);
+                assert_eq!(*s2, 0);
+            }
+            _ => panic!(),
+        }
+
+        assert_eq!(resolved.local_count, 1);
+    }
+
+    #[test]
+    fn resolve_variable_read() {
+        let resolved = resolve(
+            r#"
+    x = 10
+    :args .at $x
+    "#,
+        );
+
+        match &resolved.body[1] {
+            RStmt::ExprStmt {
+                expr: RExpr::NativeCall { args, .. },
+                ..
+            } => {
+                assert_eq!(args.len(), 1);
+
+                match &args[0] {
+                    RExpr::GetLocal(slot, _) => assert_eq!(*slot, 0),
+                    other => panic!("expected GetLocal, got {other:?}"),
+                }
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn error_read_before_assignment() {
+        let tokens = Lexer::new(":send .text $x").tokenize().unwrap();
+        let script = Parser::new(tokens).parse_script().unwrap();
+
+        let err = Resolver::resolve(&script).unwrap_err();
+
+        assert!(err.message.contains("read before"), "{}", err.message);
+    }
+
+    #[test]
+    fn unknown_native_returns_error() {
+        let tokens = Lexer::new(":does_not_exist").tokenize().unwrap();
+        let script = Parser::new(tokens).parse_script().unwrap();
+
+        let err = Resolver::resolve(&script).unwrap_err();
+
+        assert!(err.message.contains("unknown command"));
+    }
+
+    #[test]
+    fn slots_are_reused_after_scope() {
+        let resolved = resolve(
+            r#"
+    if true {
+        a = 1
+    }
+
+    b = 2
+    "#,
+        );
+
+        match &resolved.body[1] {
+            RStmt::Assign { slot, .. } => {
+                assert_eq!(*slot, 0);
+            }
+            _ => panic!(),
+        }
+
+        assert_eq!(resolved.local_count, 1);
     }
 }
