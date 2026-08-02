@@ -75,11 +75,10 @@ impl Parser {
             self.advance();
 
             let key = self.expect_ident("meta name")?;
-            let val = self.expect_ident("meta value")?;
 
             match &*key {
-                "name" => meta.name = Some(val),
-                "triggers" => meta.triggers = val.split('|').map(Rc::from).collect(),
+                "name" => meta.name = Some(self.expect_ident("script name")?),
+                "triggers" => meta.triggers = self.parse_triggers()?,
                 other => {
                     return Err(CompileError::new(
                         self.line(),
@@ -94,8 +93,24 @@ impl Parser {
         Ok(meta)
     }
 
-    fn parse_triggers(&mut self) {
-        // to do
+    fn parse_triggers(&mut self) -> Result<Vec<Rc<str>>, CompileError> {
+        let mut triggers = Vec::new();
+
+        loop {
+            match self.advance() {
+                Token::Ident(s) => triggers.push(s),
+                Token::Pipe => continue,
+                Token::Newline | Token::EOF => break,
+                other => {
+                    return Err(CompileError::new(
+                        self.line(),
+                        format!("expected trigger name, found {:?}", other),
+                    ));
+                }
+            }
+        }
+
+        Ok(triggers)
     }
 
     fn expect_ident(&mut self, ctx: &str) -> Result<Rc<str>, CompileError> {
@@ -458,17 +473,18 @@ mod tests {
     #[test]
     fn parse_metadata() {
         let script = parse(
-            r#"
-@name TestScript
-@triggers hello
+            r#"@name TestScript
+@triggers hello|helo|hi
 
 x = 1
 "#,
         );
 
         assert_eq!(script.meta.name, Some(Rc::from("TestScript")));
-        assert_eq!(script.meta.triggers.len(), 1);
+        assert_eq!(script.meta.triggers.len(), 3);
         assert_eq!(script.meta.triggers[0].as_ref(), "hello");
+        assert_eq!(script.meta.triggers[1].as_ref(), "helo");
+        assert_eq!(script.meta.triggers[2].as_ref(), "hi");
     }
 
     #[test]

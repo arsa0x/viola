@@ -381,6 +381,25 @@ mod tests {
     }
 
     #[test]
+    fn meta() {
+        let tokens = lex("@triggers meta|test|mt");
+
+        assert_eq!(
+            tokens,
+            vec![
+                (Token::At, 1),
+                (Token::Ident("triggers".into()), 1),
+                (Token::Ident("meta".into()), 1),
+                (Token::Pipe, 1),
+                (Token::Ident("test".into()), 1),
+                (Token::Pipe, 1),
+                (Token::Ident("mt".into()), 1),
+                (Token::EOF, 1),
+            ]
+        )
+    }
+
+    #[test]
     fn sigils() {
         let tokens = lex(":print $name .len");
 
