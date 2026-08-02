@@ -181,7 +181,7 @@ impl<'a> Lexer<'a> {
         if is_float {
             s.parse::<f64>().map(Token::Float).map_err(|e| LexError {
                 line,
-                message: format!("invalid float number: {}", e),
+                message: format!("invalid float number: {e}"),
             })
         } else {
             s.parse::<i64>().map(Token::Int).map_err(|e| LexError {

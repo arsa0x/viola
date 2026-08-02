@@ -1,16 +1,20 @@
 pub mod ast;
+pub mod chunk;
+pub mod emitter;
 pub mod error;
 pub mod lexer;
 pub mod native;
 pub mod parser;
 pub mod resolver;
+pub mod vm;
 
-use crate::{ast::Script, error::CompileError, lexer::Lexer, parser::Parser};
-
-pub fn compile(src: &str) -> Result<Script, CompileError> {
-    let tokens = Lexer::new(src)
+pub fn compile(src: &str) -> Result<chunk::Chunk, error::CompileError> {
+    let tokens = lexer::Lexer::new(src)
         .tokenize()
-        .map_err(|e| CompileError::new(e.line, e.message))?;
+        .map_err(|e| error::CompileError::new(e.line, e.message))?;
 
-    Parser::new(tokens).parse_script()
+    let script = parser::Parser::new(tokens).parse_script()?;
+    let resolved = resolver::Resolver::resolve(&script)?;
+
+    emitter::Emitter::emit_script(&resolved)
 }

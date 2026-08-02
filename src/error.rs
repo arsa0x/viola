@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Debug)]
 pub struct CompileError {
     pub line: u16,
@@ -12,3 +14,73 @@ impl CompileError {
         }
     }
 }
+
+impl fmt::Display for CompileError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "compile error at line {}: {}", self.line, self.message)
+    }
+}
+
+#[derive(Debug)]
+pub enum VmError {
+    Native {
+        line: u16,
+        err: NativeError,
+    },
+
+    TypeMismatch {
+        line: u16,
+        op: &'static str,
+        lhs: &'static str,
+        rhs: &'static str,
+    },
+
+    StackUnderflow {
+        line: u16,
+    },
+}
+
+impl fmt::Display for VmError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            VmError::Native { line, err } => write!(f, "line {line}: native call failed: {err}"),
+            VmError::TypeMismatch { line, op, lhs, rhs } => {
+                write!(f, "line {line}: type mismatch for `{op}`: {lhs} vs {rhs}")
+            }
+            VmError::StackUnderflow { line } => {
+                write!(f, "line {line}: internal error: stack underflow")
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NativeError {
+    pub kind: NativeErrorKind,
+    pub detail: String,
+}
+
+impl NativeError {
+    pub fn invalid_arg(detail: impl Into<String>) -> Self {
+        Self {
+            kind: NativeErrorKind::InvalidArg,
+            detail: detail.into(),
+        }
+    }
+}
+
+impl fmt::Display for NativeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}: {}", self.kind, self.detail)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeErrorKind {
+    InvalidArg,
+    Io,
+    HostRejected,
+}
+
+impl std::error::Error for VmError {}
+impl std::error::Error for CompileError {}

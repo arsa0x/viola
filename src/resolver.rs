@@ -17,15 +17,15 @@ pub struct Resolver {
 }
 
 #[derive(Debug)]
-pub struct Scope {
-    vars: HashMap<Rc<str>, u16>,
-    assigned: HashSet<Rc<str>>,
-}
-
-#[derive(Debug)]
 pub struct ResolvedScript {
     pub body: Vec<RStmt>,
     pub local_count: u16,
+}
+
+#[derive(Debug)]
+pub struct Scope {
+    vars: HashMap<Rc<str>, u16>,
+    assigned: HashSet<Rc<str>>,
 }
 
 #[derive(Debug)]
@@ -241,7 +241,7 @@ impl Resolver {
                         None => format!(":{command}"),
                     };
 
-                    CompileError::new(*line, format!("unknown command: `{}`", full))
+                    CompileError::new(*line, format!("unknown command: `{full}`",))
                 })?;
 
                 if args.len() != sig.expected_argc as usize {
@@ -273,10 +273,7 @@ impl Resolver {
                 if !self.is_assigned(name) {
                     return Err(CompileError::new(
                         *line,
-                        format!(
-                            "variable `${}` is read before it is filled in all branches",
-                            name
-                        ),
+                        format!("variable `${name}` is read before it is filled in all branches"),
                     ));
                 }
 
@@ -451,31 +448,6 @@ x = 2
         }
 
         assert_eq!(resolved.local_count, 1);
-    }
-
-    #[test]
-    fn resolve_variable_read() {
-        let resolved = resolve(
-            r#"
-    x = 10
-    :args .at $x
-    "#,
-        );
-
-        match &resolved.body[1] {
-            RStmt::ExprStmt {
-                expr: RExpr::NativeCall { args, .. },
-                ..
-            } => {
-                assert_eq!(args.len(), 1);
-
-                match &args[0] {
-                    RExpr::GetLocal(slot, _) => assert_eq!(*slot, 0),
-                    other => panic!("expected GetLocal, got {other:?}"),
-                }
-            }
-            _ => panic!(),
-        }
     }
 
     #[test]

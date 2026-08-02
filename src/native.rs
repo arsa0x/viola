@@ -1,9 +1,10 @@
 use std::{fmt, rc::Rc};
 
+use crate::error::NativeError;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum NativeId {
-    ArgsAt,
     SendText,
 }
 
@@ -12,9 +13,15 @@ pub struct NativeSig {
     pub expected_argc: u8,
 }
 
-pub struct ExecContext {
+pub struct ExecContext<H: Host> {
     pub args: Vec<Value>,
-    pub sent: std::cell::RefCell<Vec<String>>,
+    pub chat_id: Rc<str>,
+    pub host: H,
+}
+
+#[allow(async_fn_in_trait)]
+pub trait Host {
+    async fn send_text(&self, chat_id: &str, text: &str) -> Result<(), NativeError>;
 }
 
 #[derive(Clone, Debug)]
@@ -67,25 +74,46 @@ impl fmt::Display for Value {
     }
 }
 
-impl ExecContext {
-    pub fn new(args: Vec<Value>) -> Self {
+impl<H: Host> ExecContext<H> {
+    pub fn new(args: Vec<Value>, chat_id: impl Into<Rc<str>>, host: H) -> Self {
         Self {
             args,
-            sent: std::cell::RefCell::new(Vec::new()),
+            chat_id: chat_id.into(),
+            host,
         }
     }
 }
 
 pub fn lookup_native(command: &str, method: Option<&str>) -> Option<NativeSig> {
     match (command, method) {
-        ("args", Some("at")) => Some(NativeSig {
-            id: NativeId::ArgsAt,
-            expected_argc: 1,
-        }),
         ("send", Some("text")) => Some(NativeSig {
             id: NativeId::SendText,
             expected_argc: 1,
         }),
         _ => None,
     }
+}
+
+pub async fn send_text<H: Host>(
+    args: &[Value],
+    ctx: &ExecContext<H>,
+) -> Result<Value, NativeError> {
+    let text = match args.first() {
+        Some(Value::Str(s)) => s.clone(),
+        Some(v) => {
+            return Err(NativeError::invalid_arg(format!(
+                "`:send .text` butuh str, dapat {}",
+                v.type_name()
+            )));
+        }
+        None => {
+            return Err(NativeError::invalid_arg(
+                "`:send .text` requires 1 argument",
+            ));
+        }
+    };
+
+    ctx.host.send_text(&ctx.chat_id, &text).await?;
+
+    Ok(Value::Nil)
 }

@@ -43,7 +43,7 @@ impl Parser {
         } else {
             Err(CompileError::new(
                 self.line(),
-                format!("expected: {:?}, found: {:?}", t, self.peek()),
+                format!("expected: {t:?}, found: {:?}", self.peek()),
             ))
         }
     }
@@ -68,7 +68,7 @@ impl Parser {
                 other => {
                     return Err(CompileError::new(
                         self.line(),
-                        format!("unknown metadata: @{}", other),
+                        format!("unknown metadata: @{other}"),
                     ));
                 }
             }
@@ -90,7 +90,7 @@ impl Parser {
                 other => {
                     return Err(CompileError::new(
                         self.line(),
-                        format!("expected trigger name, found {:?}", other),
+                        format!("expected trigger name, found {other:?}",),
                     ));
                 }
             }
@@ -104,7 +104,7 @@ impl Parser {
             Token::Ident(s) => Ok(s),
             other => Err(CompileError::new(
                 self.line(),
-                format!("expected: {}, found: {:?}", ctx, other),
+                format!("expected: {ctx}, found: {other:?}"),
             )),
         }
     }
