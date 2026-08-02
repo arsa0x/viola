@@ -1,5 +1,6 @@
-@trigger ping
-@category tools
+@name       ping
+@triggers   ping|p
+@category   tools
 
 text = :args .at 0
 

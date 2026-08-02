@@ -25,6 +25,7 @@ pub enum Token {
     Slash,
     Bang,
     Assign,
+    Pipe,
 
     LBrace,
     RBrace,
@@ -109,6 +110,7 @@ impl<'a> Lexer<'a> {
             '-' => Ok(Token::Minus),
             '*' => Ok(Token::Star),
             '/' => Ok(Token::Slash),
+            '|' => Ok(Token::Pipe),
             '=' => {
                 if self.peek_char() == Some('=') {
                     self.bump();
