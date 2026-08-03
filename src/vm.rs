@@ -33,7 +33,7 @@ impl<'a> Vm<'a> {
 
     pub async fn run<H: Host>(&mut self, ctx: &ExecContext<H>) -> Result<(), VmError> {
         loop {
-            let op = self.chunk.code[self.ip].clone();
+            let op = self.chunk.code[self.ip];
             self.ip += 1;
 
             match op {
@@ -115,6 +115,8 @@ impl<'a> Vm<'a> {
                     let result = self
                         .dispatch_native(id, &self.stack[args_start..], ctx)
                         .await;
+
+                    self.stack.truncate(args_start);
 
                     match result {
                         Ok(v) => self.stack.push(v),

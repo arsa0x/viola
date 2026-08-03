@@ -1,6 +1,6 @@
 use crate::native::{NativeId, Value};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpCode {
     Constant(u16),
     GetLocal(u16),
