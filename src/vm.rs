@@ -31,14 +31,6 @@ impl<'a> Vm<'a> {
             .ok_or(VmError::StackUnderflow { line: self.line() })
     }
 
-    fn pop_n(&mut self, n: usize) -> Result<Vec<Value>, VmError> {
-        if self.stack.len() < n {
-            return Err(VmError::StackUnderflow { line: self.line() });
-        }
-
-        Ok(self.stack.split_off(self.stack.len() - n))
-    }
-
     pub async fn run<H: Host>(&mut self, ctx: &ExecContext<H>) -> Result<(), VmError> {
         loop {
             let op = self.chunk.code[self.ip].clone();
@@ -113,20 +105,20 @@ impl<'a> Vm<'a> {
                 }
                 OpCode::CallNative { id, argc } => {
                     let line = self.line();
-                    let args = self.pop_n(argc as usize)?;
+                    let argc_usize = argc as usize;
 
-                    let result = self.dispatch_native(id, &args, ctx).await;
+                    if self.stack.len() < argc_usize {
+                        return Err(VmError::StackUnderflow { line });
+                    }
+
+                    let args_start = self.stack.len() - argc_usize;
+                    let result = self
+                        .dispatch_native(id, &self.stack[args_start..], ctx)
+                        .await;
 
                     match result {
                         Ok(v) => self.stack.push(v),
-                        Err(err) => {
-                            eprintln!("[viola-script] native call failed at line {line}: {err}");
-                            let _ = ctx
-                                .host
-                                .send_text("An error occurred while executing this command")
-                                .await;
-                            return Err(VmError::Native { line, err });
-                        }
+                        Err(err) => return Err(VmError::Native { line, err }),
                     }
                 }
                 OpCode::Pop => {
