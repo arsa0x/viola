@@ -3,4 +3,11 @@ name = "viola_script"
 version = "0.1.0"
 edition = "2024"
 
+# [[bench]]
+# harness = false
+# name = "viola_script_bench"
+
 [dependencies]
+
+[dev-dependencies]
+criterion = "0.8.2"

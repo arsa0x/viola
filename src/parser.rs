@@ -6,17 +6,17 @@ use crate::{
     lexer::Token,
 };
 
-pub struct Parser {
-    tokens: Vec<(Token, u16)>,
+pub struct Parser<'a> {
+    tokens: Vec<(Token<'a>, u16)>,
     pos: usize,
 }
 
-impl Parser {
-    pub fn new(tokens: Vec<(Token, u16)>) -> Self {
+impl<'a> Parser<'a> {
+    pub fn new(tokens: Vec<(Token<'a>, u16)>) -> Self {
         Self { tokens, pos: 0 }
     }
 
-    fn peek(&self) -> &Token {
+    fn peek(&self) -> &Token<'a> {
         &self.tokens[self.pos].0
     }
 
@@ -24,7 +24,7 @@ impl Parser {
         self.tokens[self.pos].1
     }
 
-    fn advance(&mut self) -> Token {
+    fn advance(&mut self) -> Token<'a> {
         let t = self.tokens[self.pos].0.clone();
         if self.pos + 1 < self.tokens.len() {
             self.pos += 1;
@@ -32,11 +32,11 @@ impl Parser {
         t
     }
 
-    fn check(&self, t: &Token) -> bool {
+    fn check(&self, t: &Token<'a>) -> bool {
         self.peek() == t
     }
 
-    fn consume(&mut self, t: &Token) -> Result<(), CompileError> {
+    fn consume(&mut self, t: &Token<'a>) -> Result<(), CompileError> {
         if self.check(t) {
             self.advance();
             Ok(())
@@ -84,7 +84,7 @@ impl Parser {
 
         loop {
             match self.advance() {
-                Token::Ident(s) => triggers.push(s),
+                Token::Ident(s) => triggers.push(Rc::from(s)),
                 Token::Pipe => continue,
                 Token::Newline | Token::EOF => break,
                 other => {
@@ -101,7 +101,7 @@ impl Parser {
 
     fn expect_ident(&mut self, ctx: &str) -> Result<Rc<str>, CompileError> {
         match self.advance() {
-            Token::Ident(s) => Ok(s),
+            Token::Ident(s) => Ok(Rc::from(s)),
             other => Err(CompileError::new(
                 self.line(),
                 format!("expected: {ctx}, found: {other:?}"),
@@ -114,11 +114,11 @@ impl Parser {
         match self.advance() {
             Token::Int(i) => Ok(Expr::Literal(Literal::Int(i), line)),
             Token::Float(x) => Ok(Expr::Literal(Literal::Float(x), line)),
-            Token::Str(s) => Ok(Expr::Literal(Literal::Str(s), line)),
+            Token::Str(s) => Ok(Expr::Literal(Literal::Str(Rc::from(s)), line)),
             Token::True => Ok(Expr::Literal(Literal::Bool(true), line)),
             Token::False => Ok(Expr::Literal(Literal::Bool(false), line)),
-            Token::Var(name) => Ok(Expr::Var(name, line)),
-            Token::Native(n) => self.parse_native(n, line),
+            Token::Var(name) => Ok(Expr::Var(Rc::from(name), line)),
+            Token::Native(n) => self.parse_native(Rc::from(n), line),
             Token::LParen => {
                 let e = self.parse_expr()?;
                 self.consume(&Token::RParen)?;
@@ -134,8 +134,7 @@ impl Parser {
     fn parse_native(&mut self, command: Rc<str>, line: u16) -> Result<Expr, CompileError> {
         let method = if let Token::Method(m) = self.peek().clone() {
             self.advance();
-
-            Some(m)
+            Some(Rc::from(m))
         } else {
             None
         };
@@ -297,10 +296,14 @@ impl Parser {
                 self.advance();
 
                 let value = self.parse_expr()?;
-                return Ok(Stmt::Assign { name, value, line });
+                return Ok(Stmt::Assign {
+                    name: Rc::from(name),
+                    value,
+                    line,
+                });
             }
 
-            if &*name == "if" {
+            if name == "if" {
                 return self.parse_if();
             }
 

@@ -1,13 +1,13 @@
-use std::{iter::Peekable, rc::Rc, str::CharIndices};
+use std::borrow::Cow;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Token {
-    Ident(Rc<str>),
-    Var(Rc<str>),
-    Native(Rc<str>),
-    Method(Rc<str>),
+pub enum Token<'a> {
+    Ident(&'a str),
+    Var(&'a str),
+    Native(&'a str),
+    Method(&'a str),
 
-    Str(Rc<str>),
+    Str(Cow<'a, str>),
     Int(i64),
     Float(f64),
     True,
@@ -39,7 +39,8 @@ pub enum Token {
 }
 
 pub struct Lexer<'a> {
-    chars: Peekable<CharIndices<'a>>,
+    src: &'a str,
+    pos: usize,
     line: u16,
 }
 
@@ -52,28 +53,36 @@ pub struct LexError {
 impl<'a> Lexer<'a> {
     pub fn new(src: &'a str) -> Self {
         Self {
-            chars: src.char_indices().peekable(),
+            src,
+            pos: 0,
             line: 1,
         }
     }
 
     fn peek_char(&mut self) -> Option<char> {
-        self.chars.peek().map(|&(_, c)| c)
+        self.src[self.pos..].chars().next()
     }
 
     fn bump(&mut self) -> Option<char> {
-        self.chars.next().map(|(_, c)| {
-            if c == '\n' {
-                self.line += 1;
-            }
-            c
-        })
+        let c = self.peek_char()?;
+
+        self.pos += c.len_utf8();
+
+        if c == '\n' {
+            self.line += 1;
+        }
+
+        Some(c)
     }
 
-    fn next_token(&mut self) -> Result<Token, LexError> {
+    fn current_slice(&self, start: usize) -> &'a str {
+        &self.src[start..self.pos]
+    }
+
+    fn next_token(&mut self) -> Result<(Token<'a>, u16), LexError> {
         loop {
             match self.peek_char() {
-                None => return Ok(Token::EOF),
+                None => return Ok((Token::EOF, self.line)),
                 Some('#') => {
                     while let Some(c) = self.peek_char() {
                         if c == '\n' {
@@ -84,7 +93,7 @@ impl<'a> Lexer<'a> {
                 }
                 Some('\n') => {
                     self.bump();
-                    return Ok(Token::Newline);
+                    return Ok((Token::Newline, self.line));
                 }
                 Some(c) if c.is_whitespace() => {
                     self.bump();
@@ -93,90 +102,87 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let start = self.line;
-        let c = match self.bump() {
-            Some(c) => c,
-            None => return Ok(Token::EOF),
-        };
+        let line = self.line;
+        let start = self.pos;
+
+        let c = self.bump().unwrap();
 
         match c {
-            '{' => Ok(Token::LBrace),
-            '}' => Ok(Token::RBrace),
-            '(' => Ok(Token::LParen),
-            ')' => Ok(Token::RParen),
-            ',' => Ok(Token::Comma),
-            '@' => Ok(Token::At),
-            '+' => Ok(Token::Plus),
-            '-' => Ok(Token::Minus),
-            '*' => Ok(Token::Star),
-            '/' => Ok(Token::Slash),
-            '|' => Ok(Token::Pipe),
+            '{' => Ok((Token::LBrace, line)),
+            '}' => Ok((Token::RBrace, line)),
+            '(' => Ok((Token::LParen, line)),
+            ')' => Ok((Token::RParen, line)),
+            ',' => Ok((Token::Comma, line)),
+            '@' => Ok((Token::At, line)),
+            '+' => Ok((Token::Plus, line)),
+            '-' => Ok((Token::Minus, line)),
+            '*' => Ok((Token::Star, line)),
+            '/' => Ok((Token::Slash, line)),
+            '|' => Ok((Token::Pipe, line)),
             '=' => {
                 if self.peek_char() == Some('=') {
                     self.bump();
-                    Ok(Token::Eq)
+                    Ok((Token::Eq, line))
                 } else {
-                    Ok(Token::Assign)
+                    Ok((Token::Assign, line))
                 }
             }
             '!' => {
                 if self.peek_char() == Some('=') {
                     self.bump();
-                    Ok(Token::NotEq)
+                    Ok((Token::NotEq, line))
                 } else {
-                    Ok(Token::Bang)
+                    Ok((Token::Bang, line))
                 }
             }
             '<' => {
                 if self.peek_char() == Some('=') {
                     self.bump();
-                    Ok(Token::Le)
+                    Ok((Token::Le, line))
                 } else {
-                    Ok(Token::Lt)
+                    Ok((Token::Lt, line))
                 }
             }
             '>' => {
                 if self.peek_char() == Some('=') {
                     self.bump();
-                    Ok(Token::Ge)
+                    Ok((Token::Ge, line))
                 } else {
-                    Ok(Token::Gt)
+                    Ok((Token::Gt, line))
                 }
             }
 
-            '"' => self.read_string(start),
+            '"' => self.read_string(line),
 
-            ':' => self.read_sig_name(start, Token::Native as fn(Rc<str>) -> Token),
-            '$' => self.read_sig_name(start, Token::Var as fn(Rc<str>) -> Token),
-            '.' => self.read_sig_name(start, Token::Method as fn(Rc<str>) -> Token),
+            ':' => self.read_sig_name(start + 1, line, Token::Native),
+            '$' => self.read_sig_name(start + 1, line, Token::Var),
+            '.' => self.read_sig_name(start + 1, line, Token::Method),
 
-            c if c.is_alphabetic() || c == '_' => Ok(self.read_ident(c)),
-            c if c.is_ascii_digit() => self.read_number(c, start),
+            c if c.is_alphabetic() || c == '_' => Ok(self.read_ident(start)),
+            c if c.is_ascii_digit() => Ok((self.read_number(start, line)?, self.line)),
 
             other => Err(LexError {
-                line: start,
+                line: line,
                 message: format!("unknown character: {other:?}"),
             }),
         }
     }
 
-    fn read_number(&mut self, start: char, line: u16) -> Result<Token, LexError> {
-        let mut s = String::new();
-        s.push(start);
+    fn read_number(&mut self, start: usize, line: u16) -> Result<Token<'a>, LexError> {
         let mut is_float = false;
 
         while let Some(c) = self.peek_char() {
             if c.is_ascii_digit() {
-                s.push(c);
                 self.bump();
             } else if c == '.' && !is_float {
                 is_float = true;
-                s.push(c);
                 self.bump();
             } else {
                 break;
             }
         }
+
+        let s = self.current_slice(start);
 
         if is_float {
             s.parse::<f64>().map(Token::Float).map_err(|e| LexError {
@@ -191,66 +197,93 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn read_sig_name(&mut self, line: u16, wrap: fn(Rc<str>) -> Token) -> Result<Token, LexError> {
-        let mut s = String::new();
+    fn read_sig_name(
+        &mut self,
+        start: usize,
+        line: u16,
+        wrap: fn(&'a str) -> Token<'a>,
+    ) -> Result<(Token<'a>, u16), LexError> {
         while let Some(c) = self.peek_char() {
             if c.is_alphanumeric() || c == '_' {
-                s.push(c);
                 self.bump();
             } else {
                 break;
             }
         }
 
-        if s.is_empty() {
+        let name = self.current_slice(start);
+
+        if name.is_empty() {
             return Err(LexError {
                 line,
                 message: "empty name after sigil".into(),
             });
         }
 
-        Ok(wrap(Rc::from(s)))
+        Ok((wrap(name), self.line))
     }
 
-    fn read_ident(&mut self, start: char) -> Token {
-        let mut s = String::new();
-        s.push(start);
-
+    fn read_ident(&mut self, start: usize) -> (Token<'a>, u16) {
         while let Some(c) = self.peek_char() {
             if c.is_alphanumeric() || c == '_' {
-                s.push(c);
                 self.bump();
             } else {
                 break;
             }
         }
 
-        match s.as_str() {
-            "true" => Token::True,
-            "false" => Token::False,
-            _ => Token::Ident(Rc::from(s)),
+        let ident = self.current_slice(start);
+
+        match ident {
+            "true" => (Token::True, self.line),
+            "false" => (Token::False, self.line),
+            _ => (Token::Ident(ident), self.line),
         }
     }
 
-    fn read_string(&mut self, line: u16) -> Result<Token, LexError> {
-        let mut s = String::new();
+    fn read_string(&mut self, line: u16) -> Result<(Token<'a>, u16), LexError> {
+        let start = self.pos;
+
+        let mut owned: Option<String> = None;
+        let mut segment_start = start;
+
         loop {
             match self.bump() {
-                Some('"') => return Ok(Token::Str(Rc::from(s))),
-                Some('\\') => match self.bump() {
-                    Some('n') => s.push('\n'),
-                    Some('t') => s.push('\t'),
-                    Some('"') => s.push('"'),
-                    Some('\\') => s.push('\\'),
-                    Some(other) => s.push(other),
-                    None => {
-                        return Err(LexError {
+                Some('"') => {
+                    return if let Some(mut s) = owned {
+                        s.push_str(&self.src[segment_start..self.pos - 1]);
+                        Ok((Token::Str(Cow::Owned(s)), self.line))
+                    } else {
+                        Ok((
+                            Token::Str(Cow::Borrowed(&self.src[start..self.pos - 1])),
                             line,
-                            message: "unclosed string".into(),
-                        });
+                        ))
+                    };
+                }
+
+                Some('\\') => {
+                    let s = owned.get_or_insert_with(String::new);
+                    s.push_str(&self.src[segment_start..self.pos - 1]);
+
+                    match self.bump() {
+                        Some('n') => s.push('\n'),
+                        Some('t') => s.push('\t'),
+                        Some('"') => s.push('"'),
+                        Some('\\') => s.push('\\'),
+                        Some(c) => s.push(c),
+                        None => {
+                            return Err(LexError {
+                                line,
+                                message: "unclosed string".into(),
+                            });
+                        }
                     }
-                },
-                Some(c) => s.push(c),
+
+                    segment_start = self.pos;
+                }
+
+                Some(_) => {}
+
                 None => {
                     return Err(LexError {
                         line,
@@ -261,31 +294,29 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn tokenize(mut self) -> Result<Vec<(Token, u16)>, LexError> {
-        let mut out = Vec::new();
+    pub fn tokenize(mut self) -> Result<Vec<(Token<'a>, u16)>, LexError> {
+        let mut tokens = Vec::new();
 
         loop {
-            let token = self.next_token()?;
-            let line = self.line;
+            let (token, line) = self.next_token()?;
+            let eof = token == Token::EOF;
 
-            let is_eof = token == Token::EOF;
+            tokens.push((token, line));
 
-            out.push((token, line));
-            if is_eof {
+            if eof {
                 break;
             }
         }
 
-        Ok(out)
+        Ok(tokens)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::rc::Rc;
 
-    fn lex(src: &str) -> Vec<(Token, u16)> {
+    fn lex<'a>(src: &'a str) -> Vec<(Token<'a>, u16)> {
         Lexer::new(src).tokenize().unwrap()
     }
 
@@ -296,9 +327,9 @@ mod tests {
         assert_eq!(
             tokens,
             vec![
-                (Token::Ident(Rc::from("name")), 1),
+                (Token::Ident("name"), 1),
                 (Token::Assign, 1),
-                (Token::Str(Rc::from("viola")), 1),
+                (Token::Str("viola".into()), 1),
                 (Token::EOF, 1),
             ]
         );
@@ -311,11 +342,11 @@ mod tests {
         assert_eq!(
             tokens,
             vec![
-                (Token::Ident(Rc::from("age")), 1),
+                (Token::Ident("age"), 1),
                 (Token::Assign, 1),
                 (Token::Int(20), 1),
                 (Token::Newline, 2),
-                (Token::Ident(Rc::from("pi")), 2),
+                (Token::Ident("pi"), 2),
                 (Token::Assign, 2),
                 (Token::Float(3.14), 2),
                 (Token::EOF, 2),
@@ -332,7 +363,7 @@ mod tests {
             vec![
                 (Token::True, 1),
                 (Token::False, 1),
-                (Token::Ident(Rc::from("truth")), 1),
+                (Token::Ident("truth"), 1),
                 (Token::EOF, 1),
             ]
         );
@@ -406,9 +437,9 @@ mod tests {
         assert_eq!(
             tokens,
             vec![
-                (Token::Native(Rc::from("print")), 1),
-                (Token::Var(Rc::from("name")), 1),
-                (Token::Method(Rc::from("len")), 1),
+                (Token::Native("print"), 1),
+                (Token::Var("name"), 1),
+                (Token::Method("len"), 1),
                 (Token::EOF, 1),
             ]
         );
@@ -421,7 +452,7 @@ mod tests {
         assert_eq!(
             tokens,
             vec![
-                (Token::Str(Rc::from("hello\n\t\"world\"\\!")), 1),
+                (Token::Str("hello\n\t\"world\"\\!".into()), 1),
                 (Token::EOF, 1),
             ]
         );
@@ -439,7 +470,7 @@ x = 1 # another comment
             vec![
                 (Token::Newline, 2),
                 (Token::Newline, 3),
-                (Token::Ident(Rc::from("x")), 3),
+                (Token::Ident("x"), 3),
                 (Token::Assign, 3),
                 (Token::Int(1), 3),
                 (Token::Newline, 4),
@@ -452,13 +483,13 @@ x = 1 # another comment
     fn line_numbers() {
         let tokens = lex("a\nb\nc");
 
-        assert_eq!(tokens[0], (Token::Ident(Rc::from("a")), 1));
+        assert_eq!(tokens[0], (Token::Ident("a"), 1));
         assert_eq!(tokens[1], (Token::Newline, 2));
 
-        assert_eq!(tokens[2], (Token::Ident(Rc::from("b")), 2));
+        assert_eq!(tokens[2], (Token::Ident("b"), 2));
         assert_eq!(tokens[3], (Token::Newline, 3));
 
-        assert_eq!(tokens[4], (Token::Ident(Rc::from("c")), 3));
+        assert_eq!(tokens[4], (Token::Ident("c"), 3));
         assert_eq!(tokens[5], (Token::EOF, 3));
     }
 

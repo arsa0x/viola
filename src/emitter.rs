@@ -159,11 +159,17 @@ fn verify_stack_balance(chunk: &Chunk) -> Result<(), CompileError> {
         if depth < 0 {
             return Err(CompileError::new(
                 chunk.lines[i],
-                "internal emitter error: stack underflow detected during compile".to_string(),
+                "internal emitter error: stack underflow detected during compile",
             ));
         }
     }
 
-    let _ = depth;
+    if depth != 0 {
+        return Err(CompileError::new(
+            chunk.lines.last().copied().unwrap_or(0),
+            format!("internal emitter error: stack leak detected ({depth} unhandled values)"),
+        ));
+    }
+
     Ok(())
 }
