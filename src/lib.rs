@@ -8,6 +8,9 @@ pub mod parser;
 pub mod resolver;
 pub mod vm;
 
+pub use chunk::Chunk;
+pub use vm::Vm;
+
 pub fn compile(src: &str) -> Result<chunk::Chunk, error::CompileError> {
     let tokens = lexer::Lexer::new(src)
         .tokenize()

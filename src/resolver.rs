@@ -20,6 +20,10 @@ pub struct Resolver {
 pub struct ResolvedScript {
     pub body: Vec<RStmt>,
     pub local_count: u16,
+
+    pub name: Option<Rc<str>>,
+    pub triggers: Vec<Rc<str>>,
+    pub category: Option<Rc<str>>,
 }
 
 #[derive(Debug)]
@@ -104,6 +108,9 @@ impl Resolver {
         Ok(ResolvedScript {
             body,
             local_count: r.high_water,
+            name: script.meta.name.clone(),
+            category: script.meta.category.clone(),
+            triggers: script.meta.triggers.clone(),
         })
     }
 

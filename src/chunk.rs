@@ -34,6 +34,10 @@ pub struct Chunk {
     pub constants: Vec<Value>,
     pub lines: Vec<u16>,
     pub local_count: u16,
+
+    pub name: Option<String>,
+    pub triggers: Vec<String>,
+    pub category: Option<String>,
 }
 
 impl Chunk {

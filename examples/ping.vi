@@ -2,7 +2,7 @@
 @triggers   ping|p
 @category   tools
 
-text = :args .at 0
+text = :args .at 1
 
 if $text == "" {
     :send .text "pong"

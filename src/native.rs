@@ -1,4 +1,4 @@
-use std::{fmt, rc::Rc};
+use std::{fmt, sync::Arc};
 
 use crate::error::NativeError;
 
@@ -15,13 +15,12 @@ pub struct NativeSig {
 
 pub struct ExecContext<H: Host> {
     pub args: Vec<Value>,
-    pub chat_id: Rc<str>,
     pub host: H,
 }
 
 #[allow(async_fn_in_trait)]
 pub trait Host {
-    async fn send_text(&self, chat_id: &str, text: &str) -> Result<(), NativeError>;
+    async fn send_text(&self, text: &str) -> Result<(), NativeError>;
 }
 
 #[derive(Clone, Debug)]
@@ -30,7 +29,7 @@ pub enum Value {
     Bool(bool),
     Int(i64),
     Float(f64),
-    Str(Rc<str>),
+    Str(Arc<str>),
 }
 
 impl Value {
@@ -75,12 +74,8 @@ impl fmt::Display for Value {
 }
 
 impl<H: Host> ExecContext<H> {
-    pub fn new(args: Vec<Value>, chat_id: impl Into<Rc<str>>, host: H) -> Self {
-        Self {
-            args,
-            chat_id: chat_id.into(),
-            host,
-        }
+    pub fn new(args: Vec<Value>, host: H) -> Self {
+        Self { args, host }
     }
 }
 
@@ -102,7 +97,7 @@ pub async fn send_text<H: Host>(
         Some(Value::Str(s)) => s.clone(),
         Some(v) => {
             return Err(NativeError::invalid_arg(format!(
-                "`:send .text` butuh str, dapat {}",
+                "`:send .text` need str, get {}",
                 v.type_name()
             )));
         }
@@ -113,7 +108,7 @@ pub async fn send_text<H: Host>(
         }
     };
 
-    ctx.host.send_text(&ctx.chat_id, &text).await?;
+    ctx.host.send_text(&text).await?;
 
     Ok(Value::Nil)
 }

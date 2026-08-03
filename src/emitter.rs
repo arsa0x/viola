@@ -13,10 +13,17 @@ impl Emitter {
         let mut e = Emitter {
             chunk: Chunk::default(),
         };
+
         e.chunk.local_count = script.local_count;
+
+        e.chunk.name = script.name.as_deref().map(str::to_string);
+        e.chunk.category = script.category.as_deref().map(str::to_string);
+        e.chunk.triggers = script.triggers.iter().map(|s| s.to_string()).collect();
+
         for stmt in &script.body {
             e.emit_stmt(stmt);
         }
+
         e.chunk.emit(
             OpCode::Ret,
             script.body.last().map(|s| s.line()).unwrap_or(0),
@@ -119,7 +126,7 @@ fn literal_to_value(lit: &Literal) -> Value {
     match lit {
         Literal::Int(i) => Value::Int(*i),
         Literal::Float(x) => Value::Float(*x),
-        Literal::Str(s) => Value::Str(s.clone().into()),
+        Literal::Str(s) => Value::Str(std::sync::Arc::from(s.as_ref())),
         Literal::Bool(b) => Value::Bool(*b),
         Literal::Nil => Value::Nil,
     }

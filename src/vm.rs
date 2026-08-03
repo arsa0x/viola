@@ -123,10 +123,7 @@ impl<'a> Vm<'a> {
                             eprintln!("[viola-script] native call failed at line {line}: {err}");
                             let _ = ctx
                                 .host
-                                .send_text(
-                                    &ctx.chat_id,
-                                    "An error occurred while executing this command",
-                                )
+                                .send_text("An error occurred while executing this command")
                                 .await;
                             return Err(VmError::Native { line, err });
                         }
