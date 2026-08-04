@@ -1,0 +1,12 @@
+@name     smal
+@triggers smal|sm|s
+category  bench
+x = 1
+y = 2
+xy = $x * $y
+input = :args .at 1
+if input != "" {
+  :send .text input
+} else {
+  :send .text "hello"
+}

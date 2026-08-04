@@ -131,8 +131,65 @@ mod tests {
     use super::*;
 
     #[test]
-    fn array_type_name() {
+    fn type_names() {
+        assert_eq!(Value::Nil.type_name(), "nil");
+        assert_eq!(Value::Bool(true).type_name(), "bool");
+        assert_eq!(Value::Int(1).type_name(), "int");
+        assert_eq!(Value::Float(1.5).type_name(), "float");
+        assert_eq!(Value::Str("hello".into()).type_name(), "str");
         assert_eq!(Value::Array(Arc::new(vec![])).type_name(), "array");
+    }
+
+    #[test]
+    fn truthiness() {
+        assert!(!Value::Nil.is_truthy());
+        assert!(!Value::Bool(false).is_truthy());
+
+        assert!(Value::Bool(true).is_truthy());
+        assert!(Value::Int(0).is_truthy());
+        assert!(Value::Float(0.0).is_truthy());
+        assert!(Value::Str("".into()).is_truthy());
+        assert!(Value::Array(Arc::new(vec![])).is_truthy());
+    }
+
+    #[test]
+    fn display_values() {
+        assert_eq!(Value::Nil.to_string(), "nil");
+        assert_eq!(Value::Bool(true).to_string(), "true");
+        assert_eq!(Value::Int(42).to_string(), "42");
+        assert_eq!(Value::Float(3.5).to_string(), "3.5");
+        assert_eq!(Value::Str("hello".into()).to_string(), "hello");
+    }
+
+    #[test]
+    fn primitive_equality() {
+        assert_eq!(Value::Nil, Value::Nil);
+
+        assert_eq!(Value::Bool(true), Value::Bool(true));
+        assert_ne!(Value::Bool(true), Value::Bool(false));
+
+        assert_eq!(Value::Int(10), Value::Int(10));
+        assert_ne!(Value::Int(10), Value::Int(20));
+
+        assert_eq!(Value::Float(1.5), Value::Float(1.5));
+        assert_ne!(Value::Float(1.5), Value::Float(2.0));
+
+        assert_eq!(Value::Str("abc".into()), Value::Str("abc".into()));
+        assert_ne!(Value::Str("abc".into()), Value::Str("xyz".into()));
+    }
+
+    #[test]
+    fn lookup_native_send_text() {
+        let sig = lookup_native("send", Some("text")).unwrap();
+
+        assert_eq!(sig.id, NativeId::SendText);
+        assert_eq!(sig.expected_argc, 1);
+    }
+
+    #[test]
+    fn lookup_native_unknown() {
+        assert!(lookup_native("send", None).is_none());
+        assert!(lookup_native("foo", Some("bar")).is_none());
     }
 
     #[test]

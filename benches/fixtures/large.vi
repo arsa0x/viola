@@ -1,0 +1,307 @@
+counter = 0
+
+if counter == 0 {
+    :send.text "zero"
+}
+
+counter = counter + 1
+
+if counter > 10 {
+    :send.text "large"
+}
+
+items = [
+    1,2,3,4,5,
+    6,7,8,9,10
+]
+
+message = "Iteration "
+message = message + "A"
+
+:send.text message
+
+counter = 0
+
+if counter == 0 {
+    :send.text "zero"
+}
+
+counter = counter + 1
+
+if counter > 10 {
+    :send.text "large"
+}
+
+items = [
+    1,2,3,4,5,
+    6,7,8,9,10
+]
+
+message = "Iteration "
+message = message + "A"
+
+:send.text message
+
+counter = 0
+
+if counter == 0 {
+    :send.text "zero"
+}
+
+counter = counter + 1
+
+if counter > 10 {
+    :send.text "large"
+}
+
+items = [
+    1,2,3,4,5,
+    6,7,8,9,10
+]
+
+message = "Iteration "
+message = message + "A"
+
+:send.text message
+
+counter = 0
+
+if counter == 0 {
+    :send.text "zero"
+}
+
+counter = counter + 1
+
+if counter > 10 {
+    :send.text "large"
+}
+
+items = [
+    1,2,3,4,5,
+    6,7,8,9,10
+]
+
+message = "Iteration "
+message = message + "A"
+
+:send.text message
+
+counter = 0
+
+if counter == 0 {
+    :send.text "zero"
+}
+
+counter = counter + 1
+
+if counter > 10 {
+    :send.text "large"
+}
+
+items = [
+    1,2,3,4,5,
+    6,7,8,9,10
+]
+
+message = "Iteration "
+message = message + "A"
+
+:send.text message
+
+counter = 0
+
+if counter == 0 {
+    :send.text "zero"
+}
+
+counter = counter + 1
+
+if counter > 10 {
+    :send.text "large"
+}
+
+items = [
+    1,2,3,4,5,
+    6,7,8,9,10
+]
+
+message = "Iteration "
+message = message + "A"
+
+:send.text message
+
+counter = 0
+
+if counter == 0 {
+    :send.text "zero"
+}
+
+counter = counter + 1
+
+if counter > 10 {
+    :send.text "large"
+}
+
+items = [
+    1,2,3,4,5,
+    6,7,8,9,10
+]
+
+message = "Iteration "
+message = message + "A"
+
+:send.text message
+
+counter = 0
+
+if counter == 0 {
+    :send.text "zero"
+}
+
+counter = counter + 1
+
+if counter > 10 {
+    :send.text "large"
+}
+
+items = [
+    1,2,3,4,5,
+    6,7,8,9,10
+]
+
+message = "Iteration "
+message = message + "A"
+
+:send.text message
+
+counter = 0
+
+if counter == 0 {
+    :send.text "zero"
+}
+
+counter = counter + 1
+
+if counter > 10 {
+    :send.text "large"
+}
+
+items = [
+    1,2,3,4,5,
+    6,7,8,9,10
+]
+
+message = "Iteration "
+message = message + "A"
+
+:send.text message
+
+counter = 0
+
+if counter == 0 {
+    :send.text "zero"
+}
+
+counter = counter + 1
+
+if counter > 10 {
+    :send.text "large"
+}
+
+items = [
+    1,2,3,4,5,
+    6,7,8,9,10
+]
+
+message = "Iteration "
+message = message + "A"
+
+:send.text message
+
+counter = 0
+
+if counter == 0 {
+    :send.text "zero"
+}
+
+counter = counter + 1
+
+if counter > 10 {
+    :send.text "large"
+}
+
+items = [
+    1,2,3,4,5,
+    6,7,8,9,10
+]
+
+message = "Iteration "
+message = message + "A"
+
+:send.text message
+
+counter = 0
+
+if counter == 0 {
+    :send.text "zero"
+}
+
+counter = counter + 1
+
+if counter > 10 {
+    :send.text "large"
+}
+
+items = [
+    1,2,3,4,5,
+    6,7,8,9,10
+]
+
+message = "Iteration "
+message = message + "A"
+
+:send.text message
+
+counter = 0
+
+if counter == 0 {
+    :send.text "zero"
+}
+
+counter = counter + 1
+
+if counter > 10 {
+    :send.text "large"
+}
+
+items = [
+    1,2,3,4,5,
+    6,7,8,9,10
+]
+
+message = "Iteration "
+message = message + "A"
+
+:send.text message
+
+counter = 0
+
+if counter == 0 {
+    :send.text "zero"
+}
+
+counter = counter + 1
+
+if counter > 10 {
+    :send.text "large"
+}
+
+items = [
+    1,2,3,4,5,
+    6,7,8,9,10
+]
+
+message = "Iteration "
+message = message + "A"
+
+:send.text message
