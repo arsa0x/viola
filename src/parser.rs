@@ -124,6 +124,7 @@ impl<'a> Parser<'a> {
                 self.consume(&Token::RParen)?;
                 Ok(e)
             }
+            Token::LBracket => self.parse_array(line),
             other => Err(CompileError::new(
                 line,
                 format!("invalid expression found {:?}", other),
@@ -161,7 +162,12 @@ impl<'a> Parser<'a> {
     fn can_start_expr(&mut self) -> bool {
         !matches!(
             self.peek(),
-            Token::Newline | Token::RBrace | Token::RParen | Token::Comma | Token::EOF
+            Token::Newline
+                | Token::RBrace
+                | Token::RParen
+                | Token::RBracket
+                | Token::Comma
+                | Token::EOF
         )
     }
 
@@ -360,6 +366,29 @@ impl<'a> Parser<'a> {
         self.consume(&Token::RBrace)?;
 
         Ok(stmts)
+    }
+
+    fn parse_array(&mut self, line: u16) -> Result<Expr, CompileError> {
+        self.skip_newlines();
+
+        let mut elements = Vec::new();
+
+        while !self.check(&Token::RBracket) {
+            elements.push(self.parse_expr()?);
+            self.skip_newlines();
+
+            if self.check(&Token::Comma) {
+                self.advance();
+                self.skip_newlines();
+            } else {
+                break;
+            }
+        }
+
+        self.skip_newlines();
+        self.consume(&Token::RBracket)?;
+
+        Ok(Expr::Array { elements, line })
     }
 
     pub fn parse_script(&mut self) -> Result<Script, CompileError> {

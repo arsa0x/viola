@@ -42,10 +42,14 @@ impl Stmt {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Literal(Literal, u16),
     Var(Rc<str>, u16),
+    Array {
+        elements: Vec<Expr>,
+        line: u16,
+    },
     Binary {
         op: BinOp,
         lhs: Box<Expr>,
@@ -72,7 +76,8 @@ impl Expr {
             | Expr::Var(_, line)
             | Expr::Binary { line, .. }
             | Expr::Unary { line, .. }
-            | Expr::NativeCall { line, .. } => *line,
+            | Expr::NativeCall { line, .. }
+            | Expr::Array { line, .. } => *line,
         }
     }
 }
@@ -97,7 +102,7 @@ pub enum UnOp {
     Not,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Int(i64),
     Float(f64),

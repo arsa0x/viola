@@ -10,4 +10,5 @@ edition = "2024"
 [dependencies]
 
 [dev-dependencies]
-criterion = "0.8.2"
+criterion = { version = "0.8.2", features = ["async_tokio"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

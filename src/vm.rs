@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     chunk::{Chunk, OpCode},
     error::{NativeError, VmError},
@@ -123,6 +125,17 @@ impl<'a> Vm<'a> {
                         Err(err) => return Err(VmError::Native { line, err }),
                     }
                 }
+                OpCode::MakeArray(n) => {
+                    let n = n as usize;
+                    let line = self.line();
+
+                    if self.stack.len() < n {
+                        return Err(VmError::StackUnderflow { line });
+                    }
+
+                    let items = self.stack.split_off(self.stack.len() - n);
+                    self.stack.push(Value::Array(Arc::new(items)));
+                }
                 OpCode::Pop => {
                     self.pop()?;
                 }
@@ -241,5 +254,72 @@ impl<'a> Vm<'a> {
 
         self.stack.push(result);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::emitter::Emitter;
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
+    use crate::resolver::Resolver;
+
+    struct NullHost;
+    impl Host for NullHost {
+        async fn send_text(&self, _text: &str) -> Result<(), NativeError> {
+            Ok(())
+        }
+    }
+
+    fn compile(src: &str) -> Chunk {
+        let tokens = Lexer::new(src).tokenize().unwrap();
+        let script = Parser::new(tokens).parse_script().unwrap();
+        let resolved = Resolver::resolve(&script).unwrap();
+        Emitter::emit_script(&resolved).unwrap()
+    }
+
+    async fn run(chunk: &Chunk) -> Vec<Value> {
+        let ctx = ExecContext::new(vec![], NullHost);
+        let mut vm = Vm::new(chunk);
+        vm.run(&ctx).await.unwrap();
+        vm.stack
+    }
+
+    #[tokio::test]
+    async fn make_array_builds_correct_order() {
+        let chunk = compile("x = [1, 2, 3]\n:send .text \"done\"");
+        run(&chunk).await;
+    }
+
+    #[tokio::test]
+    async fn array_element_order_preserved() {
+        let chunk = compile("[10, 20, 30]");
+        let arr = Value::Array(std::sync::Arc::new(vec![
+            Value::Int(10),
+            Value::Int(20),
+            Value::Int(30),
+        ]));
+        assert_eq!(arr.to_string(), "[10, 20, 30]");
+
+        run(&chunk).await;
+    }
+
+    #[tokio::test]
+    async fn empty_array_runs_without_underflow() {
+        let chunk = compile("x = []");
+        run(&chunk).await;
+    }
+
+    #[tokio::test]
+    async fn nested_array_runs_correctly() {
+        let chunk = compile("x = [[1, 2], [3, 4]]");
+        run(&chunk).await;
+    }
+
+    #[tokio::test]
+    async fn array_with_native_call_element() {
+        let chunk = compile(r#"x = [:send .text "hi"]"#);
+        run(&chunk).await;
     }
 }

@@ -24,6 +24,8 @@ pub enum OpCode {
 
     CallNative { id: NativeId, argc: u8 },
 
+    MakeArray(u16),
+
     Pop,
     Ret,
 }

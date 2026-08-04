@@ -29,8 +29,11 @@ pub enum Token<'a> {
 
     LBrace,
     RBrace,
+    LBracket,
+    RBracket,
     LParen,
     RParen,
+    Colon,
     Comma,
     At,
 
@@ -110,6 +113,8 @@ impl<'a> Lexer<'a> {
         match c {
             '{' => Ok((Token::LBrace, line)),
             '}' => Ok((Token::RBrace, line)),
+            '[' => Ok((Token::LBracket, line)),
+            ']' => Ok((Token::RBracket, line)),
             '(' => Ok((Token::LParen, line)),
             ')' => Ok((Token::RParen, line)),
             ',' => Ok((Token::Comma, line)),
@@ -154,7 +159,16 @@ impl<'a> Lexer<'a> {
 
             '"' => self.read_string(line),
 
-            ':' => self.read_sig_name(start + 1, line, Token::Native),
+            ':' => {
+                if self
+                    .peek_char()
+                    .map_or(false, |c| c.is_alphabetic() || c == '_')
+                {
+                    self.read_sig_name(start + 1, line, Token::Native)
+                } else {
+                    Ok((Token::Colon, line))
+                }
+            }
             '$' => self.read_sig_name(start + 1, line, Token::Var),
             '.' => self.read_sig_name(start + 1, line, Token::Method),
 

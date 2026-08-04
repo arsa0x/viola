@@ -77,6 +77,8 @@ pub enum RExpr {
         args: Vec<RExpr>,
         line: u16,
     },
+
+    Array(Vec<RExpr>, u16),
 }
 
 impl RStmt {
@@ -288,6 +290,13 @@ impl Resolver {
 
                 Ok(RExpr::GetLocal(slot, *line))
             }
+            Expr::Array { elements, line } => Ok(RExpr::Array(
+                elements
+                    .iter()
+                    .map(|e| self.resolve_expr(e))
+                    .collect::<Result<_, _>>()?,
+                *line,
+            )),
         }
     }
 }
@@ -497,5 +506,46 @@ x = 2
         }
 
         assert_eq!(resolved.local_count, 1);
+    }
+
+    #[test]
+    fn resolve_array_literal() {
+        let resolved = resolve("x = [1, 2, 3]");
+
+        match &resolved.body[0] {
+            RStmt::Assign { value, .. } => match value {
+                RExpr::Array(elements, _) => assert_eq!(elements.len(), 3),
+                _ => panic!("expected array"),
+            },
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn resolve_array_with_variable_reference() {
+        let err = Resolver::resolve(
+            &Parser::new(Lexer::new("y = [$x]").tokenize().unwrap())
+                .parse_script()
+                .unwrap(),
+        )
+        .unwrap_err();
+
+        assert!(err.message.contains("read before"));
+    }
+
+    #[test]
+    fn resolve_nested_array() {
+        let resolved = resolve("x = [[1, 2], [3]]");
+
+        match &resolved.body[0] {
+            RStmt::Assign { value, .. } => match value {
+                RExpr::Array(elements, _) => {
+                    assert_eq!(elements.len(), 2);
+                    assert!(matches!(elements[0], RExpr::Array(_, _)));
+                }
+                _ => panic!("expected array"),
+            },
+            _ => panic!(),
+        }
     }
 }

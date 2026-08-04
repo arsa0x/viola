@@ -118,6 +118,13 @@ impl Emitter {
                     *line,
                 );
             }
+            RExpr::Array(elements, line) => {
+                for e in elements {
+                    self.emit_expr(e);
+                }
+                self.chunk
+                    .emit(OpCode::MakeArray(elements.len() as u16), *line);
+            }
         }
     }
 }
@@ -149,6 +156,7 @@ fn stack_effect(op: &OpCode) -> i32 {
         OpCode::Not | OpCode::Neg => 0,
         OpCode::Jump(_) | OpCode::Ret => 0,
         OpCode::CallNative { argc, .. } => 1 - (*argc as i32),
+        OpCode::MakeArray(n) => 1 - (*n as i32),
     }
 }
 
@@ -172,4 +180,47 @@ fn verify_stack_balance(chunk: &Chunk) -> Result<(), CompileError> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
+    use crate::resolver::Resolver;
+
+    fn compile(src: &str) -> Chunk {
+        let tokens = Lexer::new(src).tokenize().unwrap();
+        let script = Parser::new(tokens).parse_script().unwrap();
+        let resolved = Resolver::resolve(&script).unwrap();
+        Emitter::emit_script(&resolved).unwrap()
+    }
+
+    #[test]
+    fn emit_array_literal() {
+        let chunk = compile("x = [1, 2, 3]");
+
+        let make_array_count = chunk
+            .code
+            .iter()
+            .filter(|op| matches!(op, OpCode::MakeArray(3)))
+            .count();
+        assert_eq!(make_array_count, 1);
+    }
+
+    #[test]
+    fn emit_empty_array_balances_stack() {
+        let chunk = compile("x = []");
+        assert!(
+            chunk
+                .code
+                .iter()
+                .any(|op| matches!(op, OpCode::MakeArray(0)))
+        );
+    }
+
+    #[test]
+    fn emit_nested_array_balances_stack() {
+        let _ = compile("x = [[1, 2], [3, 4], []]");
+    }
 }

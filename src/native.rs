@@ -30,6 +30,7 @@ pub enum Value {
     Int(i64),
     Float(f64),
     Str(Arc<str>),
+    Array(Arc<Vec<Value>>),
 }
 
 impl Value {
@@ -44,6 +45,7 @@ impl Value {
             Value::Int(_) => "int",
             Value::Float(_) => "float",
             Value::Str(_) => "str",
+            Value::Array(_) => "array",
         }
     }
 }
@@ -56,6 +58,7 @@ impl PartialEq for Value {
             (Value::Int(a), Value::Int(b)) => a == b,
             (Value::Float(a), Value::Float(b)) => a == b,
             (Value::Str(a), Value::Str(b)) => a.as_ref() == b.as_ref(),
+            (Value::Array(a), Value::Array(b)) => a.as_ref() == b.as_ref(),
             _ => false,
         }
     }
@@ -69,6 +72,16 @@ impl fmt::Display for Value {
             Value::Int(i) => write!(f, "{i}"),
             Value::Float(x) => write!(f, "{x}"),
             Value::Str(s) => write!(f, "{s}"),
+            Value::Array(items) => {
+                write!(f, "[")?;
+                for (i, v) in items.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{v}")?;
+                }
+                write!(f, "]")
+            }
         }
     }
 }
@@ -111,4 +124,45 @@ pub async fn send_text<H: Host>(
     ctx.host.send_text(&text).await?;
 
     Ok(Value::Nil)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn array_type_name() {
+        assert_eq!(Value::Array(Arc::new(vec![])).type_name(), "array");
+    }
+
+    #[test]
+    fn array_equality_is_structural() {
+        let a = Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)]));
+        let b = Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)]));
+        let c = Value::Array(Arc::new(vec![Value::Int(1), Value::Int(3)]));
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn array_clone_is_cheap_pointer_bump() {
+        let a = Value::Array(Arc::new(vec![Value::Int(1)]));
+        let b = a.clone();
+        if let (Value::Array(x), Value::Array(y)) = (&a, &b) {
+            assert!(Arc::ptr_eq(x, y));
+        } else {
+            panic!();
+        }
+    }
+
+    #[test]
+    fn array_display() {
+        let a = Value::Array(Arc::new(vec![Value::Int(1), Value::Str("x".into())]));
+        assert_eq!(a.to_string(), "[1, x]");
+    }
+
+    #[test]
+    fn array_is_always_truthy() {
+        assert!(Value::Array(Arc::new(vec![])).is_truthy());
+    }
 }
