@@ -26,6 +26,11 @@ pub enum OpCode {
 
     MakeArray(u16),
 
+    MakeObject(u16),
+    GetProperty(u16),
+    SetProperty(u16),
+    CallMethod { name_idx: u16, argc: u8 },
+
     Pop,
     Ret,
 }
@@ -36,6 +41,7 @@ pub struct Chunk {
     pub constants: Vec<Value>,
     pub lines: Vec<u16>,
     pub local_count: u16,
+    pub object_layouts: Vec<Box<[u16]>>,
 
     pub name: Option<String>,
     pub triggers: Vec<String>,
@@ -48,6 +54,20 @@ impl Chunk {
         self.lines.push(line);
 
         self.code.len() - 1
+    }
+
+    pub fn add_object_layout(&mut self, layout: Box<[u16]>) -> u16 {
+        if let Some(idx) = self
+            .object_layouts
+            .iter()
+            .position(|x| x.as_ref() == layout.as_ref())
+        {
+            return idx as u16;
+        }
+
+        self.object_layouts.push(layout);
+
+        (self.object_layouts.len() - 1) as u16
     }
 
     pub fn add_constant(&mut self, val: Value) -> u16 {

@@ -319,8 +319,27 @@ impl<'a> Parser<'a> {
                     line,
                 })
             }
-            _ => self.parse_primary(),
+            _ => self.parse_postfix(),
         }
+    }
+
+    fn parse_postfix(&mut self) -> Result<Expr, CompileError> {
+        let mut expr = self.parse_primary()?;
+
+        while self.check(&Token::Dot) {
+            let line = self.line();
+            self.advance();
+
+            let prop_name = self.expect_ident("property name")?;
+
+            expr = Expr::PropertyAccess {
+                object: Box::new(expr),
+                property: prop_name,
+                line,
+            };
+        }
+
+        Ok(expr)
     }
 
     fn parse_expr(&mut self) -> Result<Expr, CompileError> {
@@ -466,7 +485,7 @@ impl<'a> Parser<'a> {
 
         self.consume(&Token::RBrace)?;
 
-        Ok(Expr::Objet { properties, line })
+        Ok(Expr::Object { properties, line })
     }
 
     pub fn parse_script(&mut self) -> Result<Script, CompileError> {
@@ -773,5 +792,135 @@ x = 1
         let result = Parser::new(tokens).parse_script();
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_empty_object() {
+        let script = parse("user = {}");
+
+        match &script.body[0] {
+            Stmt::Assign { value, .. } => match value {
+                Expr::Object { properties, .. } => {
+                    assert!(properties.is_empty(), "Object should have no properties");
+                }
+                other => panic!("expected object expression, got {:?}", other),
+            },
+            _ => panic!("expected assignment"),
+        }
+    }
+
+    #[test]
+    fn parse_simple_object() {
+        let script = parse(r#"user = { name: "viola", age: 18 }"#);
+
+        match &script.body[0] {
+            Stmt::Assign { value, .. } => match value {
+                Expr::Object { properties, .. } => {
+                    assert_eq!(properties.len(), 2);
+
+                    assert_eq!(properties[0].0.as_ref(), "name");
+                    assert!(matches!(
+                        &properties[0].1,
+                        Expr::Literal(Literal::Str(s), _) if s.as_ref() == "viola"
+                    ));
+
+                    assert_eq!(properties[1].0.as_ref(), "age");
+                    assert!(matches!(
+                        properties[1].1,
+                        Expr::Literal(Literal::Int(18), _)
+                    ));
+                }
+                other => panic!("expected object expression, got {:?}", other),
+            },
+            _ => panic!("expected assignment"),
+        }
+    }
+
+    #[test]
+    fn parse_nested_object() {
+        let script = parse(r#"data = { user: { id: 1 } }"#);
+
+        match &script.body[0] {
+            Stmt::Assign { value, .. } => match value {
+                Expr::Object { properties, .. } => {
+                    assert_eq!(properties.len(), 1);
+                    assert_eq!(properties[0].0.as_ref(), "user");
+
+                    match &properties[0].1 {
+                        Expr::Object {
+                            properties: inner_props,
+                            ..
+                        } => {
+                            assert_eq!(inner_props.len(), 1);
+                            assert_eq!(inner_props[0].0.as_ref(), "id");
+                            assert!(matches!(
+                                inner_props[0].1,
+                                Expr::Literal(Literal::Int(1), _)
+                            ));
+                        }
+                        other => panic!("expected inner object, got {:?}", other),
+                    }
+                }
+                other => panic!("expected object expression, got {:?}", other),
+            },
+            _ => panic!("expected assignment"),
+        }
+    }
+
+    #[test]
+    fn parse_property_access() {
+        let script = parse("name = $user.name");
+
+        match &script.body[0] {
+            Stmt::Assign { value, .. } => match value {
+                Expr::PropertyAccess {
+                    object, property, ..
+                } => {
+                    assert_eq!(property.as_ref(), "name");
+
+                    match &**object {
+                        Expr::Var(var_name, _) => assert_eq!(var_name.as_ref(), "user"),
+                        other => panic!("expected variable object, got {:?}", other),
+                    }
+                }
+                other => panic!("expected property access expression, got {:?}", other),
+            },
+            _ => panic!("expected assignment"),
+        }
+    }
+
+    #[test]
+    fn parse_chained_property_access() {
+        let script = parse("first_name = $user.name.first");
+
+        match &script.body[0] {
+            Stmt::Assign { value, .. } => match value {
+                Expr::PropertyAccess {
+                    object, property, ..
+                } => {
+                    assert_eq!(property.as_ref(), "first");
+
+                    match &**object {
+                        Expr::PropertyAccess {
+                            object: inner_obj,
+                            property: inner_prop,
+                            ..
+                        } => {
+                            assert_eq!(inner_prop.as_ref(), "name");
+
+                            match &**inner_obj {
+                                Expr::Var(var_name, _) => assert_eq!(var_name.as_ref(), "user"),
+                                other => {
+                                    panic!("expected variable for inner object, got {:?}", other)
+                                }
+                            }
+                        }
+                        other => panic!("expected inner property access, got {:?}", other),
+                    }
+                }
+                other => panic!("expected property access expression, got {:?}", other),
+            },
+            _ => panic!("expected assignment"),
+        }
     }
 }

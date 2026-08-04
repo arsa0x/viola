@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::ast::{BinOp, Literal, UnOp};
 use crate::chunk::{Chunk, OpCode};
 use crate::error::CompileError;
@@ -125,6 +127,53 @@ impl Emitter {
                 self.chunk
                     .emit(OpCode::MakeArray(elements.len() as u16), *line);
             }
+            RExpr::Object { properties, line } => {
+                let mut layout = Vec::with_capacity(properties.len());
+
+                for (key, value) in properties {
+                    let key_idx = self.chunk.add_constant(Value::Str(Arc::from(key.as_ref())));
+
+                    layout.push(key_idx);
+
+                    self.emit_expr(value);
+                }
+
+                let layout_idx = self.chunk.add_object_layout(layout.into_boxed_slice());
+
+                self.chunk.emit(OpCode::MakeObject(layout_idx), *line);
+            }
+            RExpr::PropertyAccess {
+                object,
+                property,
+                line,
+            } => {
+                self.emit_expr(object);
+                let prop_idx = self
+                    .chunk
+                    .add_constant(Value::Str(Arc::from(property.as_ref())));
+                self.chunk.emit(OpCode::GetProperty(prop_idx), *line);
+            }
+            RExpr::MethodCall {
+                object,
+                method,
+                args,
+                line,
+            } => {
+                self.emit_expr(object);
+                for arg in args {
+                    self.emit_expr(arg);
+                }
+                let name_idx = self
+                    .chunk
+                    .add_constant(Value::Str(Arc::from(method.as_ref())));
+                self.chunk.emit(
+                    OpCode::CallMethod {
+                        name_idx,
+                        argc: args.len() as u8,
+                    },
+                    *line,
+                );
+            }
         }
     }
 }
@@ -133,13 +182,13 @@ fn literal_to_value(lit: &Literal) -> Value {
     match lit {
         Literal::Int(i) => Value::Int(*i),
         Literal::Float(x) => Value::Float(*x),
-        Literal::Str(s) => Value::Str(std::sync::Arc::from(s.as_ref())),
+        Literal::Str(s) => Value::Str(Arc::from(s.as_ref())),
         Literal::Bool(b) => Value::Bool(*b),
         Literal::Nil => Value::Nil,
     }
 }
 
-fn stack_effect(op: &OpCode) -> i32 {
+fn stack_effect(chunk: &Chunk, op: &OpCode) -> i32 {
     match op {
         OpCode::Constant(_) | OpCode::GetLocal(_) => 1,
         OpCode::SetLocal(_) | OpCode::Pop | OpCode::JumpIfFalse(_) => -1,
@@ -157,13 +206,17 @@ fn stack_effect(op: &OpCode) -> i32 {
         OpCode::Jump(_) | OpCode::Ret => 0,
         OpCode::CallNative { argc, .. } => 1 - (*argc as i32),
         OpCode::MakeArray(n) => 1 - (*n as i32),
+        OpCode::CallMethod { argc, .. } => -(*argc as i32),
+        OpCode::GetProperty(_) => 0,
+        OpCode::SetProperty(_) => -1,
+        OpCode::MakeObject(n) => 1 - (chunk.object_layouts[*n as usize].len() as i32),
     }
 }
 
 fn verify_stack_balance(chunk: &Chunk) -> Result<(), CompileError> {
     let mut depth: i32 = 0;
     for (i, op) in chunk.code.iter().enumerate() {
-        depth += stack_effect(op);
+        depth += stack_effect(chunk, op);
         if depth < 0 {
             return Err(CompileError::new(
                 chunk.lines[i],

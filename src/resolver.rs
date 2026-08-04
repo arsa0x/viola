@@ -79,6 +79,24 @@ pub enum RExpr {
     },
 
     Array(Vec<RExpr>, u16),
+
+    Object {
+        properties: Vec<(Rc<str>, RExpr)>,
+        line: u16,
+    },
+
+    PropertyAccess {
+        object: Box<RExpr>,
+        property: Rc<str>,
+        line: u16,
+    },
+
+    MethodCall {
+        object: Box<RExpr>,
+        method: Rc<str>,
+        args: Vec<RExpr>,
+        line: u16,
+    },
 }
 
 impl RStmt {
@@ -297,11 +315,18 @@ impl Resolver {
                     .collect::<Result<_, _>>()?,
                 *line,
             )),
-            Expr::Objet { properties, line } => {
-                return Err(CompileError {
+            Expr::Object { properties, line } => {
+                let mut props = Vec::with_capacity(properties.len());
+
+                for (key, val_expr) in properties {
+                    let val = self.resolve_expr(val_expr)?;
+                    props.push((key.clone(), val));
+                }
+
+                Ok(RExpr::Object {
+                    properties: props,
                     line: *line,
-                    message: "to do".into(),
-                });
+                })
             }
             Expr::MethodCall {
                 object,
@@ -309,21 +334,31 @@ impl Resolver {
                 args,
                 line,
             } => {
-                return Err(CompileError {
-                    line: *line,
-                    message: "to do".into(),
-                });
-            }
+                let r_obj = self.resolve_expr(object)?;
+                let r_args = args
+                    .iter()
+                    .map(|arg| self.resolve_expr(arg))
+                    .collect::<Result<Vec<_>, _>>()?;
 
+                Ok(RExpr::MethodCall {
+                    object: Box::new(r_obj),
+                    method: method.clone(),
+                    args: r_args,
+                    line: *line,
+                })
+            }
             Expr::PropertyAccess {
                 object,
                 property,
                 line,
             } => {
-                return Err(CompileError {
+                let obj = self.resolve_expr(object)?;
+
+                Ok(RExpr::PropertyAccess {
+                    object: Box::new(obj),
+                    property: property.clone(),
                     line: *line,
-                    message: "to do".into(),
-                });
+                })
             }
         }
     }

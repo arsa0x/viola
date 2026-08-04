@@ -4,8 +4,6 @@ use std::borrow::Cow;
 pub enum Token<'a> {
     Ident(&'a str),
     Var(&'a str),
-    // Native(&'a str),
-    // Method(&'a str),
     Str(Cow<'a, str>),
     Int(i64),
     Float(f64),
@@ -156,26 +154,12 @@ impl<'a> Lexer<'a> {
                     Ok((Token::Gt, line))
                 }
             }
-
             '"' => self.read_string(line),
             ':' => Ok((Token::Colon, line)),
-            // ':' => {
-            //     if self
-            //         .peek_char()
-            //         .map_or(false, |c| c.is_alphabetic() || c == '_')
-            //     {
-            //         self.read_sig_name(start + 1, line, Token::Native)
-            //     } else {
-            //         Ok((Token::Colon, line))
-            //     }
-            // }
             '$' => self.read_sig_name(start + 1, line, Token::Var),
-            // '.' => self.read_sig_name(start + 1, line, Token::Method),
             '.' => Ok((Token::Dot, line)),
-
             c if c.is_alphabetic() || c == '_' => Ok(self.read_ident(start)),
             c if c.is_ascii_digit() => Ok((self.read_number(start, line)?, self.line)),
-
             other => Err(LexError {
                 line: line,
                 message: format!("unknown character: {other:?}"),
@@ -532,5 +516,50 @@ x = 1 # another comment
 
         assert_eq!(err.line, 1);
         assert!(err.message.contains("unclosed string"));
+    }
+
+    #[test]
+    fn object_literal() {
+        let tokens = lex(r#"{ name: "viola", age: 20 }"#);
+
+        assert_eq!(
+            tokens,
+            vec![
+                (Token::LBrace, 1),
+                (Token::Ident("name"), 1),
+                (Token::Colon, 1),
+                (Token::Str("viola".into()), 1),
+                (Token::Comma, 1),
+                (Token::Ident("age"), 1),
+                (Token::Colon, 1),
+                (Token::Int(20), 1),
+                (Token::RBrace, 1),
+                (Token::EOF, 1),
+            ]
+        );
+    }
+
+    #[test]
+    fn multiline_object_literal() {
+        let tokens = lex("{\n  name: \"viola\",\n  age: 20\n}");
+
+        assert_eq!(
+            tokens,
+            vec![
+                (Token::LBrace, 1),
+                (Token::Newline, 2),
+                (Token::Ident("name"), 2),
+                (Token::Colon, 2),
+                (Token::Str("viola".into()), 2),
+                (Token::Comma, 2),
+                (Token::Newline, 3),
+                (Token::Ident("age"), 3),
+                (Token::Colon, 3),
+                (Token::Int(20), 3),
+                (Token::Newline, 4),
+                (Token::RBrace, 4),
+                (Token::EOF, 4),
+            ]
+        );
     }
 }

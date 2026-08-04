@@ -31,6 +31,7 @@ pub enum Value {
     Float(f64),
     Str(Arc<str>),
     Array(Arc<Vec<Value>>),
+    Object(Arc<Vec<(Arc<str>, Value)>>),
 }
 
 impl Value {
@@ -46,6 +47,17 @@ impl Value {
             Value::Float(_) => "float",
             Value::Str(_) => "str",
             Value::Array(_) => "array",
+            Self::Object(_) => "object",
+        }
+    }
+
+    pub fn get_field(&self, name: &str) -> Option<&Value> {
+        match self {
+            Value::Object(fields) => fields
+                .iter()
+                .find(|(k, _)| k.as_ref() == name)
+                .map(|(_, v)| v),
+            _ => None,
         }
     }
 }
@@ -59,6 +71,7 @@ impl PartialEq for Value {
             (Value::Float(a), Value::Float(b)) => a == b,
             (Value::Str(a), Value::Str(b)) => a.as_ref() == b.as_ref(),
             (Value::Array(a), Value::Array(b)) => a.as_ref() == b.as_ref(),
+            (Value::Object(a), Value::Object(b)) => a.as_ref() == b.as_ref(),
             _ => false,
         }
     }
@@ -81,6 +94,16 @@ impl fmt::Display for Value {
                     write!(f, "{v}")?;
                 }
                 write!(f, "]")
+            }
+            Value::Object(fields) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in fields.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{k}: {v}")?;
+                }
+                write!(f, "}}")
             }
         }
     }
@@ -138,6 +161,7 @@ mod tests {
         assert_eq!(Value::Float(1.5).type_name(), "float");
         assert_eq!(Value::Str("hello".into()).type_name(), "str");
         assert_eq!(Value::Array(Arc::new(vec![])).type_name(), "array");
+        assert_eq!(Value::Object(Arc::new(vec![])).type_name(), "object");
     }
 
     #[test]
@@ -221,5 +245,46 @@ mod tests {
     #[test]
     fn array_is_always_truthy() {
         assert!(Value::Array(Arc::new(vec![])).is_truthy());
+    }
+
+    #[test]
+    fn object_equality_is_structural() {
+        let a = Value::Object(Arc::new(vec![(Arc::from("x"), Value::Int(1))]));
+        let b = Value::Object(Arc::new(vec![(Arc::from("x"), Value::Int(1))]));
+        let c = Value::Object(Arc::new(vec![(Arc::from("x"), Value::Int(2))]));
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn object_display() {
+        let o = Value::Object(Arc::new(vec![
+            (Arc::from("a"), Value::Int(1)),
+            (Arc::from("b"), Value::Str("x".into())),
+        ]));
+        assert_eq!(o.to_string(), "{a: 1, b: x}");
+    }
+
+    #[test]
+    fn get_field_found() {
+        let o = Value::Object(Arc::new(vec![(
+            Arc::from("name"),
+            Value::Str("viola".into()),
+        )]));
+        assert_eq!(o.get_field("name"), Some(&Value::Str("viola".into())));
+    }
+
+    #[test]
+    fn get_field_missing() {
+        let o = Value::Object(Arc::new(vec![(
+            Arc::from("name"),
+            Value::Str("viola".into()),
+        )]));
+        assert_eq!(o.get_field("nope"), None);
+    }
+
+    #[test]
+    fn get_field_on_non_object_is_none() {
+        assert_eq!(Value::Int(1).get_field("x"), None);
     }
 }

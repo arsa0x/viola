@@ -126,15 +126,54 @@ impl<'a> Vm<'a> {
                     }
                 }
                 OpCode::MakeArray(n) => {
-                    let n = n as usize;
+                    let start = self.stack.len() - n as usize;
+                    let elements = self.stack.split_off(start);
+
+                    self.stack.push(Value::Array(Arc::new(elements)));
+                }
+                OpCode::MakeObject(layout_idx) => {
+                    let layout = &self.chunk.object_layouts[layout_idx as usize];
+                    let count = layout.len();
                     let line = self.line();
 
-                    if self.stack.len() < n {
+                    if self.stack.len() < count {
                         return Err(VmError::StackUnderflow { line });
                     }
 
-                    let items = self.stack.split_off(self.stack.len() - n);
-                    self.stack.push(Value::Array(Arc::new(items)));
+                    let values = self.stack.split_off(self.stack.len() - count);
+
+                    let mut props = Vec::with_capacity(count);
+
+                    for (idx, value) in layout.iter().zip(values) {
+                        let key = match &self.chunk.constants[*idx as usize] {
+                            Value::Str(name) => name.clone(),
+                            _ => unreachable!("object key must be string"),
+                        };
+
+                        props.push((key, value));
+                    }
+
+                    self.stack.push(Value::Object(Arc::new(props)));
+                }
+                OpCode::GetProperty(n) => {
+                    let obj = self.pop()?;
+
+                    let prop_name = match &self.chunk.constants[n as usize] {
+                        Value::Str(name) => name,
+                        _ => unreachable!("property name must be string"),
+                    };
+
+                    if let Some(val) = obj.get_field(prop_name.as_ref()) {
+                        self.stack.push(val.clone());
+                    } else {
+                        self.stack.push(Value::Nil);
+                    }
+                }
+                OpCode::SetProperty(_n) => {
+                    unimplemented!("SetProperty not yet implemented")
+                }
+                OpCode::CallMethod { .. } => {
+                    unimplemented!("CallMethod not yet implemented")
                 }
                 OpCode::Pop => {
                     self.pop()?;
@@ -320,6 +359,66 @@ mod tests {
     #[tokio::test]
     async fn array_with_native_call_element() {
         let chunk = compile(r#"x = [:send .text "hi"]"#);
+        run(&chunk).await;
+    }
+
+    #[tokio::test]
+    async fn make_empty_object_runs_without_underflow() {
+        let chunk = compile("x = {}");
+        run(&chunk).await;
+    }
+
+    #[tokio::test]
+    async fn make_object_runs_correctly() {
+        let chunk = compile("x = { a: 1, b: \"hello\", c: 3.14 }");
+        run(&chunk).await;
+    }
+
+    // #[tokio::test]
+    // async fn get_property_runs_correctly() {
+    //     let chunk = compile(
+    //         r#"
+    //             obj = { name: "test", val: 42 }
+    //             x = obj.val
+    //         "#,
+    //     );
+    //     run(&chunk).await;
+    // }
+
+    // #[tokio::test]
+    // async fn get_missing_property_runs_without_panic() {
+    //     let chunk = compile(
+    //         r#"
+    //             obj = { a: 1 }
+    //             x = obj.missing_field
+    //         "#,
+    //     );
+    //     run(&chunk).await;
+    // }
+
+    // #[tokio::test]
+    // async fn nested_object_property_access() {
+    //     let chunk = compile(
+    //         r#"
+    //             data = {
+    //                 user: {
+    //                     id: 99,
+    //                     active: true
+    //                 }
+    //             }
+    //             res = data.user.id
+    //         "#,
+    //     );
+    //     run(&chunk).await;
+    // }
+
+    #[tokio::test]
+    async fn get_property_from_array_of_objects() {
+        let chunk = compile(
+            r#"
+                arr = [ {id: 1}, {id: 2} ]
+            "#,
+        );
         run(&chunk).await;
     }
 }

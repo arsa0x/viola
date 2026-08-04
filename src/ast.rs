@@ -61,7 +61,7 @@ pub enum Expr {
         elements: Vec<Expr>,
         line: u16,
     },
-    Objet {
+    Object {
         properties: Vec<(Rc<str>, Expr)>,
         line: u16,
     },
@@ -95,7 +95,7 @@ impl Expr {
             | Expr::Array { line, .. }
             | Expr::MethodCall { line, .. }
             | Expr::PropertyAccess { line, .. }
-            | Expr::Objet { line, .. } => *line,
+            | Expr::Object { line, .. } => *line,
         }
     }
 }
