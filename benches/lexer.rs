@@ -1,43 +1,33 @@
-use std::hint::black_box;
-
-use criterion::{Criterion, criterion_group, criterion_main};
 use viola_script::lexer::Lexer;
 
-fn lexer_small(c: &mut Criterion) {
-    c.bench_function("lexer_small", |b| {
-        b.iter(|| {
-            black_box(
-                Lexer::new(black_box(include_str!("fixtures/small.vi")))
-                    .tokenize()
-                    .unwrap(),
-            );
-        });
+#[derive(Clone, Copy, Debug)]
+pub enum Fixture {
+    Small,
+    Medium,
+    Large,
+}
+
+impl Fixture {
+    fn source(self) -> &'static str {
+        match self {
+            Fixture::Small => include_str!("fixtures/small.vi"),
+            Fixture::Medium => include_str!("fixtures/medium.vi"),
+            Fixture::Large => include_str!("fixtures/large.vi"),
+        }
+    }
+}
+
+#[divan::bench(args = [
+    Fixture::Small,
+    Fixture::Medium,
+    Fixture::Large,
+])]
+fn lexer(bencher: divan::Bencher, fixture: Fixture) {
+    bencher.bench(|| {
+        Lexer::new(fixture.source()).tokenize().unwrap();
     });
 }
 
-fn lexer_medium(c: &mut Criterion) {
-    c.bench_function("lexer_medium", |b| {
-        b.iter(|| {
-            black_box(
-                Lexer::new(black_box(include_str!("fixtures/medium.vi")))
-                    .tokenize()
-                    .unwrap(),
-            );
-        });
-    });
+fn main() {
+    divan::main();
 }
-
-fn lexer_large(c: &mut Criterion) {
-    c.bench_function("lexer_large", |b| {
-        b.iter(|| {
-            black_box(
-                Lexer::new(black_box(include_str!("fixtures/large.vi")))
-                    .tokenize()
-                    .unwrap(),
-            );
-        });
-    });
-}
-
-criterion_group!(benches, lexer_small, lexer_medium, lexer_large);
-criterion_main!(benches);

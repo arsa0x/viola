@@ -1,5 +1,5 @@
 @name benchmark_medium
-@triggers message_create|message_update
+@triggers medium
 
 username = "Viola"
 score = 10

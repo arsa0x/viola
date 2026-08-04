@@ -118,45 +118,79 @@ impl<'a> Parser<'a> {
             Token::True => Ok(Expr::Literal(Literal::Bool(true), line)),
             Token::False => Ok(Expr::Literal(Literal::Bool(false), line)),
             Token::Var(name) => Ok(Expr::Var(Rc::from(name), line)),
-            Token::Native(n) => self.parse_native(Rc::from(n), line),
+            Token::Colon => {
+                let cmd_token = self.advance();
+
+                let command: Rc<str> = match cmd_token {
+                    Token::Ident(n) => Rc::from(n),
+                    _ => {
+                        return Err(CompileError::new(
+                            line,
+                            format!(
+                                "expected identifier after ':' for native call, found {cmd_token:?}"
+                            ),
+                        ));
+                    }
+                };
+
+                let mut method = None;
+
+                if self.check(&Token::Dot) {
+                    self.advance();
+
+                    let mt = self.advance();
+                    match mt {
+                        Token::Ident(n) => method = Some(Rc::from(n)),
+                        _ => {
+                            return Err(CompileError::new(
+                                self.line(),
+                                format!("expected method name after '.', found {mt:?}"),
+                            ));
+                        }
+                    }
+                }
+
+                let mut args = Vec::new();
+
+                if self.check(&Token::LParen) {
+                    self.consume(&Token::LParen)?;
+
+                    while !self.check(&Token::RParen) {
+                        args.push(self.parse_expr()?);
+                        if self.check(&Token::Comma) {
+                            self.advance();
+                        }
+                    }
+
+                    self.consume(&Token::RParen)?;
+                } else if self.can_start_expr() {
+                    args.push(self.parse_expr()?);
+
+                    while self.check(&Token::Comma) {
+                        self.advance();
+                        args.push(self.parse_expr()?);
+                    }
+                }
+
+                Ok(Expr::NativeCall {
+                    command,
+                    method,
+                    args,
+                    line,
+                })
+            }
             Token::LParen => {
                 let e = self.parse_expr()?;
                 self.consume(&Token::RParen)?;
                 Ok(e)
             }
+            Token::LBrace => self.parse_object(line),
             Token::LBracket => self.parse_array(line),
             other => Err(CompileError::new(
                 line,
                 format!("invalid expression found {:?}", other),
             )),
         }
-    }
-
-    fn parse_native(&mut self, command: Rc<str>, line: u16) -> Result<Expr, CompileError> {
-        let method = if let Token::Method(m) = self.peek().clone() {
-            self.advance();
-            Some(Rc::from(m))
-        } else {
-            None
-        };
-
-        let mut args = Vec::new();
-
-        if self.can_start_expr() {
-            args.push(self.parse_expr()?);
-            while self.check(&Token::Comma) {
-                self.advance();
-
-                args.push(self.parse_expr()?);
-            }
-        }
-
-        Ok(Expr::NativeCall {
-            command,
-            method,
-            args,
-            line,
-        })
     }
 
     fn can_start_expr(&mut self) -> bool {
@@ -369,9 +403,9 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_array(&mut self, line: u16) -> Result<Expr, CompileError> {
-        self.skip_newlines();
-
         let mut elements = Vec::new();
+
+        self.skip_newlines();
 
         while !self.check(&Token::RBracket) {
             elements.push(self.parse_expr()?);
@@ -389,6 +423,50 @@ impl<'a> Parser<'a> {
         self.consume(&Token::RBracket)?;
 
         Ok(Expr::Array { elements, line })
+    }
+
+    fn parse_object(&mut self, line: u16) -> Result<Expr, CompileError> {
+        let mut properties = Vec::new();
+
+        self.skip_newlines();
+
+        while !self.check(&Token::RBrace) {
+            self.skip_newlines();
+
+            if self.check(&Token::RBrace) {
+                break;
+            }
+
+            let key_token = self.advance();
+            let key = match key_token {
+                Token::Ident(k) => Rc::from(k),
+                Token::Str(k) => Rc::from(k),
+                _ => {
+                    return Err(CompileError::new(
+                        self.line(),
+                        format!(
+                            "expected property name (identifier or string), found {key_token:?}"
+                        ),
+                    ));
+                }
+            };
+
+            self.consume(&Token::Colon)?;
+            let value = self.parse_expr()?;
+
+            properties.push((key, value));
+
+            if self.check(&Token::Comma) {
+                self.advance();
+            } else {
+                self.skip_newlines();
+                break;
+            }
+        }
+
+        self.consume(&Token::RBrace)?;
+
+        Ok(Expr::Objet { properties, line })
     }
 
     pub fn parse_script(&mut self) -> Result<Script, CompileError> {

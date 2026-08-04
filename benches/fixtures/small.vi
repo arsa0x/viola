@@ -1,5 +1,5 @@
 @name     smal
-@triggers smal|sm|s
+@triggers smal
 category  bench
 x = 1
 y = 2

@@ -46,10 +46,6 @@ impl Stmt {
 pub enum Expr {
     Literal(Literal, u16),
     Var(Rc<str>, u16),
-    Array {
-        elements: Vec<Expr>,
-        line: u16,
-    },
     Binary {
         op: BinOp,
         lhs: Box<Expr>,
@@ -59,6 +55,25 @@ pub enum Expr {
     Unary {
         op: UnOp,
         expr: Box<Expr>,
+        line: u16,
+    },
+    Array {
+        elements: Vec<Expr>,
+        line: u16,
+    },
+    Objet {
+        properties: Vec<(Rc<str>, Expr)>,
+        line: u16,
+    },
+    PropertyAccess {
+        object: Box<Expr>,
+        property: Rc<str>,
+        line: u16,
+    },
+    MethodCall {
+        object: Box<Expr>,
+        method: Rc<str>,
+        args: Vec<Expr>,
         line: u16,
     },
     NativeCall {
@@ -77,7 +92,10 @@ impl Expr {
             | Expr::Binary { line, .. }
             | Expr::Unary { line, .. }
             | Expr::NativeCall { line, .. }
-            | Expr::Array { line, .. } => *line,
+            | Expr::Array { line, .. }
+            | Expr::MethodCall { line, .. }
+            | Expr::PropertyAccess { line, .. }
+            | Expr::Objet { line, .. } => *line,
         }
     }
 }

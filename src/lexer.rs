@@ -4,9 +4,8 @@ use std::borrow::Cow;
 pub enum Token<'a> {
     Ident(&'a str),
     Var(&'a str),
-    Native(&'a str),
-    Method(&'a str),
-
+    // Native(&'a str),
+    // Method(&'a str),
     Str(Cow<'a, str>),
     Int(i64),
     Float(f64),
@@ -36,6 +35,7 @@ pub enum Token<'a> {
     Colon,
     Comma,
     At,
+    Dot,
 
     Newline,
     EOF,
@@ -158,19 +158,20 @@ impl<'a> Lexer<'a> {
             }
 
             '"' => self.read_string(line),
-
-            ':' => {
-                if self
-                    .peek_char()
-                    .map_or(false, |c| c.is_alphabetic() || c == '_')
-                {
-                    self.read_sig_name(start + 1, line, Token::Native)
-                } else {
-                    Ok((Token::Colon, line))
-                }
-            }
+            ':' => Ok((Token::Colon, line)),
+            // ':' => {
+            //     if self
+            //         .peek_char()
+            //         .map_or(false, |c| c.is_alphabetic() || c == '_')
+            //     {
+            //         self.read_sig_name(start + 1, line, Token::Native)
+            //     } else {
+            //         Ok((Token::Colon, line))
+            //     }
+            // }
             '$' => self.read_sig_name(start + 1, line, Token::Var),
-            '.' => self.read_sig_name(start + 1, line, Token::Method),
+            // '.' => self.read_sig_name(start + 1, line, Token::Method),
+            '.' => Ok((Token::Dot, line)),
 
             c if c.is_alphabetic() || c == '_' => Ok(self.read_ident(start)),
             c if c.is_ascii_digit() => Ok((self.read_number(start, line)?, self.line)),
@@ -451,9 +452,11 @@ mod tests {
         assert_eq!(
             tokens,
             vec![
-                (Token::Native("print"), 1),
+                (Token::Colon, 1),
+                (Token::Ident("print"), 1),
                 (Token::Var("name"), 1),
-                (Token::Method("len"), 1),
+                (Token::Dot, 1),
+                (Token::Ident("len"), 1),
                 (Token::EOF, 1),
             ]
         );

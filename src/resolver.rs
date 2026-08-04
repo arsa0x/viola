@@ -297,6 +297,34 @@ impl Resolver {
                     .collect::<Result<_, _>>()?,
                 *line,
             )),
+            Expr::Objet { properties, line } => {
+                return Err(CompileError {
+                    line: *line,
+                    message: "to do".into(),
+                });
+            }
+            Expr::MethodCall {
+                object,
+                method,
+                args,
+                line,
+            } => {
+                return Err(CompileError {
+                    line: *line,
+                    message: "to do".into(),
+                });
+            }
+
+            Expr::PropertyAccess {
+                object,
+                property,
+                line,
+            } => {
+                return Err(CompileError {
+                    line: *line,
+                    message: "to do".into(),
+                });
+            }
         }
     }
 }
