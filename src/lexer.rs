@@ -1,43 +1,6 @@
 use std::borrow::Cow;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Token<'a> {
-    Ident(&'a str),
-    Var(&'a str),
-    Str(Cow<'a, str>),
-    Int(i64),
-    Float(f64),
-    True,
-    False,
-
-    Eq,
-    NotEq,
-    Lt,
-    Le,
-    Gt,
-    Ge,
-    Plus,
-    Minus,
-    Star,
-    Slash,
-    Bang,
-    Assign,
-    Pipe,
-
-    LBrace,
-    RBrace,
-    LBracket,
-    RBracket,
-    LParen,
-    RParen,
-    Colon,
-    Comma,
-    At,
-    Dot,
-
-    Newline,
-    EOF,
-}
+use crate::token::Token;
 
 pub struct Lexer<'a> {
     src: &'a str,

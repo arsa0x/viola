@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::{
     ast::{BinOp, Expr, Literal, Script, ScriptMeta, Stmt, UnOp},
     error::CompileError,
-    lexer::Token,
+    token::Token,
 };
 
 pub struct Parser<'a> {

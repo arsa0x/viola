@@ -6,6 +6,7 @@ pub mod lexer;
 pub mod native;
 pub mod parser;
 pub mod resolver;
+pub mod token;
 pub mod vm;
 
 pub use chunk::Chunk;
