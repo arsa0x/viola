@@ -7,12 +7,12 @@ use crate::{
 };
 
 pub struct Parser<'a> {
-    tokens: Vec<(Token<'a>, u16)>,
+    tokens: Vec<(Token<'a>, u32)>,
     pos: usize,
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: Vec<(Token<'a>, u16)>) -> Self {
+    pub fn new(tokens: Vec<(Token<'a>, u32)>) -> Self {
         Self { tokens, pos: 0 }
     }
 
@@ -20,7 +20,7 @@ impl<'a> Parser<'a> {
         &self.tokens[self.pos].0
     }
 
-    fn line(&self) -> u16 {
+    fn line(&self) -> u32 {
         self.tokens[self.pos].1
     }
 
@@ -117,7 +117,7 @@ impl<'a> Parser<'a> {
             Token::Str(s) => Ok(Expr::Literal(Literal::Str(Rc::from(s)), line)),
             Token::True => Ok(Expr::Literal(Literal::Bool(true), line)),
             Token::False => Ok(Expr::Literal(Literal::Bool(false), line)),
-            Token::Var(name) => Ok(Expr::Var(Rc::from(name), line)),
+            // Token::Var(name) => Ok(Expr::Var(Rc::from(name), line)),
             Token::Colon => {
                 let cmd_token = self.advance();
 
@@ -421,7 +421,7 @@ impl<'a> Parser<'a> {
         Ok(stmts)
     }
 
-    fn parse_array(&mut self, line: u16) -> Result<Expr, CompileError> {
+    fn parse_array(&mut self, line: u32) -> Result<Expr, CompileError> {
         let mut elements = Vec::new();
 
         self.skip_newlines();
@@ -444,7 +444,7 @@ impl<'a> Parser<'a> {
         Ok(Expr::Array { elements, line })
     }
 
-    fn parse_object(&mut self, line: u16) -> Result<Expr, CompileError> {
+    fn parse_object(&mut self, line: u32) -> Result<Expr, CompileError> {
         let mut properties = Vec::new();
 
         self.skip_newlines();

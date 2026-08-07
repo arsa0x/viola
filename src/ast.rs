@@ -18,22 +18,22 @@ pub enum Stmt {
     Assign {
         name: Rc<str>,
         value: Expr,
-        line: u16,
+        line: u32,
     },
     ExprStmt {
         expr: Expr,
-        line: u16,
+        line: u32,
     },
     If {
         cond: Expr,
         then_blk: Vec<Stmt>,
         else_blk: Option<Vec<Stmt>>,
-        line: u16,
+        line: u32,
     },
 }
 
 impl Stmt {
-    pub fn line(&self) -> u16 {
+    pub fn line(&self) -> u32 {
         match self {
             Stmt::Assign { line, .. } => *line,
             Stmt::ExprStmt { line, .. } => *line,
@@ -44,48 +44,48 @@ impl Stmt {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    Literal(Literal, u16),
-    Var(Rc<str>, u16),
+    Literal(Literal, u32),
+    Var(Rc<str>, u32),
     Binary {
         op: BinOp,
         lhs: Box<Expr>,
         rhs: Box<Expr>,
-        line: u16,
+        line: u32,
     },
     Unary {
         op: UnOp,
         expr: Box<Expr>,
-        line: u16,
+        line: u32,
     },
     Array {
         elements: Vec<Expr>,
-        line: u16,
+        line: u32,
     },
     Object {
         properties: Vec<(Rc<str>, Expr)>,
-        line: u16,
+        line: u32,
     },
     PropertyAccess {
         object: Box<Expr>,
         property: Rc<str>,
-        line: u16,
+        line: u32,
     },
     MethodCall {
         object: Box<Expr>,
         method: Rc<str>,
         args: Vec<Expr>,
-        line: u16,
+        line: u32,
     },
     NativeCall {
         command: Rc<str>,
         method: Option<Rc<str>>,
         args: Vec<Expr>,
-        line: u16,
+        line: u32,
     },
 }
 
 impl Expr {
-    pub fn line(&self) -> u16 {
+    pub fn line(&self) -> u32 {
         match self {
             Expr::Literal(_, line)
             | Expr::Var(_, line)

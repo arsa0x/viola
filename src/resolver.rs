@@ -37,70 +37,70 @@ pub enum RStmt {
     Assign {
         slot: u16,
         value: RExpr,
-        line: u16,
+        line: u32,
     },
 
     ExprStmt {
         expr: RExpr,
-        line: u16,
+        line: u32,
     },
 
     If {
         cond: RExpr,
         then_blk: Vec<RStmt>,
         else_blk: Option<Vec<RStmt>>,
-        line: u16,
+        line: u32,
     },
 }
 
 #[derive(Debug)]
 pub enum RExpr {
-    Literal(Literal, u16),
+    Literal(Literal, u32),
 
-    GetLocal(u16, u16),
+    GetLocal(u16, u32),
 
     Binary {
         op: BinOp,
         lhs: Box<RExpr>,
         rhs: Box<RExpr>,
-        line: u16,
+        line: u32,
     },
 
     Unary {
         op: UnOp,
         expr: Box<RExpr>,
-        line: u16,
+        line: u32,
     },
 
     NativeCall {
         id: NativeId,
         args: Vec<RExpr>,
-        line: u16,
+        line: u32,
     },
 
-    Array(Vec<RExpr>, u16),
+    Array(Vec<RExpr>, u32),
 
     Object {
         properties: Vec<(Rc<str>, RExpr)>,
-        line: u16,
+        line: u32,
     },
 
     PropertyAccess {
         object: Box<RExpr>,
         property: Rc<str>,
-        line: u16,
+        line: u32,
     },
 
     MethodCall {
         object: Box<RExpr>,
         method: Rc<str>,
         args: Vec<RExpr>,
-        line: u16,
+        line: u32,
     },
 }
 
 impl RStmt {
-    pub fn line(&self) -> u16 {
+    pub fn line(&self) -> u32 {
         match self {
             RStmt::Assign { line, .. } => *line,
             RStmt::ExprStmt { line, .. } => *line,

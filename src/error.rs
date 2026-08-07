@@ -2,12 +2,12 @@ use std::fmt;
 
 #[derive(Debug)]
 pub struct CompileError {
-    pub line: u16,
+    pub line: u32,
     pub message: String,
 }
 
 impl CompileError {
-    pub fn new(line: u16, message: impl Into<String>) -> Self {
+    pub fn new(line: u32, message: impl Into<String>) -> Self {
         Self {
             line,
             message: message.into(),
@@ -24,19 +24,19 @@ impl fmt::Display for CompileError {
 #[derive(Debug)]
 pub enum VmError {
     Native {
-        line: u16,
+        line: u32,
         err: NativeError,
     },
 
     TypeMismatch {
-        line: u16,
+        line: u32,
         op: &'static str,
         lhs: &'static str,
         rhs: &'static str,
     },
 
     StackUnderflow {
-        line: u16,
+        line: u32,
     },
 }
 

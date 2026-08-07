@@ -39,7 +39,7 @@ pub enum OpCode {
 pub struct Chunk {
     pub code: Vec<OpCode>,
     pub constants: Vec<Value>,
-    pub lines: Vec<u16>,
+    pub lines: Vec<u32>,
     pub local_count: u16,
     pub object_layouts: Vec<Box<[u16]>>,
 
@@ -49,7 +49,7 @@ pub struct Chunk {
 }
 
 impl Chunk {
-    pub fn emit(&mut self, op: OpCode, line: u16) -> usize {
+    pub fn emit(&mut self, op: OpCode, line: u32) -> usize {
         self.code.push(op);
         self.lines.push(line);
 

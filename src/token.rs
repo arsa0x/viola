@@ -14,6 +14,7 @@ use std::borrow::Cow;
 ///
 /// ```
 /// use std::borrow::Cow;
+/// use viola_script::token::Token;
 ///
 /// let identifier = Token::Ident("hello");
 /// let string = Token::Str(Cow::Borrowed("world"));

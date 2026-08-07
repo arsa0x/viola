@@ -23,7 +23,7 @@ impl<'a> Vm<'a> {
         }
     }
 
-    fn line(&self) -> u16 {
+    fn line(&self) -> u32 {
         self.chunk.lines.get(self.ip).copied().unwrap_or(0)
     }
 
