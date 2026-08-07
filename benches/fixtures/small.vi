@@ -3,7 +3,7 @@
 category  bench
 x = 1
 y = 2
-xy = $x * $y
+xy = x * y
 input = :args .at 1
 if input != "" {
   :send .text input
