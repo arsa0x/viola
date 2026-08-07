@@ -15,6 +15,7 @@ Viola Script is a lightweight scripting language built with Rust. It is designed
   - Boolean
   - String
   - Array
+  - Object
   - Nil
 - Variables
 - Arithmetic and comparison operators
@@ -34,6 +35,7 @@ src/
 ├── native.rs
 ├── parser.rs
 ├── resolver.rs
+├── token.rs
 └── vm.rs
 ```
 
