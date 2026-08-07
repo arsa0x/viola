@@ -531,7 +531,7 @@ x = 2
 
     #[test]
     fn error_read_before_assignment() {
-        let tokens = Lexer::new(":send .text $x").tokenize().unwrap();
+        let tokens = Lexer::new(":send .text x").tokenize().unwrap();
         let script = Parser::new(tokens).parse_script().unwrap();
 
         let err = Resolver::resolve(&script).unwrap_err();
@@ -587,7 +587,7 @@ x = 2
     #[test]
     fn resolve_array_with_variable_reference() {
         let err = Resolver::resolve(
-            &Parser::new(Lexer::new("y = [$x]").tokenize().unwrap())
+            &Parser::new(Lexer::new("y = [x]").tokenize().unwrap())
                 .parse_script()
                 .unwrap(),
         )

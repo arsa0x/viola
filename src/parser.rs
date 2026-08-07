@@ -6,32 +6,71 @@ use crate::{
     token::Token,
 };
 
+/// Recursive-descent parser for the language.
+///
+/// The parser consumes the token stream produced by the lexer and builds
+/// an [`Script`] AST.
+///
+/// The expression parser is organized by precedence:
+///
+/// ```text
+/// expression
+///   └── equality
+///        └── comparison
+///             └── additive
+///                  └── multiplicative
+///                       └── unary
+///                            └── postfix
+///                                 └── primary
+/// ```
+///
+/// Postfix expressions are parsed iteratively, allowing constructs such as:
+///
+/// ```text
+/// user.name
+/// user.name.first
+/// user.profile.name.first
+/// ```
+///
+/// without recursive calls for every property access.
 pub struct Parser<'a> {
     tokens: Vec<(Token<'a>, u32)>,
     pos: usize,
 }
 
 impl<'a> Parser<'a> {
+    #[inline]
     pub fn new(tokens: Vec<(Token<'a>, u32)>) -> Self {
         Self { tokens, pos: 0 }
     }
 
-    fn peek(&self) -> &Token<'a> {
-        &self.tokens[self.pos].0
-    }
-
+    #[inline(always)]
     fn line(&self) -> u32 {
         self.tokens[self.pos].1
     }
 
-    fn advance(&mut self) -> Token<'a> {
-        let t = self.tokens[self.pos].0.clone();
-        if self.pos + 1 < self.tokens.len() {
-            self.pos += 1;
-        }
-        t
+    #[inline(always)]
+    fn peek(&self) -> &Token<'a> {
+        &self.tokens[self.pos].0
     }
 
+    #[inline(always)]
+    fn peek_at(&self, offset: usize) -> Option<&Token<'a>> {
+        self.tokens.get(self.pos + offset).map(|(token, _)| token)
+    }
+
+    #[inline]
+    fn advance(&mut self) -> Token<'a> {
+        let token = std::mem::replace(&mut self.tokens[self.pos].0, Token::EOF);
+
+        if !matches!(token, Token::EOF) && self.pos + 1 < self.tokens.len() {
+            self.pos += 1;
+        }
+
+        token
+    }
+
+    #[inline]
     fn check(&self, t: &Token<'a>) -> bool {
         self.peek() == t
     }
@@ -48,28 +87,37 @@ impl<'a> Parser<'a> {
         }
     }
 
+    #[inline]
     fn skip_newlines(&mut self) {
         while matches!(self.peek(), Token::Newline) {
-            self.advance();
+            self.pos += 1;
         }
+    }
+
+    #[inline]
+    fn error(&self, message: impl Into<String>) -> CompileError {
+        CompileError::new(self.line(), message.into())
     }
 
     fn parse_meta(&mut self) -> Result<ScriptMeta, CompileError> {
         let mut meta = ScriptMeta::default();
 
-        while self.check(&Token::At) {
+        while matches!(self.peek(), Token::At) {
             self.advance();
 
-            let key = self.expect_ident("meta name")?;
+            let key = self.expect_ident("metadata name")?;
 
-            match &*key {
-                "name" => meta.name = Some(self.expect_ident("script name")?),
-                "triggers" => meta.triggers = self.parse_triggers()?,
+            match key.as_ref() {
+                "name" => {
+                    meta.name = Some(self.expect_ident("script name")?);
+                }
+
+                "triggers" => {
+                    meta.triggers = self.parse_triggers()?;
+                }
+
                 other => {
-                    return Err(CompileError::new(
-                        self.line(),
-                        format!("unknown metadata: @{other}"),
-                    ));
+                    return Err(self.error(format!("unknown metadata: @{other}")));
                 }
             }
 
@@ -84,14 +132,18 @@ impl<'a> Parser<'a> {
 
         loop {
             match self.advance() {
-                Token::Ident(s) => triggers.push(Rc::from(s)),
-                Token::Pipe => continue,
-                Token::Newline | Token::EOF => break,
+                Token::Ident(name) => {
+                    triggers.push(Rc::from(name));
+                }
+
+                Token::Pipe => {}
+
+                Token::Newline | Token::EOF => {
+                    break;
+                }
+
                 other => {
-                    return Err(CompileError::new(
-                        self.line(),
-                        format!("expected trigger name, found {other:?}",),
-                    ));
+                    return Err(self.error(format!("expected trigger name, found {other:?}")));
                 }
             }
         }
@@ -99,150 +151,206 @@ impl<'a> Parser<'a> {
         Ok(triggers)
     }
 
-    fn expect_ident(&mut self, ctx: &str) -> Result<Rc<str>, CompileError> {
+    #[inline]
+    fn expect_ident(&mut self, context: &str) -> Result<Rc<str>, CompileError> {
         match self.advance() {
-            Token::Ident(s) => Ok(Rc::from(s)),
-            other => Err(CompileError::new(
-                self.line(),
-                format!("expected: {ctx}, found: {other:?}"),
-            )),
+            Token::Ident(name) => Ok(Rc::from(name)),
+
+            other => Err(self.error(format!("expected {context}, found {other:?}"))),
         }
     }
 
     fn parse_primary(&mut self) -> Result<Expr, CompileError> {
         let line = self.line();
+
         match self.advance() {
-            Token::Int(i) => Ok(Expr::Literal(Literal::Int(i), line)),
-            Token::Float(x) => Ok(Expr::Literal(Literal::Float(x), line)),
-            Token::Str(s) => Ok(Expr::Literal(Literal::Str(Rc::from(s)), line)),
+            Token::Ident(name) => Ok(Expr::Var(Rc::from(name), line)),
+
+            Token::Int(value) => Ok(Expr::Literal(Literal::Int(value), line)),
+
+            Token::Float(value) => Ok(Expr::Literal(Literal::Float(value), line)),
+
+            Token::Str(value) => Ok(Expr::Literal(Literal::Str(Rc::from(value)), line)),
+
             Token::True => Ok(Expr::Literal(Literal::Bool(true), line)),
+
             Token::False => Ok(Expr::Literal(Literal::Bool(false), line)),
-            // Token::Var(name) => Ok(Expr::Var(Rc::from(name), line)),
-            Token::Colon => {
-                let cmd_token = self.advance();
 
-                let command: Rc<str> = match cmd_token {
-                    Token::Ident(n) => Rc::from(n),
-                    _ => {
-                        return Err(CompileError::new(
-                            line,
-                            format!(
-                                "expected identifier after ':' for native call, found {cmd_token:?}"
-                            ),
-                        ));
-                    }
-                };
-
-                let mut method = None;
-
-                if self.check(&Token::Dot) {
-                    self.advance();
-
-                    let mt = self.advance();
-                    match mt {
-                        Token::Ident(n) => method = Some(Rc::from(n)),
-                        _ => {
-                            return Err(CompileError::new(
-                                self.line(),
-                                format!("expected method name after '.', found {mt:?}"),
-                            ));
-                        }
-                    }
-                }
-
-                let mut args = Vec::new();
-
-                if self.check(&Token::LParen) {
-                    self.consume(&Token::LParen)?;
-
-                    while !self.check(&Token::RParen) {
-                        args.push(self.parse_expr()?);
-                        if self.check(&Token::Comma) {
-                            self.advance();
-                        }
-                    }
-
-                    self.consume(&Token::RParen)?;
-                } else if self.can_start_expr() {
-                    args.push(self.parse_expr()?);
-
-                    while self.check(&Token::Comma) {
-                        self.advance();
-                        args.push(self.parse_expr()?);
-                    }
-                }
-
-                Ok(Expr::NativeCall {
-                    command,
-                    method,
-                    args,
-                    line,
-                })
-            }
             Token::LParen => {
-                let e = self.parse_expr()?;
+                let expr = self.parse_expr()?;
+
                 self.consume(&Token::RParen)?;
-                Ok(e)
+
+                Ok(expr)
             }
+
             Token::LBrace => self.parse_object(line),
+
             Token::LBracket => self.parse_array(line),
-            other => Err(CompileError::new(
-                line,
-                format!("invalid expression found {:?}", other),
-            )),
+
+            Token::Colon => self.parse_native_call(line),
+
+            other => Err(self.error(format!("invalid expression found {other:?}"))),
         }
     }
 
-    fn can_start_expr(&mut self) -> bool {
-        !matches!(
+    fn parse_native_call(&mut self, line: u32) -> Result<Expr, CompileError> {
+        let command = match self.advance() {
+            Token::Ident(name) => Rc::from(name),
+
+            other => {
+                return Err(self.error(format!("expected identifier after ':', found {other:?}")));
+            }
+        };
+
+        let mut method = None;
+
+        if matches!(self.peek(), Token::Dot) {
+            self.advance();
+
+            method = Some(match self.advance() {
+                Token::Ident(name) => Rc::from(name),
+
+                other => {
+                    return Err(
+                        self.error(format!("expected method name after '.', found {other:?}"))
+                    );
+                }
+            });
+        }
+
+        let mut args = Vec::new();
+
+        if matches!(self.peek(), Token::LParen) {
+            self.advance();
+
+            if !matches!(self.peek(), Token::RParen) {
+                loop {
+                    args.push(self.parse_expr()?);
+
+                    if !matches!(self.peek(), Token::Comma) {
+                        break;
+                    }
+
+                    self.advance();
+
+                    if matches!(self.peek(), Token::RParen) {
+                        break;
+                    }
+                }
+            }
+
+            self.consume(&Token::RParen)?;
+        } else if self.can_start_expr() {
+            args.push(self.parse_expr()?);
+
+            while matches!(self.peek(), Token::Comma) {
+                self.advance();
+                args.push(self.parse_expr()?);
+            }
+        }
+
+        Ok(Expr::NativeCall {
+            command,
+            method,
+            args,
+            line,
+        })
+    }
+
+    #[inline]
+    fn can_start_expr(&self) -> bool {
+        matches!(
             self.peek(),
-            Token::Newline
-                | Token::RBrace
-                | Token::RParen
-                | Token::RBracket
-                | Token::Comma
-                | Token::EOF
+            Token::Ident(_)
+                | Token::Int(_)
+                | Token::Float(_)
+                | Token::Str(_)
+                | Token::True
+                | Token::False
+                | Token::LParen
+                | Token::LBrace
+                | Token::LBracket
+                | Token::Colon
+                | Token::Bang
+                | Token::Minus
         )
     }
 
-    fn parse_equality(&mut self) -> Result<Expr, CompileError> {
-        let mut lhs = self.parse_comparison()?;
+    fn parse_postfix(&mut self) -> Result<Expr, CompileError> {
+        let mut expr = self.parse_primary()?;
 
         loop {
-            let op = match self.peek() {
-                Token::Eq => BinOp::Eq,
-                Token::NotEq => BinOp::NotEq,
+            match self.peek() {
+                Token::Dot => {
+                    let line = self.line();
+
+                    self.advance();
+
+                    let property = self.expect_ident("property name")?;
+
+                    expr = Expr::PropertyAccess {
+                        object: Box::new(expr),
+                        property,
+                        line,
+                    };
+                }
+
                 _ => break,
-            };
-
-            let line = self.line();
-            self.advance();
-
-            let rhs = self.parse_comparison()?;
-            lhs = Expr::Binary {
-                op,
-                lhs: Box::new(lhs),
-                rhs: Box::new(rhs),
-                line,
             }
         }
 
-        Ok(lhs)
+        Ok(expr)
     }
 
-    fn parse_comparison(&mut self) -> Result<Expr, CompileError> {
-        let mut lhs = self.parse_additive()?;
+    fn parse_unary(&mut self) -> Result<Expr, CompileError> {
+        let line = self.line();
+
+        match self.peek() {
+            Token::Bang => {
+                self.advance();
+
+                let expr = self.parse_unary()?;
+
+                Ok(Expr::Unary {
+                    op: UnOp::Not,
+                    expr: Box::new(expr),
+                    line,
+                })
+            }
+
+            Token::Minus => {
+                self.advance();
+
+                let expr = self.parse_unary()?;
+
+                Ok(Expr::Unary {
+                    op: UnOp::Neg,
+                    expr: Box::new(expr),
+                    line,
+                })
+            }
+
+            _ => self.parse_postfix(),
+        }
+    }
+
+    fn parse_multiplicative(&mut self) -> Result<Expr, CompileError> {
+        let mut lhs = self.parse_unary()?;
+
         loop {
             let op = match self.peek() {
-                Token::Lt => BinOp::Lt,
-                Token::Le => BinOp::Le,
-                Token::Gt => BinOp::Gt,
-                Token::Ge => BinOp::Ge,
+                Token::Star => BinOp::Mul,
+                Token::Slash => BinOp::Div,
                 _ => break,
             };
+
             let line = self.line();
+
             self.advance();
-            let rhs = self.parse_additive()?;
+
+            let rhs = self.parse_unary()?;
+
             lhs = Expr::Binary {
                 op,
                 lhs: Box::new(lhs),
@@ -256,15 +364,20 @@ impl<'a> Parser<'a> {
 
     fn parse_additive(&mut self) -> Result<Expr, CompileError> {
         let mut lhs = self.parse_multiplicative()?;
+
         loop {
             let op = match self.peek() {
                 Token::Plus => BinOp::Add,
                 Token::Minus => BinOp::Sub,
                 _ => break,
             };
+
             let line = self.line();
+
             self.advance();
+
             let rhs = self.parse_multiplicative()?;
+
             lhs = Expr::Binary {
                 op,
                 lhs: Box::new(lhs),
@@ -276,17 +389,24 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
-    fn parse_multiplicative(&mut self) -> Result<Expr, CompileError> {
-        let mut lhs = self.parse_unary()?;
+    fn parse_comparison(&mut self) -> Result<Expr, CompileError> {
+        let mut lhs = self.parse_additive()?;
+
         loop {
             let op = match self.peek() {
-                Token::Star => BinOp::Mul,
-                Token::Slash => BinOp::Div,
+                Token::Lt => BinOp::Lt,
+                Token::Le => BinOp::Le,
+                Token::Gt => BinOp::Gt,
+                Token::Ge => BinOp::Ge,
                 _ => break,
             };
+
             let line = self.line();
+
             self.advance();
-            let rhs = self.parse_unary()?;
+
+            let rhs = self.parse_additive()?;
+
             lhs = Expr::Binary {
                 op,
                 lhs: Box::new(lhs),
@@ -298,50 +418,34 @@ impl<'a> Parser<'a> {
         Ok(lhs)
     }
 
-    fn parse_unary(&mut self) -> Result<Expr, CompileError> {
-        let line = self.line();
-        match self.peek() {
-            Token::Bang => {
-                self.advance();
-                let expr = self.parse_unary()?;
-                Ok(Expr::Unary {
-                    op: UnOp::Not,
-                    expr: Box::new(expr),
-                    line,
-                })
-            }
-            Token::Minus => {
-                self.advance();
-                let expr = self.parse_unary()?;
-                Ok(Expr::Unary {
-                    op: UnOp::Neg,
-                    expr: Box::new(expr),
-                    line,
-                })
-            }
-            _ => self.parse_postfix(),
-        }
-    }
+    fn parse_equality(&mut self) -> Result<Expr, CompileError> {
+        let mut lhs = self.parse_comparison()?;
 
-    fn parse_postfix(&mut self) -> Result<Expr, CompileError> {
-        let mut expr = self.parse_primary()?;
+        loop {
+            let op = match self.peek() {
+                Token::Eq => BinOp::Eq,
+                Token::NotEq => BinOp::NotEq,
+                _ => break,
+            };
 
-        while self.check(&Token::Dot) {
             let line = self.line();
+
             self.advance();
 
-            let prop_name = self.expect_ident("property name")?;
+            let rhs = self.parse_comparison()?;
 
-            expr = Expr::PropertyAccess {
-                object: Box::new(expr),
-                property: prop_name,
+            lhs = Expr::Binary {
+                op,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
                 line,
             };
         }
 
-        Ok(expr)
+        Ok(lhs)
     }
 
+    #[inline]
     fn parse_expr(&mut self) -> Result<Expr, CompileError> {
         self.parse_equality()
     }
@@ -349,28 +453,23 @@ impl<'a> Parser<'a> {
     fn parse_stmt(&mut self) -> Result<Stmt, CompileError> {
         let line = self.line();
 
-        if let Token::Ident(name) = self.peek().clone() {
-            if self.tokens.get(self.pos + 1).map(|(t, _)| t) == Some(&Token::Assign) {
+        if let Token::Ident(name) = self.peek() {
+            if matches!(self.peek_at(1), Some(Token::Assign)) {
+                let name = Rc::from(*name);
+
                 self.advance();
                 self.advance();
 
                 let value = self.parse_expr()?;
-                return Ok(Stmt::Assign {
-                    name: Rc::from(name),
-                    value,
-                    line,
-                });
+
+                return Ok(Stmt::Assign { name, value, line });
             }
 
-            if name == "if" {
+            if *name == "if" {
                 return self.parse_if();
             }
-
-            return Err(CompileError::new(
-                line,
-                format!("unknown statement: `{}`", name),
-            ));
         }
+
         let expr = self.parse_expr()?;
 
         Ok(Stmt::ExprStmt { expr, line })
@@ -382,19 +481,19 @@ impl<'a> Parser<'a> {
         self.advance();
 
         let cond = self.parse_expr()?;
+
         let then_blk = self.parse_block()?;
 
         self.skip_newlines();
 
-        let else_blk = if let Token::Ident(kw) = self.peek().clone() {
-            if &*kw == "else" {
+        let else_blk = match self.peek() {
+            Token::Ident(name) if *name == "else" => {
                 self.advance();
+
                 Some(self.parse_block()?)
-            } else {
-                None
             }
-        } else {
-            None
+
+            _ => None,
         };
 
         Ok(Stmt::If {
@@ -407,18 +506,20 @@ impl<'a> Parser<'a> {
 
     fn parse_block(&mut self) -> Result<Vec<Stmt>, CompileError> {
         self.consume(&Token::LBrace)?;
+
         self.skip_newlines();
 
-        let mut stmts = Vec::new();
+        let mut statements = Vec::new();
 
-        while !self.check(&Token::RBrace) {
-            stmts.push(self.parse_stmt()?);
+        while !matches!(self.peek(), Token::RBrace | Token::EOF) {
+            statements.push(self.parse_stmt()?);
+
             self.skip_newlines();
         }
 
         self.consume(&Token::RBrace)?;
 
-        Ok(stmts)
+        Ok(statements)
     }
 
     fn parse_array(&mut self, line: u32) -> Result<Expr, CompileError> {
@@ -426,19 +527,32 @@ impl<'a> Parser<'a> {
 
         self.skip_newlines();
 
-        while !self.check(&Token::RBracket) {
+        if matches!(self.peek(), Token::RBracket) {
+            self.advance();
+
+            return Ok(Expr::Array { elements, line });
+        }
+
+        loop {
             elements.push(self.parse_expr()?);
+
             self.skip_newlines();
 
-            if self.check(&Token::Comma) {
-                self.advance();
-                self.skip_newlines();
-            } else {
+            if !matches!(self.peek(), Token::Comma) {
+                break;
+            }
+
+            self.advance();
+
+            self.skip_newlines();
+
+            if matches!(self.peek(), Token::RBracket) {
                 break;
             }
         }
 
         self.skip_newlines();
+
         self.consume(&Token::RBracket)?;
 
         Ok(Expr::Array { elements, line })
@@ -449,39 +563,47 @@ impl<'a> Parser<'a> {
 
         self.skip_newlines();
 
-        while !self.check(&Token::RBrace) {
+        if matches!(self.peek(), Token::RBrace) {
+            self.advance();
+
+            return Ok(Expr::Object { properties, line });
+        }
+
+        loop {
             self.skip_newlines();
 
-            if self.check(&Token::RBrace) {
-                break;
-            }
+            let key = match self.advance() {
+                Token::Ident(key) => Rc::from(key),
 
-            let key_token = self.advance();
-            let key = match key_token {
-                Token::Ident(k) => Rc::from(k),
-                Token::Str(k) => Rc::from(k),
-                _ => {
-                    return Err(CompileError::new(
-                        self.line(),
-                        format!(
-                            "expected property name (identifier or string), found {key_token:?}"
-                        ),
-                    ));
+                Token::Str(key) => Rc::from(key),
+
+                other => {
+                    return Err(self.error(format!("expected property name, found {other:?}")));
                 }
             };
 
             self.consume(&Token::Colon)?;
+
             let value = self.parse_expr()?;
 
             properties.push((key, value));
 
-            if self.check(&Token::Comma) {
-                self.advance();
-            } else {
-                self.skip_newlines();
+            self.skip_newlines();
+
+            if !matches!(self.peek(), Token::Comma) {
+                break;
+            }
+
+            self.advance();
+
+            self.skip_newlines();
+
+            if matches!(self.peek(), Token::RBrace) {
                 break;
             }
         }
+
+        self.skip_newlines();
 
         self.consume(&Token::RBrace)?;
 
@@ -492,12 +614,14 @@ impl<'a> Parser<'a> {
         self.skip_newlines();
 
         let meta = self.parse_meta()?;
+
         self.skip_newlines();
 
         let mut body = Vec::new();
 
         while !matches!(self.peek(), Token::EOF) {
             body.push(self.parse_stmt()?);
+
             self.skip_newlines();
         }
 
@@ -560,19 +684,6 @@ mod tests {
                 assert!(matches!(value, Expr::Literal(Literal::Bool(true), _)));
             }
             _ => panic!("expected assignment"),
-        }
-    }
-
-    #[test]
-    fn parse_variable_expression() {
-        let script = parse("$player");
-
-        match &script.body[0] {
-            Stmt::ExprStmt { expr, .. } => match expr {
-                Expr::Var(name, _) => assert_eq!(name.as_ref(), "player"),
-                _ => panic!("expected variable"),
-            },
-            _ => panic!("expected expression statement"),
         }
     }
 
@@ -788,7 +899,7 @@ x = 1
 
     #[test]
     fn unknown_statement_returns_error() {
-        let tokens = Lexer::new("hello").tokenize().unwrap();
+        let tokens = Lexer::new("@unknown").tokenize().unwrap();
         let result = Parser::new(tokens).parse_script();
 
         assert!(result.is_err());
@@ -869,9 +980,12 @@ x = 1
 
     #[test]
     fn parse_property_access() {
-        let script = parse("name = $user.name");
+        let script = parse(
+            r#"user = { name: "viola", age: 18 }
+name = user.name"#,
+        );
 
-        match &script.body[0] {
+        match &script.body[1] {
             Stmt::Assign { value, .. } => match value {
                 Expr::PropertyAccess {
                     object, property, ..
@@ -891,7 +1005,7 @@ x = 1
 
     #[test]
     fn parse_chained_property_access() {
-        let script = parse("first_name = $user.name.first");
+        let script = parse("first_name = user.name.first");
 
         match &script.body[0] {
             Stmt::Assign { value, .. } => match value {
