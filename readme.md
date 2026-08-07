@@ -47,7 +47,7 @@ src/
 username = "Viola"
 
 if username == "Viola" {
-    :send .text "Hello!"
+    :send .text("Hello!")
 }
 ```
 
@@ -68,9 +68,9 @@ cargo bench
 Current benchmarks include:
 
 - Lexer
-- Parser _(planned)_
-- Compiler _(planned)_
-- Virtual Machine _(planned)_
+- Parser
+- Compiler
+- Virtual Machine
 
 ## Goals
 
