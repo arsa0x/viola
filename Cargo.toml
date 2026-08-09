@@ -23,15 +23,13 @@ tokio = { version = "1.52.4", features = ["rt-multi-thread"] }
 viola_command = { path = "viola_command/" }
 viola_core = { path = "viola_core/" }
 whatsapp-rust = {
-  git = "https://github.com/oxidezap/whatsapp-rust",
-  rev = "fcf5e6a",
+  version = "0.7.0",
   default-features = false,
   features = [
     "signal",
     "tokio-native",
     "tokio-runtime",
     "tokio-transport",
-    "voip"
   ]
 }
 

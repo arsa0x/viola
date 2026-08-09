@@ -1,6 +1,5 @@
 mod bot;
 mod client;
-mod debug;
 mod handler;
 mod incoming;
 mod parser;
