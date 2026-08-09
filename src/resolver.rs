@@ -29,7 +29,7 @@ pub struct ResolvedScript {
 #[derive(Debug)]
 pub struct Scope {
     vars: HashMap<Rc<str>, u16>,
-    assigned: HashSet<Rc<str>>,
+    assigned: HashSet<u16>,
 }
 
 #[derive(Debug)]
@@ -142,9 +142,9 @@ impl Resolver {
         match stmt {
             Stmt::Assign { name, value, line } => {
                 let value = self.resolve_expr(value)?;
-                let slot = self.declare_or_get_slot(name);
+                let slot = self.resolve_or_declare(name);
 
-                self.mark_assigned(name.clone());
+                self.mark_assigned(slot);
 
                 Ok(RStmt::Assign {
                     slot,
@@ -166,22 +166,27 @@ impl Resolver {
             } => {
                 let cond = self.resolve_expr(cond)?;
                 let mark = self.push_scope();
+
                 let then_r = self.resolve_block(then_blk)?;
-                let then_assigned: HashSet<Rc<str>> = self.scopes.last().unwrap().assigned.clone();
+                let then_assigned = self.current_assigned();
 
                 self.pop_scope(mark);
 
                 let else_r = if let Some(else_blk) = else_blk {
                     let mark = self.push_scope();
-                    let r = self.resolve_block(else_blk)?;
-                    let else_assigned = self.scopes.last().unwrap().assigned.clone();
+
+                    let else_r = self.resolve_block(else_blk)?;
+                    let else_assigned = self.current_assigned();
+
                     self.pop_scope(mark);
 
-                    for n in then_assigned.intersection(&else_assigned) {
-                        self.mark_assigned(n.clone());
+                    for slot in then_assigned.intersection(&else_assigned) {
+                        if *slot < mark {
+                            self.mark_assigned(*slot);
+                        }
                     }
 
-                    Some(r)
+                    Some(else_r)
                 } else {
                     None
                 };
@@ -194,6 +199,29 @@ impl Resolver {
                 })
             }
         }
+    }
+
+    fn resolve_or_declare(&mut self, name: &Rc<str>) -> u16 {
+        if let Some(slot) = self.find_slot(name) {
+            return slot;
+        }
+
+        let slot = self.next_slot;
+
+        self.next_slot = self
+            .next_slot
+            .checked_add(1)
+            .expect("too many local variables");
+
+        self.high_water = self.high_water.max(self.next_slot);
+
+        self.scopes
+            .last_mut()
+            .expect("resolver always has root scope")
+            .vars
+            .insert(name.clone(), slot);
+
+        slot
     }
 
     fn push_scope(&mut self) -> u16 {
@@ -211,40 +239,34 @@ impl Resolver {
         self.next_slot = mark;
     }
 
-    fn declare_or_get_slot(&mut self, name: &Rc<str>) -> u16 {
-        if let Some(&slot) = self.scopes.last().unwrap().vars.get(name) {
-            return slot;
-        }
-
-        let slot = self.next_slot;
-
-        self.next_slot += 1;
-        self.high_water = self.high_water.max(self.next_slot);
+    fn mark_assigned(&mut self, slot: u16) {
         self.scopes
             .last_mut()
-            .unwrap()
-            .vars
-            .insert(name.clone(), slot);
-
-        slot
+            .expect("resolver always has root scope")
+            .assigned
+            .insert(slot);
     }
 
-    fn mark_assigned(&mut self, name: Rc<str>) {
-        self.scopes.last_mut().unwrap().assigned.insert(name);
+    fn is_assigned(&self, slot: u16) -> bool {
+        self.scopes
+            .iter()
+            .rev()
+            .any(|scope| scope.assigned.contains(&slot))
     }
 
-    fn is_assigned(&self, name: &str) -> bool {
-        self.scopes.iter().rev().any(|s| s.assigned.contains(name))
+    fn current_assigned(&self) -> HashSet<u16> {
+        self.scopes
+            .last()
+            .expect("resolver always has root scope")
+            .assigned
+            .clone()
     }
 
     fn find_slot(&self, name: &str) -> Option<u16> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(&slot) = scope.vars.get(name) {
-                return Some(slot);
-            }
-        }
-
-        None
+        self.scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.vars.get(name).copied())
     }
 
     fn resolve_expr(&mut self, expr: &Expr) -> Result<RExpr, CompileError> {
@@ -255,7 +277,9 @@ impl Resolver {
                 rhs: Box::new(self.resolve_expr(rhs)?),
                 line: *line,
             }),
-            Expr::Literal(l, line) => Ok(RExpr::Literal(l.clone(), *line)),
+
+            Expr::Literal(literal, line) => Ok(RExpr::Literal(literal.clone(), *line)),
+
             Expr::NativeCall {
                 command,
                 method,
@@ -264,11 +288,15 @@ impl Resolver {
             } => {
                 let sig = native::lookup_native(command, method.as_deref()).ok_or_else(|| {
                     let full = match method {
-                        Some(m) => format!(":{command} .{m}"),
-                        None => format!(":{command}"),
+                        Some(method) => {
+                            format!(":{command} .{method}")
+                        }
+                        None => {
+                            format!(":{command}")
+                        }
                     };
 
-                    CompileError::new(*line, format!("unknown command: `{full}`",))
+                    CompileError::new(*line, format!("unknown command: `{full}`"))
                 })?;
 
                 if args.len() != sig.expected_argc as usize {
@@ -282,81 +310,101 @@ impl Resolver {
                     ));
                 }
 
+                let resolved_args = args
+                    .iter()
+                    .map(|arg| self.resolve_expr(arg))
+                    .collect::<Result<Vec<_>, _>>()?;
+
                 Ok(RExpr::NativeCall {
                     id: sig.id,
-                    args: args
-                        .iter()
-                        .map(|a| self.resolve_expr(a))
-                        .collect::<Result<_, _>>()?,
+                    args: resolved_args,
                     line: *line,
                 })
             }
+
             Expr::Unary { op, expr, line } => Ok(RExpr::Unary {
                 op: *op,
                 expr: Box::new(self.resolve_expr(expr)?),
                 line: *line,
             }),
+
             Expr::Var(name, line) => {
-                if !self.is_assigned(name) {
+                let slot = match self.find_slot(name) {
+                    Some(slot) => slot,
+
+                    None => {
+                        return Err(CompileError::new(
+                            *line,
+                            format!(
+                                "variable `${name}` is read before it is filled in all branches"
+                            ),
+                        ));
+                    }
+                };
+
+                if !self.is_assigned(slot) {
                     return Err(CompileError::new(
                         *line,
                         format!("variable `${name}` is read before it is filled in all branches"),
                     ));
                 }
 
-                let slot = self.find_slot(name).expect("is_assigned implies declared");
-
                 Ok(RExpr::GetLocal(slot, *line))
             }
-            Expr::Array { elements, line } => Ok(RExpr::Array(
-                elements
-                    .iter()
-                    .map(|e| self.resolve_expr(e))
-                    .collect::<Result<_, _>>()?,
-                *line,
-            )),
-            Expr::Object { properties, line } => {
-                let mut props = Vec::with_capacity(properties.len());
 
-                for (key, val_expr) in properties {
-                    let val = self.resolve_expr(val_expr)?;
-                    props.push((key.clone(), val));
+            Expr::Array { elements, line } => {
+                let elements = elements
+                    .iter()
+                    .map(|element| self.resolve_expr(element))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Ok(RExpr::Array(elements, *line))
+            }
+
+            Expr::Object { properties, line } => {
+                let mut resolved = Vec::with_capacity(properties.len());
+
+                for (key, value) in properties {
+                    resolved.push((key.clone(), self.resolve_expr(value)?));
                 }
 
                 Ok(RExpr::Object {
-                    properties: props,
+                    properties: resolved,
                     line: *line,
                 })
             }
+
+            Expr::PropertyAccess {
+                object,
+                property,
+                line,
+            } => {
+                let object = self.resolve_expr(object)?;
+
+                Ok(RExpr::PropertyAccess {
+                    object: Box::new(object),
+                    property: property.clone(),
+                    line: *line,
+                })
+            }
+
             Expr::MethodCall {
                 object,
                 method,
                 args,
                 line,
             } => {
-                let r_obj = self.resolve_expr(object)?;
-                let r_args = args
+                let object = self.resolve_expr(object)?;
+
+                let args = args
                     .iter()
                     .map(|arg| self.resolve_expr(arg))
                     .collect::<Result<Vec<_>, _>>()?;
 
                 Ok(RExpr::MethodCall {
-                    object: Box::new(r_obj),
+                    object: Box::new(object),
                     method: method.clone(),
-                    args: r_args,
-                    line: *line,
-                })
-            }
-            Expr::PropertyAccess {
-                object,
-                property,
-                line,
-            } => {
-                let obj = self.resolve_expr(object)?;
-
-                Ok(RExpr::PropertyAccess {
-                    object: Box::new(obj),
-                    property: property.clone(),
+                    args,
                     line: *line,
                 })
             }
