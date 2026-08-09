@@ -39,7 +39,7 @@ impl Emitter {
         match stmt {
             RStmt::Assign { slot, value, line } => {
                 self.emit_expr(value);
-                self.chunk.emit(OpCode::SetLocal(*slot), *line);
+                self.chunk.emit(OpCode::SetL(*slot), *line);
             }
             RStmt::ExprStmt { expr, line } => {
                 self.emit_expr(expr);
@@ -52,12 +52,12 @@ impl Emitter {
                 line,
             } => {
                 self.emit_expr(cond);
-                let jf = self.chunk.emit(OpCode::JumpIfFalse(0), *line);
+                let jf = self.chunk.emit(OpCode::JmpF(0), *line);
                 for s in then_blk {
                     self.emit_stmt(s);
                 }
                 if let Some(else_blk) = else_blk {
-                    let j = self.chunk.emit(OpCode::Jump(0), *line);
+                    let j = self.chunk.emit(OpCode::Jmp(0), *line);
                     let else_start = self.chunk.code.len();
                     self.chunk.patch_jump(jf, else_start);
                     for s in else_blk {
@@ -78,10 +78,10 @@ impl Emitter {
             RExpr::Literal(lit, line) => {
                 let v = literal_to_value(lit);
                 let idx = self.chunk.add_constant(v);
-                self.chunk.emit(OpCode::Constant(idx), *line);
+                self.chunk.emit(OpCode::Const(idx), *line);
             }
             RExpr::GetLocal(slot, line) => {
-                self.chunk.emit(OpCode::GetLocal(*slot), *line);
+                self.chunk.emit(OpCode::GetL(*slot), *line);
             }
             RExpr::Binary { op, lhs, rhs, line } => {
                 self.emit_expr(lhs);
@@ -92,7 +92,7 @@ impl Emitter {
                     BinOp::Mul => OpCode::Mul,
                     BinOp::Div => OpCode::Div,
                     BinOp::Eq => OpCode::Eq,
-                    BinOp::NotEq => OpCode::NotEq,
+                    BinOp::NotEq => OpCode::Ne,
                     BinOp::Lt => OpCode::Lt,
                     BinOp::Le => OpCode::Le,
                     BinOp::Gt => OpCode::Gt,
@@ -113,7 +113,7 @@ impl Emitter {
                     self.emit_expr(a);
                 }
                 self.chunk.emit(
-                    OpCode::CallNative {
+                    OpCode::CallN {
                         id: *id,
                         argc: args.len() as u8,
                     },
@@ -124,8 +124,7 @@ impl Emitter {
                 for e in elements {
                     self.emit_expr(e);
                 }
-                self.chunk
-                    .emit(OpCode::MakeArray(elements.len() as u16), *line);
+                self.chunk.emit(OpCode::MkArr(elements.len() as u16), *line);
             }
             RExpr::Object { properties, line } => {
                 let mut layout = Vec::with_capacity(properties.len());
@@ -140,7 +139,7 @@ impl Emitter {
 
                 let layout_idx = self.chunk.add_object_layout(layout.into_boxed_slice());
 
-                self.chunk.emit(OpCode::MakeObject(layout_idx), *line);
+                self.chunk.emit(OpCode::MkObj(layout_idx), *line);
             }
             RExpr::PropertyAccess {
                 object,
@@ -151,7 +150,7 @@ impl Emitter {
                 let prop_idx = self
                     .chunk
                     .add_constant(Value::Str(Arc::from(property.as_ref())));
-                self.chunk.emit(OpCode::GetProperty(prop_idx), *line);
+                self.chunk.emit(OpCode::GetP(prop_idx), *line);
             }
             RExpr::MethodCall {
                 object,
@@ -167,7 +166,7 @@ impl Emitter {
                     .chunk
                     .add_constant(Value::Str(Arc::from(method.as_ref())));
                 self.chunk.emit(
-                    OpCode::CallMethod {
+                    OpCode::CallM {
                         name_idx,
                         argc: args.len() as u8,
                     },
@@ -190,26 +189,26 @@ fn literal_to_value(lit: &Literal) -> Value {
 
 fn stack_effect(chunk: &Chunk, op: &OpCode) -> i32 {
     match op {
-        OpCode::Constant(_) | OpCode::GetLocal(_) => 1,
-        OpCode::SetLocal(_) | OpCode::Pop | OpCode::JumpIfFalse(_) => -1,
+        OpCode::Const(_) | OpCode::GetL(_) => 1,
+        OpCode::SetL(_) | OpCode::Pop | OpCode::JmpF(_) => -1,
         OpCode::Add
         | OpCode::Sub
         | OpCode::Mul
         | OpCode::Div
         | OpCode::Eq
-        | OpCode::NotEq
+        | OpCode::Ne
         | OpCode::Lt
         | OpCode::Le
         | OpCode::Gt
         | OpCode::Ge => -1,
         OpCode::Not | OpCode::Neg => 0,
-        OpCode::Jump(_) | OpCode::Ret => 0,
-        OpCode::CallNative { argc, .. } => 1 - (*argc as i32),
-        OpCode::MakeArray(n) => 1 - (*n as i32),
-        OpCode::CallMethod { argc, .. } => -(*argc as i32),
-        OpCode::GetProperty(_) => 0,
-        OpCode::SetProperty(_) => -1,
-        OpCode::MakeObject(n) => 1 - (chunk.object_layouts[*n as usize].len() as i32),
+        OpCode::Jmp(_) | OpCode::Ret => 0,
+        OpCode::CallN { argc, .. } => 1 - (*argc as i32),
+        OpCode::MkArr(n) => 1 - (*n as i32),
+        OpCode::CallM { argc, .. } => -(*argc as i32),
+        OpCode::GetP(_) => 0,
+        OpCode::SetP(_) => -1,
+        OpCode::MkObj(n) => 1 - (chunk.object_layouts[*n as usize].len() as i32),
     }
 }
 
@@ -256,7 +255,7 @@ mod tests {
         let make_array_count = chunk
             .code
             .iter()
-            .filter(|op| matches!(op, OpCode::MakeArray(3)))
+            .filter(|op| matches!(op, OpCode::MkArr(3)))
             .count();
         assert_eq!(make_array_count, 1);
     }
@@ -264,12 +263,7 @@ mod tests {
     #[test]
     fn emit_empty_array_balances_stack() {
         let chunk = compile("x = []");
-        assert!(
-            chunk
-                .code
-                .iter()
-                .any(|op| matches!(op, OpCode::MakeArray(0)))
-        );
+        assert!(chunk.code.iter().any(|op| matches!(op, OpCode::MkArr(0))));
     }
 
     #[test]

@@ -12,7 +12,7 @@ if url == "" {
   response = :http
     .get(api)
     .query({
-        url
+        url: url
     })
     .header({
         UserAgent: ua,

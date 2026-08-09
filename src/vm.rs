@@ -39,13 +39,13 @@ impl<'a> Vm<'a> {
             self.ip += 1;
 
             match op {
-                OpCode::Constant(idx) => {
+                OpCode::Const(idx) => {
                     self.stack.push(self.chunk.constants[idx as usize].clone());
                 }
-                OpCode::GetLocal(slot) => {
+                OpCode::GetL(slot) => {
                     self.stack.push(self.locals[slot as usize].clone());
                 }
-                OpCode::SetLocal(slot) => {
+                OpCode::SetL(slot) => {
                     let v = self.pop()?;
                     self.locals[slot as usize] = v;
                 }
@@ -62,7 +62,7 @@ impl<'a> Vm<'a> {
 
                     self.stack.push(Value::Bool(a == b));
                 }
-                OpCode::NotEq => {
+                OpCode::Ne => {
                     let b = self.pop()?;
                     let a = self.pop()?;
 
@@ -96,16 +96,16 @@ impl<'a> Vm<'a> {
                     self.stack.push(neg);
                 }
 
-                OpCode::Jump(offset) => {
+                OpCode::Jmp(offset) => {
                     self.ip = self.jump_target(self.ip, offset);
                 }
-                OpCode::JumpIfFalse(offset) => {
+                OpCode::JmpF(offset) => {
                     let cond = self.pop()?;
                     if !cond.is_truthy() {
                         self.ip = self.jump_target(self.ip, offset);
                     }
                 }
-                OpCode::CallNative { id, argc } => {
+                OpCode::CallN { id, argc } => {
                     let line = self.line();
                     let argc_usize = argc as usize;
 
@@ -125,13 +125,13 @@ impl<'a> Vm<'a> {
                         Err(err) => return Err(VmError::Native { line, err }),
                     }
                 }
-                OpCode::MakeArray(n) => {
+                OpCode::MkArr(n) => {
                     let start = self.stack.len() - n as usize;
                     let elements = self.stack.split_off(start);
 
                     self.stack.push(Value::Array(Arc::new(elements)));
                 }
-                OpCode::MakeObject(layout_idx) => {
+                OpCode::MkObj(layout_idx) => {
                     let layout = &self.chunk.object_layouts[layout_idx as usize];
                     let count = layout.len();
                     let line = self.line();
@@ -155,7 +155,7 @@ impl<'a> Vm<'a> {
 
                     self.stack.push(Value::Object(Arc::new(props)));
                 }
-                OpCode::GetProperty(n) => {
+                OpCode::GetP(n) => {
                     let obj = self.pop()?;
 
                     let prop_name = match &self.chunk.constants[n as usize] {
@@ -169,10 +169,10 @@ impl<'a> Vm<'a> {
                         self.stack.push(Value::Nil);
                     }
                 }
-                OpCode::SetProperty(_n) => {
+                OpCode::SetP(_n) => {
                     unimplemented!("SetProperty not yet implemented")
                 }
-                OpCode::CallMethod { .. } => {
+                OpCode::CallM { .. } => {
                     unimplemented!("CallMethod not yet implemented")
                 }
                 OpCode::Pop => {

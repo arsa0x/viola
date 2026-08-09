@@ -2,16 +2,16 @@ use crate::native::{NativeId, Value};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpCode {
-    Constant(u16),
-    GetLocal(u16),
-    SetLocal(u16),
+    Const(u16),
+    GetL(u16),
+    SetL(u16),
 
     Add,
     Sub,
     Mul,
     Div,
     Eq,
-    NotEq,
+    Ne,
     Lt,
     Le,
     Gt,
@@ -19,17 +19,17 @@ pub enum OpCode {
     Not,
     Neg,
 
-    Jump(i16),
-    JumpIfFalse(i16),
+    Jmp(i16),
+    JmpF(i16),
 
-    CallNative { id: NativeId, argc: u8 },
+    CallN { id: NativeId, argc: u8 },
 
-    MakeArray(u16),
+    MkArr(u16),
 
-    MakeObject(u16),
-    GetProperty(u16),
-    SetProperty(u16),
-    CallMethod { name_idx: u16, argc: u8 },
+    MkObj(u16),
+    GetP(u16),
+    SetP(u16),
+    CallM { name_idx: u16, argc: u8 },
 
     Pop,
     Ret,
@@ -89,7 +89,7 @@ impl Chunk {
         );
 
         match &mut self.code[pos] {
-            OpCode::Jump(j) | OpCode::JumpIfFalse(j) => *j = offset as i16,
+            OpCode::Jmp(j) | OpCode::JmpF(j) => *j = offset as i16,
             other => panic!("patch_jump is called for non-jump instructions: {other:?}"),
         }
     }

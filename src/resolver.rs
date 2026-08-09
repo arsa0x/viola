@@ -331,7 +331,6 @@ impl Resolver {
             Expr::Var(name, line) => {
                 let slot = match self.find_slot(name) {
                     Some(slot) => slot,
-
                     None => {
                         return Err(CompileError::new(
                             *line,
