@@ -4,29 +4,75 @@ use std::{
     str::FromStr,
 };
 
+use directories::ProjectDirs;
 use whatsapp_rust::anyhow;
 
 use crate::session;
 
 const TEMPLATE_CONFIG: &str = include_str!("../../config.template");
 
-pub const CONFIG_FILE: &str = "config";
-pub const DOWNLOAD_DIR: &str = "download";
-pub const CACHE_DIR: &str = "cache";
+#[derive(Debug)]
+pub struct Config {
+    pub prefixes: Vec<char>,
+    pub owners: Vec<String>,
+    pub mode: Mode,
+    pub parsed: ParsedConfig,
+}
+
+#[derive(Debug)]
+pub struct ConfigDirs {
+    pub sessions: PathBuf,
+    pub downloads: PathBuf,
+    pub cache: PathBuf,
+}
+
+impl ConfigDirs {
+    fn load() -> anyhow::Result<Self> {
+        let project_dirs = ProjectDirs::from("", "", "viola")
+            .ok_or_else(|| anyhow::anyhow!("failed to determine application directory"))?;
+
+        let config_dir = project_dirs.config_dir();
+
+        Ok(Self {
+            sessions: config_dir.join("sessions"),
+            downloads: config_dir.join("downloads"),
+            cache: config_dir.join("cache"),
+        })
+    }
+
+    pub fn ensure(&self) -> anyhow::Result<()> {
+        std::fs::create_dir_all(&self.sessions)?;
+        std::fs::create_dir_all(&self.downloads)?;
+        std::fs::create_dir_all(&self.cache)?;
+        Ok(())
+    }
+}
+pub fn init() -> anyhow::Result<ConfigDirs> {
+    let dirs = ConfigDirs::load()?;
+    dirs.ensure()?;
+
+    Ok(dirs)
+}
 
 pub fn ensure_config_file(session_dir: &Path) -> anyhow::Result<PathBuf> {
+    std::fs::create_dir_all(session_dir)?;
+
     let path = session_dir.join("config");
+
     if !path.exists() {
         std::fs::write(&path, TEMPLATE_CONFIG)?;
     }
+
     Ok(path)
 }
 
 pub fn load_for_session(name: &str) -> anyhow::Result<Config> {
-    let dir = session::ensure_session_dir(name)?;
-    let path = ensure_config_file(&dir)?;
-    let text = std::fs::read_to_string(path)?;
-    Ok(Config::parse(&text))
+    let session_dir = session::ensure_session_dir(name)?;
+    let config_path = ensure_config_file(&session_dir)?;
+
+    let content = std::fs::read_to_string(config_path)?;
+
+    Ok(Config::parse(&content))
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -51,14 +97,6 @@ impl FromStr for Mode {
 #[derive(Debug, Default)]
 pub struct ParsedConfig {
     values: HashMap<String, String>,
-}
-
-#[derive(Debug)]
-pub struct Config {
-    pub prefixes: Vec<char>,
-    pub owners: Vec<String>,
-    pub mode: Mode,
-    pub parsed: ParsedConfig,
 }
 
 impl ParsedConfig {
@@ -119,7 +157,7 @@ impl Default for Config {
 
 impl Config {
     pub fn load() -> std::io::Result<Self> {
-        let content = std::fs::read_to_string(CONFIG_FILE)?;
+        let content = std::fs::read_to_string("config")?;
         Ok(Self::parse(&content))
     }
 

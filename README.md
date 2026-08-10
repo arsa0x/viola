@@ -131,10 +131,10 @@ List all sessions:
 viola session list
 ```
 
-Remove a session:
+Delete a session:
 
 ```bash
-viola session remove <name>
+viola session delete <name>
 ```
 
 ## Creating Commands
