@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use tokio::task::JoinSet;
-use viola_core::{config, session};
+use viola_core::{config, plugin::PluginRegistry, session};
 use whatsapp_rust::{TokioRuntime, bot, transport::TokioWebSocketTransportFactory};
 
 use crate::{client::ReqwestClient, handler::event_handler, store::RedbStore};
@@ -119,6 +119,15 @@ async fn run_one(name: String) {
         }
     };
 
+    let plugin = match PluginRegistry::load(&config.dirs.plugins.to_string_lossy()) {
+        Ok(plugin) => Arc::new(plugin),
+        Err(err) => {
+            log::error!("[{name}] {err}");
+
+            return;
+        }
+    };
+
     let session_name = name.clone();
 
     let bot = bot::Bot::builder()
@@ -135,6 +144,7 @@ async fn run_one(name: String) {
                 http_client.clone(),
                 http_client_no_redirect.clone(),
                 Arc::clone(&config),
+                Arc::clone(&plugin),
             )
         })
         .build()
