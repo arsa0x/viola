@@ -1,7 +1,6 @@
-use image::{RgbaImage, imageops::overlay, load_from_memory};
+use image::{ImageFormat, RgbaImage, imageops::overlay, load_from_memory};
 use viola_core::{context::Context, message::media::MediaSource};
 use viola_macros::command;
-use webp::Encoder;
 use whatsapp_rust::{anyhow, download::MediaType};
 
 #[command(
@@ -14,27 +13,23 @@ async fn sticker(ctx: Context) -> anyhow::Result<()> {
         match mtype {
             MediaType::Image => {
                 let bytes = ctx.wa_client.download(media).await?;
-                let webp: Vec<u8> = {
-                    let img = load_from_memory(&bytes)?;
-                    let resized = img.thumbnail(512, 512);
 
-                    let mut canvas = RgbaImage::new(512, 512);
+                let img = load_from_memory(&bytes)?;
+                let resized = img.thumbnail(512, 512);
 
-                    let x = (512 - resized.width()) / 2;
-                    let y = (512 - resized.height()) / 2;
+                let mut canvas = RgbaImage::new(512, 512);
 
-                    overlay(&mut canvas, &resized.to_rgba8(), x.into(), y.into());
+                let x = (512 - resized.width()) / 2;
+                let y = (512 - resized.height()) / 2;
 
-                    let encoder =
-                        Encoder::from_rgba(canvas.as_raw(), canvas.width(), canvas.height());
+                overlay(&mut canvas, &resized.to_rgba8(), x.into(), y.into());
 
-                    let webp_memory = encoder.encode(75.0);
+                let mut webp = std::io::Cursor::new(Vec::new());
 
-                    webp_memory.to_vec()
-                };
+                canvas.write_to(&mut webp, ImageFormat::WebP)?;
 
                 ctx.send()
-                    .sticker(MediaSource::Bytes(webp))
+                    .sticker(MediaSource::Bytes(webp.into_inner()))
                     .quoted()
                     .await?;
             }
