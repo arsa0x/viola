@@ -2805,6 +2805,7 @@ dependencies = [
 name = "viola_command"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "base64",
  "humansize",
  "image",
@@ -2815,6 +2816,7 @@ dependencies = [
  "reqwest",
  "scraper",
  "serde",
+ "serde_json",
  "sysinfo",
  "url",
  "viola_core",
