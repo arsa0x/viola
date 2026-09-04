@@ -8,29 +8,50 @@ pub enum FlagKind {
 pub struct FlagSpec {
     pub names: &'static [&'static str],
     pub kind: FlagKind,
+    pub description: Option<&'static str>,
 }
 
-pub const fn flag(names: &'static [&'static str]) -> FlagSpec {
-    FlagSpec {
-        names,
-        kind: FlagKind::Bool,
+impl FlagSpec {
+    pub const fn flag(names: &'static [&'static str]) -> Self {
+        Self {
+            names,
+            kind: FlagKind::Bool,
+            description: None,
+        }
     }
-}
-pub const fn flag_value(names: &'static [&'static str]) -> FlagSpec {
-    FlagSpec {
-        names,
-        kind: FlagKind::Value,
+
+    pub const fn flag_value(names: &'static [&'static str]) -> Self {
+        Self {
+            names,
+            kind: FlagKind::Value,
+            description: None,
+        }
+    }
+
+    pub const fn description(mut self, desc: &'static str) -> Self {
+        self.description = Some(desc);
+        self
+    }
+
+    pub fn get_description(&self) -> String {
+        let names = self.names.join(", ");
+
+        match self.description {
+            Some(desc) => format!("[{names}]\n{desc}"),
+            None => format!("[{names}]"),
+        }
     }
 }
 
-pub struct Args {
+pub struct Args<'a> {
     positional: Vec<String>,
     bools: AHashSet<&'static str>,
     values: AHashMap<&'static str, Option<String>>,
+    flags: &'a [FlagSpec],
 }
 
-impl Args {
-    pub fn parse(raw: &[String], specs: &[FlagSpec]) -> Self {
+impl<'a> Args<'a> {
+    pub fn parse(raw: &[String], specs: &'a [FlagSpec]) -> Self {
         let mut positional = Vec::new();
         let mut bools = AHashSet::new();
         let mut values = AHashMap::new();
@@ -63,7 +84,7 @@ impl Args {
                                 i += 1;
                             }
 
-                            if !value.is_empty() {
+                            if value.is_empty() {
                                 values.insert(canonical, None);
                             } else {
                                 values.insert(canonical, Some(value.join(" ")));
@@ -85,7 +106,24 @@ impl Args {
             positional,
             bools,
             values,
+            flags: specs,
         }
+    }
+
+    pub fn get_flag_description(&self, name: &str) -> String {
+        self.flags
+            .iter()
+            .find(|flag| flag.names.contains(&name))
+            .map(FlagSpec::get_description)
+            .expect("Unkown flag")
+    }
+
+    pub fn get_all_flags_description(&self) -> String {
+        self.flags
+            .iter()
+            .map(FlagSpec::get_description)
+            .collect::<Vec<_>>()
+            .join("\n\n")
     }
 
     pub fn flag(&self, canonical: &str) -> bool {
