@@ -1,15 +1,13 @@
+use anyhow::anyhow;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::Deserialize;
+use serde_json;
 use viola_core::{
     config::ParsedConfig,
     message::{
         interactive::carousel::{CarouselButton, CarouselCard},
         media::MediaSource,
     },
-};
-use whatsapp_rust::{
-    anyhow::{self, anyhow},
-    serde_json,
 };
 
 const NEPHI: &[u8] = include_bytes!("./nephi.jpg");
@@ -21,7 +19,14 @@ const NEPHI: &[u8] = include_bytes!("./nephi.jpg");
 async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
     let nekopoi = match Nekopoi::new(ctx.http_client.clone(), &ctx.config.parsed) {
         Ok(nekopoi) => nekopoi,
-        Err(e) => return ctx.send().inapp_signup(e.to_string()).title("Failed").await,
+        Err(e) => {
+            return ctx
+                .send()
+                .inapp_signup(e.to_string())
+                .title("Failed")
+                .quoted()
+                .await;
+        }
     };
 
     let args = viola_core::Args::parse(
@@ -129,7 +134,7 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
             .cards(cards)
             .quoted()
             .await;
-    } else {
+    } else if args.has("--id") {
         let Some(id) = args.value_parsed::<u32>("--id") else {
             return ctx
                 .send()
@@ -151,6 +156,8 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
             .caption(format!("{:#?}", post))
             .quoted()
             .await
+    } else {
+        Ok(())
     }
 }
 
@@ -161,26 +168,20 @@ struct Nekopoi<'a> {
 }
 
 impl<'a> Nekopoi<'a> {
+    fn parse_config(parsed: &'a ParsedConfig, config: &str) -> anyhow::Result<&'a str> {
+        let Some(conf) = parsed.get(config).filter(|f| !f.is_empty()) else {
+            return Err(anyhow!("missing config: {}", config));
+        };
+
+        Ok(conf)
+    }
+
     pub fn new(client: reqwest::Client, parsed: &'a ParsedConfig) -> anyhow::Result<Self> {
-        let Some(base) = parsed.get("nekopoi_base") else {
-            return Err(anyhow!("Missing config: nekopoi_base"));
-        };
-
-        let Some(build_code) = parsed.get("nekopoi_build_code") else {
-            return Err(anyhow!("Missing config: nekopoi_build_code"));
-        };
-
-        let Some(signature) = parsed.get("nekopoi_signature") else {
-            return Err(anyhow!("Missing config: nekopoi_signature"));
-        };
-
-        let Some(user_agent) = parsed.get("nekopoi_user_agent") else {
-            return Err(anyhow!("Missing config: nekopoi_user_agent"));
-        };
-
-        let Some(token) = parsed.get("nekopoi_token") else {
-            return Err(anyhow!("Missing config: nekopoi_token"));
-        };
+        let base = Self::parse_config(&parsed, "nekopoi_base")?;
+        let build_code = Self::parse_config(&parsed, "nekopoi_build_code")?;
+        let signature = Self::parse_config(&parsed, "nekopoi_signature")?;
+        let user_agent = Self::parse_config(&parsed, "nekopoi_user_agent")?;
+        let token = Self::parse_config(&parsed, "nekopoi_token")?;
 
         let mut headers = HeaderMap::new();
 

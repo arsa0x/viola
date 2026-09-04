@@ -1,6 +1,7 @@
+use anyhow;
 use viola_core::{Context, message::media::MediaSource};
 use viola_macros::command;
-use whatsapp_rust::{anyhow, download::MediaType};
+use whatsapp_rust::download::MediaType;
 
 #[command(
     triggers = ["rvo", "read", "show", "view"],
