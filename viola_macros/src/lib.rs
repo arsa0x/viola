@@ -1,19 +1,3 @@
-// pub type Execute =
-//     fn(
-//         ctx: Context,
-//     ) -> std::pin::Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>>;
-
-// pub struct Command {
-//     pub name: &'static str,
-//     pub triggers: &'static [&'static str],
-//     pub category: &'static str,
-//     pub help: Option<&'static str>,
-//     pub description: Option<&'static str>,
-//     pub group_only: bool,
-//     pub owner_only: bool,
-//     pub execute: Execute,
-// }
-
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{bracketed, parse_macro_input};
@@ -21,7 +5,6 @@ use syn::{bracketed, parse_macro_input};
 struct CommandConfig {
     category: syn::Expr,
     triggers: Vec<syn::LitStr>,
-    help: Option<syn::Expr>,
     description: Option<syn::Expr>,
     group_only: bool,
     owner_only: bool,
@@ -33,7 +16,6 @@ impl Default for CommandConfig {
             category: syn::parse_quote!(""),
             triggers: Vec::new(),
             description: None,
-            help: None,
             group_only: false,
             owner_only: false,
         }
@@ -62,10 +44,6 @@ impl syn::parse::Parse for CommandConfig {
                 "description" => {
                     let value: syn::Expr = input.parse()?;
                     config.description = Some(value);
-                }
-                "help" => {
-                    let value: syn::Expr = input.parse()?;
-                    config.help = Some(value);
                 }
                 "category" => {
                     let val: syn::Expr = input.parse()?;
@@ -105,6 +83,102 @@ impl syn::parse::Parse for CommandConfig {
     }
 }
 
+/// Registers an asynchronous function as a Viola command.
+///
+/// The `command` attribute transforms the annotated function into a
+/// distributed [`viola_core::Command`] definition and registers it in
+/// `viola_core::command::COMMANDS`.
+///
+/// The annotated function itself is preserved and used as the command's
+/// execution handler.
+///
+/// # Syntax
+///
+/// ```ignore
+/// #[viola_macros::command(
+///     triggers = ["trigger", "alias"],
+///     category = "category",
+///     description = "Optional command description",
+///     group_only = false,
+///     owner_only = false,
+/// )]
+/// async fn my_command(ctx: viola_core::Context) -> anyhow::Result<()> {
+///     // command implementation
+///     Ok(())
+/// }
+/// ```
+///
+/// # Parameters
+///
+/// ## `triggers`
+///
+/// A non-empty list of string literals used to invoke the command.
+///
+/// Multiple triggers can be provided to create aliases for the same command.
+///
+/// ```ignore
+/// triggers = ["nekopoi", "neko", "nkp"]
+/// ```
+///
+/// ## `category`
+///
+/// Specifies the command category. This parameter is required.
+///
+/// ```ignore
+/// category = "utility"
+/// ```
+///
+/// ## `description`
+///
+/// An optional expression containing a short description of the command.
+///
+/// ```ignore
+/// description = "Search for something"
+/// ```
+///
+/// ## `group_only`
+///
+/// When set to `true`, the command can only be executed in group chats.
+///
+/// Defaults to `false`.
+///
+/// ```ignore
+/// group_only = true
+/// ```
+///
+/// ## `owner_only`
+///
+/// When set to `true`, the command can only be executed by configured
+/// bot owners.
+///
+/// Defaults to `false`.
+///
+/// ```ignore
+/// owner_only = true
+/// ```
+///
+/// # Requirements
+///
+/// The annotated function must be an asynchronous function accepting a
+/// [`viola_core::Context`] and returning an `anyhow::Result<()>`.
+///
+/// ```ignore
+/// async fn example(ctx: viola_core::Context) -> anyhow::Result<()> {
+///     Ok(())
+/// }
+/// ```
+///
+/// Both `triggers` and `category` are required. Compilation fails with a
+/// descriptive error if either parameter is omitted.
+///
+/// # Registration
+///
+/// Internally, this macro generates a static [`viola_core::Command`] value
+/// and registers it in the `viola_core::command::COMMANDS` distributed slice
+/// using `linkme`.
+///
+/// This allows commands to be discovered and registered automatically
+/// without requiring each command to be manually added to a central list.
 #[proc_macro_attribute]
 pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
     let config = parse_macro_input!(attr as CommandConfig);
@@ -128,11 +202,6 @@ pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
         None => quote!(None),
     };
 
-    let help = match config.help {
-        Some(expr) => quote!(Some(#expr)),
-        None => quote!(None),
-    };
-
     TokenStream::from(quote! {
           #function
 
@@ -142,7 +211,6 @@ pub fn command(attr: TokenStream, item: TokenStream) -> TokenStream {
               category: #category,
               group_only: #group_only,
               description: #description,
-              help: #help,
               owner_only: #owner_only,
               triggers: &[#(#triggers),*],
               execute: |ctx: viola_core::Context| Box::pin(#ident(ctx))

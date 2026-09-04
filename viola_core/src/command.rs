@@ -14,7 +14,6 @@ pub struct Command {
     pub name: &'static str,
     pub triggers: &'static [&'static str],
     pub category: &'static str,
-    pub help: Option<&'static str>,
     pub description: Option<&'static str>,
     pub group_only: bool,
     pub owner_only: bool,

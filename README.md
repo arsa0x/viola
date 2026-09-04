@@ -154,7 +154,6 @@ use whatsapp_rust::anyhow;
     owner_only = false, // optional
     group_only = false, // optional
     description = "",   // optional
-    help = ""           // optional
 )]
 async fn command_name(ctx: Context) -> anyhow::Result<()> {
     ctx.send().text("hi there!").quoted().await?;
@@ -176,7 +175,6 @@ static CMD: Command = Command {
     category: "",
     owner_only: false,
     group_only: false,
-    help: None,
     description: None,
     execute: |ctx: Context| Box::pin(execute(ctx)),
 };
