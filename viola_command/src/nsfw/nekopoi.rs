@@ -80,7 +80,7 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
             let card = CarouselCard::new(format!("title: {}\nid: {}", result.title, result.id))
                 .footer(result.date)
                 .button(CarouselButton::QuickReply {
-                    display_text: "Select".into(),
+                    display_text: "Detail".into(),
                     id: format!(
                         "{}nekopoi --type {} --id {}",
                         ctx.config.prefixes[0], result.content_type, result.id
@@ -132,7 +132,7 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
             let card = CarouselCard::new(format!("title: {}\nid: {}", result.title, result.id))
                 .footer(result.date)
                 .button(CarouselButton::QuickReply {
-                    display_text: "Select".into(),
+                    display_text: "Detail".into(),
                     id: format!("{}nekopoi --id {}", ctx.config.prefixes[0], result.id),
                 });
             match result.image {

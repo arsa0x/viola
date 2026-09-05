@@ -1,71 +1,186 @@
 use std::{
-    process,
-    sync::{LazyLock, Mutex},
+    net::SocketAddr,
+    time::{Duration, Instant},
 };
 
-use humansize::{DECIMAL, format_size};
-use linkme::distributed_slice;
-use sysinfo::{ProcessesToUpdate, System};
-use viola_core::{COMMANDS, Command, Context};
-use whatsapp_rust::{anyhow, chrono::Utc};
-
-#[distributed_slice(COMMANDS)]
-static CMD: Command = Command {
-    name: "ping",
-    triggers: &["ping", "p"],
-    category: "tools",
-    owner_only: false,
-    group_only: false,
-    description: None,
-    execute: |ctx: Context| Box::pin(execute(ctx)),
+use tokio::{
+    net::{TcpStream, lookup_host},
+    time::timeout,
 };
+use viola_core::Context;
+use viola_macros::command;
+use whatsapp_rust::anyhow;
 
-static SYSTEM: LazyLock<Mutex<System>> = LazyLock::new(|| Mutex::new(System::new_all()));
+const ENDPOINT: &str = "g.whatsapp.net:443";
+const DEFAULT_PROBES: usize = 3;
+const MAX_PROBES: usize = 10;
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 
-async fn execute(ctx: Context) -> anyhow::Result<()> {
-    let (bot_ram, bot_cpu, total_ram, used_ram, platform) = {
-        let mut system = SYSTEM.lock().unwrap();
+#[command(
+    triggers = ["ping", "p"],
+    category = "tools",
+    description = "Check WhatsApp connectivity latency",
+)]
+async fn ping(ctx: Context) -> anyhow::Result<()> {
+    let probes = parse_probe_count(&ctx.args);
 
-        let pid = sysinfo::Pid::from_u32(process::id());
+    let dns_started = Instant::now();
 
-        system.refresh_memory();
-        system.refresh_processes(ProcessesToUpdate::Some(&[pid]), true);
+    let addresses: Vec<SocketAddr> = lookup_host(ENDPOINT).await?.collect();
 
-        let process = system.process(pid);
+    let dns_latency = dns_started.elapsed();
 
-        (
-            process.map(|p| p.memory()).unwrap_or_default(),
-            process.map(|p| p.cpu_usage()).unwrap_or_default(),
-            system.total_memory(),
-            system.used_memory(),
-            System::name().unwrap_or_else(|| "Unknown".to_string()),
-        )
-    };
+    let address = addresses
+        .first()
+        .copied()
+        .ok_or_else(|| anyhow::anyhow!("DNS returned no addresses"))?;
 
-    let latency = Utc::now() - ctx.info.timestamp;
+    let tcp = measure_tcp(address, probes).await;
 
-    let text = format!(
-        concat!(
-            "*Latency:*\n{:.3} ms\n\n",
-            "*CPU Usage:*\n{:.2}%\n\n",
-            "*System RAM:*\n{} / {}\n\n",
-            "*Bot RAM:*\n{}\n\n",
-            "*Platform:*\n{}",
-            // "*Uptime:*\n{}"
-        ),
-        latency.num_milliseconds(),
-        bot_cpu,
-        format_size(used_ram, DECIMAL),
-        format_size(total_ram, DECIMAL),
-        format_size(bot_ram, DECIMAL),
-        platform,
-        // uptime
-    );
+    let send_started = Instant::now();
 
-    ctx.send()
-        .inapp_signup(text)
+    let send = ctx
+        .send()
+        .inapp_signup("Process...")
         .title("Pong!")
         .quoted()
         .await?;
+
+    let send_latency = send_started.elapsed();
+
+    let mut text = String::new();
+
+    text.push_str(&format!("*Endpoint*\n`{}`\n\n", address));
+    text.push_str(&format!("*DNS*\n{:.2} ms\n\n", duration_ms(dns_latency)));
+
+    match tcp {
+        Ok(stats) => {
+            text.push_str(&format!(
+                "*TCP Connectivity*\n\
+                 Success: {}/{}\n\
+                 Loss: {:.0}%\n\
+                 Min: {:.2} ms\n\
+                 Avg: {:.2} ms\n\
+                 Max: {:.2} ms\n\
+                 Jitter: {:.2} ms\n\n",
+                stats.successes,
+                stats.attempts,
+                stats.loss_percent(),
+                stats.min_ms(),
+                stats.avg_ms(),
+                stats.max_ms(),
+                stats.jitter_ms(),
+            ));
+        }
+
+        Err(error) => {
+            text.push_str(&format!(
+                "*TCP Connectivity*\n\
+                 Status: ❌ Failed\n\
+                 Error: `{}`\n\n",
+                error
+            ));
+        }
+    }
+
+    text.push_str(&format!(
+        "*WhatsApp Send*\n{:.2} ms",
+        duration_ms(send_latency)
+    ));
+
+    ctx.edit_message(
+        &send,
+        ctx.send()
+            .inapp_signup(text)
+            .title("Pong!")
+            .quoted()
+            .into_message()
+            .await?,
+    )
+    .await?;
+
     Ok(())
+}
+
+fn parse_probe_count(args: &[String]) -> usize {
+    args.get(1)
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_PROBES)
+        .clamp(1, MAX_PROBES)
+}
+
+async fn measure_tcp(address: SocketAddr, attempts: usize) -> anyhow::Result<TcpStats> {
+    let mut samples = Vec::with_capacity(attempts);
+    let mut failures = 0usize;
+
+    for _ in 0..attempts {
+        let started = Instant::now();
+
+        match timeout(CONNECT_TIMEOUT, TcpStream::connect(address)).await {
+            Ok(Ok(stream)) => {
+                drop(stream);
+
+                samples.push(duration_ms(started.elapsed()));
+            }
+
+            Ok(Err(_)) | Err(_) => {
+                failures += 1;
+            }
+        }
+    }
+
+    if samples.is_empty() {
+        anyhow::bail!("all TCP probes failed");
+    }
+
+    Ok(TcpStats {
+        attempts,
+        successes: samples.len(),
+        failures,
+        samples,
+    })
+}
+
+fn duration_ms(duration: Duration) -> f64 {
+    duration.as_secs_f64() * 1_000.0
+}
+
+struct TcpStats {
+    attempts: usize,
+    successes: usize,
+    failures: usize,
+    samples: Vec<f64>,
+}
+
+impl TcpStats {
+    fn min_ms(&self) -> f64 {
+        self.samples.iter().copied().fold(f64::INFINITY, f64::min)
+    }
+
+    fn avg_ms(&self) -> f64 {
+        self.samples.iter().sum::<f64>() / self.samples.len() as f64
+    }
+
+    fn max_ms(&self) -> f64 {
+        self.samples
+            .iter()
+            .copied()
+            .fold(f64::NEG_INFINITY, f64::max)
+    }
+
+    fn jitter_ms(&self) -> f64 {
+        if self.samples.len() < 2 {
+            return 0.0;
+        }
+
+        self.samples
+            .windows(2)
+            .map(|pair| (pair[1] - pair[0]).abs())
+            .sum::<f64>()
+            / (self.samples.len() - 1) as f64
+    }
+
+    fn loss_percent(&self) -> f64 {
+        self.failures as f64 / self.attempts as f64 * 100.0
+    }
 }

@@ -17,5 +17,6 @@ pub mod tools {
    pub mod menu; 
    pub mod ping; 
    pub mod rvo; 
+   pub mod status; 
    pub mod sticker; 
 }
