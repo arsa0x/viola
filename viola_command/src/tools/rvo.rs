@@ -33,9 +33,15 @@ async fn read_view_once(ctx: Context) -> anyhow::Result<()> {
                     .await?;
                 Ok(())
             }
-            _ => ctx.send().failed().await,
+            _ => {
+                ctx.send().failed().await?;
+                Ok(())
+            }
         }
     } else {
-        ctx.send().failed().await
+        {
+            ctx.send().failed().await?;
+            Ok(())
+        }
     }
 }

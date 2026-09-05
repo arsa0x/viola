@@ -140,7 +140,8 @@ async fn ouo(ctx: Context) -> anyhow::Result<()> {
     let Some(url) = ctx.args.iter().find(|arg| {
         arg.starts_with("https://") && (arg.contains("ouo.io") || arg.contains("ouo.press"))
     }) else {
-        return ctx.send().failed().await;
+        ctx.send().failed().await?;
+        return Ok(());
     };
 
     ctx.send().wait().await?;

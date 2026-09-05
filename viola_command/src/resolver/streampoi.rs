@@ -28,7 +28,8 @@ pub struct Stream {
 )]
 async fn streampoi(ctx: viola_core::Context) -> anyhow::Result<()> {
     let Some(url) = ctx.args.iter().find(|arg| arg.starts_with("https://")) else {
-        return ctx.send().text("url-nya mana cik").await;
+        ctx.send().text("url-nya mana cik").await?;
+        return Ok(());
     };
 
     let parsed_url = Url::parse(url)?;
@@ -94,7 +95,8 @@ async fn streampoi(ctx: viola_core::Context) -> anyhow::Result<()> {
         title, thumbnail, duration, playlist_url, streams,
     );
 
-    ctx.send().inapp_signup(message).await
+    ctx.send().inapp_signup(message).await?;
+    Ok(())
 }
 
 fn extract_m3u8(script: &str) -> Option<String> {

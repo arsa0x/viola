@@ -19,7 +19,8 @@ static PASS_MD5_REGEX: Lazy<Regex> =
 )]
 async fn playmogo(ctx: viola_core::Context) -> anyhow::Result<()> {
     let Some(url) = ctx.args.iter().find(|arg| arg.starts_with("https://")) else {
-        return ctx.send().text("url-nya mana cik").await;
+        ctx.send().text("url-nya mana cik").await?;
+        return Ok(());
     };
 
     let mut parsed_url = Url::parse(url)?;
@@ -101,7 +102,11 @@ async fn playmogo(ctx: viola_core::Context) -> anyhow::Result<()> {
 
     let final_stream_url = generate_final_url(&urlf, &token);
 
-    ctx.send().inapp_signup(final_stream_url).title(title).await
+    ctx.send()
+        .inapp_signup(final_stream_url)
+        .title(title)
+        .await?;
+    Ok(())
 }
 
 fn generate_final_url(base_url: &str, token: &str) -> String {

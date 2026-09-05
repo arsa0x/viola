@@ -62,5 +62,10 @@ async fn execute(ctx: Context) -> anyhow::Result<()> {
         // uptime
     );
 
-    ctx.send().inapp_signup(text).title("Pong!").quoted().await
+    ctx.send()
+        .inapp_signup(text)
+        .title("Pong!")
+        .quoted()
+        .await?;
+    Ok(())
 }

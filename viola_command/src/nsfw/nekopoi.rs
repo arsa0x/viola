@@ -43,12 +43,12 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
     let nekopoi = match Nekopoi::new(ctx.http_client.clone(), &ctx.config.parsed) {
         Ok(nekopoi) => nekopoi,
         Err(e) => {
-            return ctx
-                .send()
+            ctx.send()
                 .inapp_signup(e.to_string())
                 .title("Failed")
                 .quoted()
-                .await;
+                .await?;
+            return Ok(());
         }
     };
 
@@ -56,24 +56,24 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
 
     if args.has("--search") {
         let Some(search) = args.value_parsed::<String>("--search") else {
-            return ctx
-                .send()
+            ctx.send()
                 .inapp_signup(args.get_flag_description("--search"))
                 .title("Nekopoi")
                 .quoted()
-                .await;
+                .await?;
+            return Ok(());
         };
 
         let page = args.value_parsed("--page").unwrap_or(1);
         let s = nekopoi.search_by_query(&search, page).await?;
 
         let Some(results) = s.result else {
-            return ctx
-                .send()
+            ctx.send()
                 .inapp_signup("gk ketemu ngab")
                 .title("Nekopoi")
                 .quoted()
-                .await;
+                .await?;
+            return Ok(());
         };
 
         let cards = results.into_iter().map(|result| {
@@ -93,19 +93,18 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
             }
         });
 
-        return ctx
-            .send()
+        ctx.send()
             .carousel(format!(
                 "query: {}\ntotal: {}\npage: {}\ntotal page: {}",
                 search, s.total, page, s.total_pages
             ))
             .cards(cards)
             .quoted()
-            .await;
+            .await?;
+        return Ok(());
     } else if args.has("--genre") {
         let Some(genre) = args.value_parsed::<String>("--genre") else {
-            return ctx
-                .send()
+            ctx.send()
                 .inapp_signup(format!(
                     "{}\nGenre:{}",
                     args.get_flag_description("--genre"),
@@ -113,19 +112,20 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
                 ))
                 .title("Nekopoi")
                 .quoted()
-                .await;
+                .await?;
+            return Ok(());
         };
 
         let page = args.value_parsed("--page").unwrap_or(1);
         let s = nekopoi.search_by_genre(&[&genre]).await?;
 
         let Some(results) = s.result else {
-            return ctx
-                .send()
+            ctx.send()
                 .inapp_signup("gk ketemu cik")
                 .title("Nekopoi")
                 .quoted()
-                .await;
+                .await?;
+            return Ok(());
         };
 
         let cards = results.into_iter().map(|result| {
@@ -141,32 +141,32 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
             }
         });
 
-        return ctx
-            .send()
+        ctx.send()
             .carousel(format!(
                 "query: {}\ntotal: {}\npage: {}\ntotal page: {}",
                 genre, s.total, page, s.total_pages
             ))
             .cards(cards)
             .quoted()
-            .await;
+            .await?;
+        return Ok(());
     } else if args.has("--id") && args.has("--type") {
         let Some(id) = args.value_parsed::<u32>("--id") else {
-            return ctx
-                .send()
+            ctx.send()
                 .inapp_signup("id nya mana cik")
                 .title("Nekopoi")
                 .quoted()
-                .await;
+                .await?;
+            return Ok(());
         };
 
         let Some(content_type) = args.value_parsed::<String>("--type") else {
-            return ctx
-                .send()
+            ctx.send()
                 .inapp_signup("ini type nya apaan dah")
                 .title("Nekopoi")
                 .quoted()
-                .await;
+                .await?;
+            return Ok(());
         };
 
         match content_type.as_str() {
@@ -178,37 +178,38 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
                     ImageField::Url(url) => MediaSource::Url(url.to_string()),
                 };
 
-                return ctx
-                    .send()
+                ctx.send()
                     .image(image)
                     .caption(format!("{:#?}", result))
                     .quoted()
-                    .await;
+                    .await?;
+                return Ok(());
             }
             "hentai" => {
                 let result = nekopoi.series(id).await?;
 
-                return ctx.send().text(format!("{:#?}", result)).quoted().await;
+                ctx.send().text(format!("{:#?}", result)).quoted().await?;
+                return Ok(());
             }
             _ => {
-                return ctx
-                    .send()
+                ctx.send()
                     .inapp_signup("yang bener aja")
                     .title("Nekopoi")
                     .quoted()
-                    .await;
+                    .await?;
+                return Ok(());
             }
         }
     } else {
-        return ctx
-            .send()
+        ctx.send()
             .inapp_signup(format!(
                 "Available commands/flags\n{}",
                 args.get_all_flags_description()
             ))
             .title("Nekopoi")
             .quoted()
-            .await;
+            .await?;
+        return Ok(());
     }
 }
 
