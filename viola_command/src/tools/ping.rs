@@ -16,7 +16,6 @@ static CMD: Command = Command {
     category: "tools",
     owner_only: false,
     group_only: false,
-    help: None,
     description: None,
     execute: |ctx: Context| Box::pin(execute(ctx)),
 };

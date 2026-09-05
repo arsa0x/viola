@@ -6,48 +6,49 @@ use viola_core::Context;
 use viola_macros::command;
 use whatsapp_rust::anyhow;
 
-const HELP: &str = r#"USAGE:
-  .http <METHOD> <URL> [OPTIONS]
+// const HELP: &str = r#"USAGE:
+//   .http <METHOD> <URL> [OPTIONS]
 
-METHODS:
-  GET
-  POST
-  PUT
-  PATCH
-  DELETE
+// METHODS:
+//   GET
+//   POST
+//   PUT
+//   PATCH
+//   DELETE
 
-OPTIONS:
-  -h, --header "<KEY>: <VALUE>"
-      Add request header
+// OPTIONS:
+//   -h, --header "<KEY>: <VALUE>"
+//       Add request header
 
-  -q, --query "<KEY>=<VALUE>"
-      Add query parameter
+//   -q, --query "<KEY>=<VALUE>"
+//       Add query parameter
 
-  -d, --data "<BODY>"
-      Send request body
+//   -d, --data "<BODY>"
+//       Send request body
 
-EXAMPLES:
+// EXAMPLES:
 
-  Simple GET request
-    .http GET https://httpbin.org/get
+//   Simple GET request
+//     .http GET https://httpbin.org/get
 
-  GET with query params
-    .http GET https://example.com \
-      -q "page=1" \
-      -q "limit=10"
+//   GET with query params
+//     .http GET https://example.com \
+//       -q "page=1" \
+//       -q "limit=10"
 
-  POST JSON request
-    .http POST https://httpbin.org/post \
-      -h "Content-Type: application/json" \
-      -d "{\"name\":\"john\"}"
+//   POST JSON request
+//     .http POST https://httpbin.org/post \
+//       -h "Content-Type: application/json" \
+//       -d "{\"name\":\"john\"}"
 
-  Custom Authorization header
-    .http GET https://api.example.com/me \
-      -h "Authorization: Bearer token""#;
+//   Custom Authorization header
+//     .http GET https://api.example.com/me \
+//       -h "Authorization: Bearer token""#;
+
+// const HTTP_FLAGS: &[FlagSpec] = &[FlagSpec::flag_value(names)];
 
 #[command(
     triggers = ["http", "https", "fetch"],
-    help = HELP,
     description = "Send HTTP requests",
     category = "tools"
 )]

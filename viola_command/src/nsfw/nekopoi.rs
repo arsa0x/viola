@@ -3,6 +3,7 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use serde::Deserialize;
 use serde_json;
 use viola_core::{
+    args::FlagSpec,
     config::ParsedConfig,
     message::{
         interactive::carousel::{CarouselButton, CarouselCard},
@@ -11,6 +12,28 @@ use viola_core::{
 };
 
 const NEPHI: &[u8] = include_bytes!("./nephi.jpg");
+
+// Nekopoi
+// AV Hentai sub indonesia
+//
+// Available flags:
+//
+// [--search, -s]
+// Search hentai by query, e.g. .nekopoi -s enjo kouhai
+//
+// [--genre, -g]
+// Search hentai by genre, e.g. .nekopoi -g yuri,milf,monster
+
+const NEKOPOI_FLAGS: &[FlagSpec] = &[
+    FlagSpec::flag_value(&["--search", "-s"])
+        .description("Search hentai by query, e.g. .nekopoi -s enjo kouhai"),
+    FlagSpec::flag_value(&["--genre", "-g"])
+        .description("Search hentai by genre, e.g. .nekopoi -g yuri,milf,monster"),
+    FlagSpec::flag_value(&["--page", "-p"]).description("Usage: .nekopoi -g milf -p 2"),
+    FlagSpec::flag_value(&["--id", "-i"])
+        .description("Get hentai by id, e.g. .nekopoi -i <id> -t <hentai|post>"),
+    FlagSpec::flag_value(&["--type", "-t"]).description("Usage: .nekopoi -i <id> -t <hentai|post>"),
+];
 
 #[viola_macros::command(
   triggers = ["nekopoi", "neko", "kucing", "nkp"],
@@ -29,26 +52,15 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
         }
     };
 
-    let args = viola_core::Args::parse(
-        &ctx.args,
-        &[
-            viola_core::args::flag_value(&["--search", "-s"]),
-            viola_core::args::flag_value(&["--genre", "-g"]),
-            viola_core::args::flag_value(&["--page", "-p"]),
-            viola_core::args::flag_value(&["--id", "-i"]),
-            viola_core::args::flag_value(&["--resolution", "-r"]),
-        ],
-    );
+    let args = viola_core::Args::parse(&ctx.args, NEKOPOI_FLAGS);
 
     if args.has("--search") {
         let Some(search) = args.value_parsed::<String>("--search") else {
             return ctx
                 .send()
-                .inapp_signup(format!(
-                    "contoh penggunaan:\n> {}nekopoi --search query",
-                    ctx.config.prefixes[0]
-                ))
-                .title("Viola")
+                .inapp_signup(args.get_flag_description("--search"))
+                .title("Nekopoi")
+                .quoted()
                 .await;
         };
 
@@ -59,19 +71,20 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
             return ctx
                 .send()
                 .inapp_signup("gk ketemu ngab")
-                .title("Viola")
+                .title("Nekopoi")
                 .quoted()
                 .await;
         };
-
-        println!("{:#?}", results);
 
         let cards = results.into_iter().map(|result| {
             let card = CarouselCard::new(format!("title: {}\nid: {}", result.title, result.id))
                 .footer(result.date)
                 .button(CarouselButton::QuickReply {
                     display_text: "Select".into(),
-                    id: format!("{}nekopoi --id {}", ctx.config.prefixes[0], result.id),
+                    id: format!(
+                        "{}nekopoi --type {} --id {}",
+                        ctx.config.prefixes[0], result.content_type, result.id
+                    ),
                 });
 
             match result.image {
@@ -94,20 +107,23 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
             return ctx
                 .send()
                 .inapp_signup(format!(
-                    "contoh penggunaan:\n> {}nekopoi --genre loli",
-                    ctx.config.prefixes[0]
+                    "{}\nGenre:{}",
+                    args.get_flag_description("--genre"),
+                    GENRES.iter().map(|f| f.name).collect::<Vec<_>>().join("\n")
                 ))
-                .title("Viola")
+                .title("Nekopoi")
+                .quoted()
                 .await;
         };
+
         let page = args.value_parsed("--page").unwrap_or(1);
         let s = nekopoi.search_by_genre(&[&genre]).await?;
 
         let Some(results) = s.result else {
             return ctx
                 .send()
-                .inapp_signup("gk ketemu woilah")
-                .title("Viola")
+                .inapp_signup("gk ketemu cik")
+                .title("Nekopoi")
                 .quoted()
                 .await;
         };
@@ -134,30 +150,65 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
             .cards(cards)
             .quoted()
             .await;
-    } else if args.has("--id") {
+    } else if args.has("--id") && args.has("--type") {
         let Some(id) = args.value_parsed::<u32>("--id") else {
             return ctx
                 .send()
                 .inapp_signup("id nya mana cik")
-                .title("Viola")
+                .title("Nekopoi")
                 .quoted()
                 .await;
         };
 
-        let post = nekopoi.post(id).await?;
-
-        let image = match &post.image {
-            ImageField::Bool(_) => MediaSource::Bytes(NEPHI.to_vec()),
-            ImageField::Url(url) => MediaSource::Url(url.to_string()),
+        let Some(content_type) = args.value_parsed::<String>("--type") else {
+            return ctx
+                .send()
+                .inapp_signup("ini type nya apaan dah")
+                .title("Nekopoi")
+                .quoted()
+                .await;
         };
 
-        ctx.send()
-            .image(image)
-            .caption(format!("{:#?}", post))
-            .quoted()
-            .await
+        match content_type.as_str() {
+            "post" => {
+                let result = nekopoi.post(id).await?;
+
+                let image = match &result.image {
+                    ImageField::Bool(_) => MediaSource::Bytes(NEPHI.to_vec()),
+                    ImageField::Url(url) => MediaSource::Url(url.to_string()),
+                };
+
+                return ctx
+                    .send()
+                    .image(image)
+                    .caption(format!("{:#?}", result))
+                    .quoted()
+                    .await;
+            }
+            "hentai" => {
+                let result = nekopoi.series(id).await?;
+
+                return ctx.send().text(format!("{:#?}", result)).quoted().await;
+            }
+            _ => {
+                return ctx
+                    .send()
+                    .inapp_signup("yang bener aja")
+                    .title("Nekopoi")
+                    .quoted()
+                    .await;
+            }
+        }
     } else {
-        Ok(())
+        return ctx
+            .send()
+            .inapp_signup(format!(
+                "Available commands/flags\n{}",
+                args.get_all_flags_description()
+            ))
+            .title("Nekopoi")
+            .quoted()
+            .await;
     }
 }
 
@@ -189,13 +240,9 @@ impl<'a> Nekopoi<'a> {
             reqwest::header::USER_AGENT,
             HeaderValue::from_str(user_agent)?,
         );
-
         headers.insert("AppBuildCode", HeaderValue::from_str(build_code)?);
-
         headers.insert("AppSignature", HeaderValue::from_str(signature)?);
-
         headers.insert("Token", HeaderValue::from_str(token)?);
-
         headers.insert(
             reqwest::header::ACCEPT,
             HeaderValue::from_static("application/json"),
@@ -255,6 +302,7 @@ impl<'a> Nekopoi<'a> {
 
     /// @f("genre")
     /// Object a(InterfaceC1135d<? super SearchListGenres> interfaceC1135d);
+    #[allow(unused)]
     pub async fn get_genres(&self) -> anyhow::Result<SearchListGenres> {
         Ok(self
             .get("/genre", None)
