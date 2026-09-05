@@ -218,6 +218,16 @@ mode=public
 
 - [Message module](./viola_core/src/message/README.md#message-module) — builders for sending text, media, reactions, and interactive (buttons/list) messages via `ctx.send()`.
 
+## Acknowledge
+
+Viola is made possible by the work and ideas from these projects:
+
+- [whatsapp-rust](https://github.com/oxidezap/whatsapp-rust) — The WhatsApp client library that powers Viola's WhatsApp communication.
+- [Baileys](https://github.com/WhiskeySockets/Baileys) — An inspiring WhatsApp Web library whose architecture and ecosystem have influenced this project.
+- [sora-rs](https://github.com/hllstr/sora-rs) — A Rust WhatsApp bot project that provided useful inspiration during the development of Viola.
+
+Many thanks to the authors and contributors of these projects for their work and for making the open-source ecosystem better.
+
 ## License
 
 Licensed under the MIT License.
