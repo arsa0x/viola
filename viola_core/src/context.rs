@@ -29,15 +29,16 @@ impl Context {
         &self,
         original_message: &whatsapp_rust::SendResult,
         new_message: whatsapp::Message,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<String> {
         self.wa_client
             .edit_message(
-                self.info.source.chat.clone(),
+                // self.info.source.chat.clone(),
+                original_message.to.clone(),
                 &original_message.message_id,
                 new_message,
             )
-            .await?;
-        Ok(())
+            .await
+            .map_err(|e| anyhow!(e))
     }
 
     pub fn build_ctx_info(&self) -> ContextInfo {

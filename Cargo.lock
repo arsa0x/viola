@@ -2837,6 +2837,7 @@ dependencies = [
  "linkme",
  "log",
  "reqwest",
+ "serde",
  "tokio",
  "whatsapp-rust",
 ]

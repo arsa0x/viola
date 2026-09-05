@@ -39,12 +39,7 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
 
     let send_started = Instant::now();
 
-    let send = ctx
-        .send()
-        .inapp_signup("Process...")
-        .title("Pong!")
-        .quoted()
-        .await?;
+    let send = ctx.send().text("Process...").quoted().await?;
 
     let send_latency = send_started.elapsed();
 
@@ -88,16 +83,8 @@ async fn ping(ctx: Context) -> anyhow::Result<()> {
         duration_ms(send_latency)
     ));
 
-    ctx.edit_message(
-        &send,
-        ctx.send()
-            .inapp_signup(text)
-            .title("Pong!")
-            .quoted()
-            .into_message()
-            .await?,
-    )
-    .await?;
+    ctx.edit_message(&send, ctx.send().text(text).quoted().into_message().await?)
+        .await?;
 
     Ok(())
 }

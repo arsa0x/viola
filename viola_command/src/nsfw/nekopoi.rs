@@ -25,14 +25,14 @@ const NEPHI: &[u8] = include_bytes!("./nephi.jpg");
 // Search hentai by genre, e.g. .nekopoi -g yuri,milf,monster
 
 const NEKOPOI_FLAGS: &[FlagSpec] = &[
-    FlagSpec::flag_value(&["--search", "-s"])
+    FlagSpec::value(&["--search", "-s"])
         .description("Search hentai by query, e.g. .nekopoi -s enjo kouhai"),
-    FlagSpec::flag_value(&["--genre", "-g"])
-        .description("Search hentai by genre, e.g. .nekopoi -g yuri,milf,monster"),
-    FlagSpec::flag_value(&["--page", "-p"]).description("Usage: .nekopoi -g milf -p 2"),
-    FlagSpec::flag_value(&["--id", "-i"])
+    FlagSpec::list(&["--genre", "-g"])
+        .description("Search hentai by genre, e.g. .nekopoi -g yuri milf monster"),
+    FlagSpec::value(&["--page", "-p"]).description("Usage: .nekopoi -g milf -p 2"),
+    FlagSpec::value(&["--id", "-i"])
         .description("Get hentai by id, e.g. .nekopoi -i <id> -t <hentai|post>"),
-    FlagSpec::flag_value(&["--type", "-t"]).description("Usage: .nekopoi -i <id> -t <hentai|post>"),
+    FlagSpec::value(&["--type", "-t"]).description("Usage: .nekopoi -i <id> -t <hentai|post>"),
 ];
 
 #[viola_macros::command(

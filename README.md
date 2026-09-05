@@ -5,8 +5,8 @@ A fast and modular WhatsApp bot framework for Rust with procedural macro command
 ## Features
 
 - High-performance asynchronous runtime powered by Tokio
-- Native Rust performance with a low memory footprint
 - Native Rust performance
+- Low memory footprint
 - Procedural macro command system
 - Auto-generated project scaffolding
 - Multi-session support (run one or multiple WhatsApp accounts)
