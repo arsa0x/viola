@@ -25,6 +25,21 @@ impl Context {
         MessageFactory { ctx: self }
     }
 
+    pub async fn edit_message(
+        &self,
+        original_message: &whatsapp_rust::SendResult,
+        new_message: whatsapp::Message,
+    ) -> anyhow::Result<()> {
+        self.wa_client
+            .edit_message(
+                self.info.source.chat.clone(),
+                &original_message.message_id,
+                new_message,
+            )
+            .await?;
+        Ok(())
+    }
+
     pub fn build_ctx_info(&self) -> ContextInfo {
         build_quote_context(
             self.info.id.clone(),
