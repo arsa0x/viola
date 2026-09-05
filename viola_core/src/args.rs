@@ -59,8 +59,8 @@ impl FlagSpec {
         let names = self.names.join(", ");
 
         match self.description {
-            Some(desc) => format!("[{names}]\n{desc}"),
-            None => format!("[{names}]"),
+            Some(desc) => format!("```[{names}]```\n> {desc}"),
+            None => format!("```[{names}]```"),
         }
     }
 }
@@ -229,6 +229,10 @@ impl<'a> Args<'a> {
     pub fn list_str(&self, canonical: &str) -> Option<Vec<&str>> {
         self.list(canonical)
             .map(|v| v.iter().map(String::as_str).collect())
+    }
+
+    pub fn list_non_empty(&self, canonical: &str) -> Option<Vec<&str>> {
+        self.list_str(canonical).filter(|v| !v.is_empty())
     }
 
     fn collect_json(raw: &[String], specs: &[FlagSpec], i: &mut usize) -> Option<String> {
