@@ -1,8 +1,11 @@
 use ahash::{AHashMap, AHashSet};
+use whatsapp_rust::{serde, serde_json};
 
 pub enum FlagKind {
     Bool,
     Value,
+    List,
+    Json,
 }
 
 pub struct FlagSpec {
@@ -12,7 +15,7 @@ pub struct FlagSpec {
 }
 
 impl FlagSpec {
-    pub const fn flag(names: &'static [&'static str]) -> Self {
+    pub const fn bool(names: &'static [&'static str]) -> Self {
         Self {
             names,
             kind: FlagKind::Bool,
@@ -20,10 +23,26 @@ impl FlagSpec {
         }
     }
 
-    pub const fn flag_value(names: &'static [&'static str]) -> Self {
+    pub const fn value(names: &'static [&'static str]) -> Self {
         Self {
             names,
             kind: FlagKind::Value,
+            description: None,
+        }
+    }
+
+    pub const fn list(names: &'static [&'static str]) -> Self {
+        Self {
+            names,
+            kind: FlagKind::List,
+            description: None,
+        }
+    }
+
+    pub const fn json(names: &'static [&'static str]) -> Self {
+        Self {
+            names,
+            kind: FlagKind::Json,
             description: None,
         }
     }
@@ -47,6 +66,7 @@ pub struct Args<'a> {
     positional: Vec<String>,
     bools: AHashSet<&'static str>,
     values: AHashMap<&'static str, Option<String>>,
+    lists: AHashMap<&'static str, Vec<String>>,
     flags: &'a [FlagSpec],
 }
 
@@ -54,59 +74,91 @@ impl<'a> Args<'a> {
     pub fn parse(raw: &[String], specs: &'a [FlagSpec]) -> Self {
         let mut positional = Vec::new();
         let mut bools = AHashSet::new();
+        let mut lists = AHashMap::new();
         let mut values = AHashMap::new();
 
         let mut i = 0;
         'tokens: while i < raw.len() {
             let tok = raw[i].as_str();
 
-            for spec in specs {
-                if spec.names.contains(&tok) {
-                    let canonical = spec.names[0];
-                    match spec.kind {
-                        FlagKind::Bool => {
-                            bools.insert(canonical);
-                        }
-                        FlagKind::Value => {
-                            let mut value = Vec::new();
-                            i += 1;
+            let Some(spec) = specs.iter().find(|s| s.names.contains(&tok)) else {
+                positional.push(raw[i].clone());
+                i += 1;
+                continue;
+            };
 
-                            while i < raw.len() {
-                                let current = raw[i].as_str();
+            let canonical = spec.names[0];
 
-                                let is_flag = specs.iter().any(|s| s.names.contains(&current));
-
-                                if is_flag {
-                                    break;
-                                }
-
-                                value.push(raw[i].clone());
-                                i += 1;
-                            }
-
-                            if value.is_empty() {
-                                values.insert(canonical, None);
-                            } else {
-                                values.insert(canonical, Some(value.join(" ")));
-                            }
-
-                            continue 'tokens;
-                        }
-                    }
+            match spec.kind {
+                FlagKind::Bool => {
+                    bools.insert(canonical);
                     i += 1;
-                    continue 'tokens;
+                }
+                FlagKind::Value => {
+                    let val = Self::collect_until_flag(raw, specs, &mut i);
+                    values.insert(canonical, val);
+                }
+                FlagKind::List => {
+                    i += 1;
+
+                    let mut values = Vec::new();
+
+                    while i < raw.len() {
+                        let current = raw[i].as_str();
+
+                        let is_flag = specs.iter().any(|s| s.names.contains(&current));
+
+                        if is_flag {
+                            break;
+                        }
+
+                        values.push(raw[i].clone());
+                        i += i;
+                    }
+
+                    lists
+                        .entry(canonical)
+                        .or_insert_with(|| Vec::new())
+                        .extend(values);
+                }
+                FlagKind::Json => {
+                    let val = Self::collect_until_flag(raw, specs, &mut i);
+                    values.insert(canonical, val);
                 }
             }
-
-            positional.push(raw[i].clone());
-            i += 1;
+            continue 'tokens;
         }
 
         Self {
             positional,
             bools,
             values,
+            lists,
             flags: specs,
+        }
+    }
+
+    fn collect_until_flag(raw: &[String], specs: &[FlagSpec], i: &mut usize) -> Option<String> {
+        *i += 1;
+
+        let start = *i;
+
+        while *i < raw.len() {
+            let current = raw[*i].as_str();
+
+            let is_flag = specs.iter().any(|s| s.names.contains(&current));
+
+            if is_flag {
+                break;
+            }
+
+            *i += 1;
+        }
+
+        if start == *i {
+            None
+        } else {
+            Some(raw[start..*i].join(" "))
         }
     }
 
@@ -131,7 +183,9 @@ impl<'a> Args<'a> {
     }
 
     pub fn has(&self, canonical: &str) -> bool {
-        self.values.contains_key(canonical) || self.bools.contains(canonical)
+        self.values.contains_key(canonical)
+            || self.lists.contains_key(canonical)
+            || self.bools.contains(canonical)
     }
 
     pub fn value(&self, canonical: &str) -> Option<&str> {
@@ -140,6 +194,26 @@ impl<'a> Args<'a> {
 
     pub fn value_parsed<T: std::str::FromStr>(&self, canonical: &str) -> Option<T> {
         self.value(canonical).and_then(|v| v.parse().ok())
+    }
+
+    pub fn list(&self, canonical: &str) -> Option<&[String]> {
+        self.lists.get(canonical).map(Vec::as_slice)
+    }
+
+    pub fn list_str(&self, canonical: &str) -> Option<Vec<&str>> {
+        self.list(canonical)
+            .map(|v| v.iter().map(String::as_str).collect())
+    }
+
+    pub fn json(&self, canonical: &str) -> Option<serde_json::Result<serde_json::Value>> {
+        self.value(canonical).map(serde_json::from_str)
+    }
+
+    pub fn json_parsed<T>(&self, canonical: &str) -> Option<serde_json::Result<T>>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        self.value(canonical).map(serde_json::from_str)
     }
 
     pub fn positional(&self, idx: usize) -> Option<&str> {
