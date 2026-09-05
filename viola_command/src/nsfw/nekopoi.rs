@@ -103,12 +103,16 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
             .await?;
         return Ok(());
     } else if args.has("--genre") {
-        let Some(genre) = args.value_parsed::<String>("--genre") else {
+        let Some(genre) = args.list_non_empty("--genre") else {
             ctx.send()
                 .inapp_signup(format!(
-                    "{}\nGenre:{}",
+                    "{}\n\nGenre:\n{}",
                     args.get_flag_description("--genre"),
-                    GENRES.iter().map(|f| f.name).collect::<Vec<_>>().join("\n")
+                    GENRES
+                        .iter()
+                        .map(|f| format!("- {}", f.name))
+                        .collect::<Vec<_>>()
+                        .join("\n")
                 ))
                 .title("Nekopoi")
                 .quoted()
@@ -117,7 +121,7 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
         };
 
         let page = args.value_parsed("--page").unwrap_or(1);
-        let s = nekopoi.search_by_genre(&[&genre]).await?;
+        let s = nekopoi.search_by_genre(&genre).await?;
 
         let Some(results) = s.result else {
             ctx.send()
@@ -144,7 +148,10 @@ async fn nekopoi(ctx: viola_core::Context) -> anyhow::Result<()> {
         ctx.send()
             .carousel(format!(
                 "query: {}\ntotal: {}\npage: {}\ntotal page: {}",
-                genre, s.total, page, s.total_pages
+                genre.join(", "),
+                s.total,
+                page,
+                s.total_pages
             ))
             .cards(cards)
             .quoted()
@@ -394,13 +401,25 @@ impl<'a> Nekopoi<'a> {
     ///   { "id": 45, "name": "Yuri" }
     /// ]
     pub async fn search_by_genre(&self, genres: &[&str]) -> anyhow::Result<SearchByGenre> {
-        let mut g = Vec::new();
-        for genre in genres {
-            g.push(("term", *genre));
+        let genre_ids: Vec<&str> = genres
+            .iter()
+            .map(|label| {
+                GENRES
+                    .iter()
+                    .find(|genre| genre.name.eq_ignore_ascii_case(label))
+                    .map(|genre| genre.id)
+                    .ok_or_else(|| anyhow::anyhow!("Unknown genre: {label}"))
+            })
+            .collect::<anyhow::Result<_>>()?;
+
+        let mut params = Vec::new();
+
+        for genre_id in &genre_ids {
+            params.push(("term", *genre_id));
         }
 
         Ok(self
-            .get("/searchByGenre", Some(g.as_slice()))
+            .get("/searchByGenre", Some(params.as_slice()))
             .await?
             .json::<SearchByGenre>()
             .await?)
@@ -450,313 +469,313 @@ impl<'a> Nekopoi<'a> {
 }
 
 pub struct Genre {
-    pub id: u32,
+    pub id: &'static str,
     pub name: &'static str,
 }
 
 pub const GENRES: [Genre; 76] = [
     Genre {
-        id: 72,
+        id: "72",
         name: "Action",
     },
     Genre {
-        id: 48,
+        id: "48",
         name: "Ahegao",
     },
     Genre {
-        id: 39,
+        id: "39",
         name: "Anal",
     },
     Genre {
-        id: 529,
+        id: "529",
         name: "Armpit",
     },
     Genre {
-        id: 40,
+        id: "40",
         name: "BDSM",
     },
     Genre {
-        id: 33,
+        id: "33",
         name: "Big Oppai",
     },
     Genre {
-        id: 684,
+        id: "684",
         name: "Blackmail",
     },
     Genre {
-        id: 633,
+        id: "633",
         name: "Blonde",
     },
     Genre {
-        id: 30,
+        id: "30",
         name: "Blowjob",
     },
     Genre {
-        id: 58,
+        id: "58",
         name: "Bondage",
     },
     Genre {
-        id: 686,
+        id: "686",
         name: "Cheating",
     },
     Genre {
-        id: 244,
+        id: "244",
         name: "Comedy",
     },
     Genre {
-        id: 31,
+        id: "31",
         name: "Creampie",
     },
     Genre {
-        id: 517,
+        id: "517",
         name: "Dark Skin",
     },
     Genre {
-        id: 546,
+        id: "546",
         name: "DILF",
     },
     Genre {
-        id: 73,
+        id: "73",
         name: "Elf",
     },
     Genre {
-        id: 585,
+        id: "585",
         name: "Exhibitionist",
     },
     Genre {
-        id: 56,
+        id: "56",
         name: "Fellatio",
     },
     Genre {
-        id: 584,
+        id: "584",
         name: "Female Monster",
     },
     Genre {
-        id: 61,
+        id: "61",
         name: "Femdom",
     },
     Genre {
-        id: 52,
+        id: "52",
         name: "Footjob",
     },
     Genre {
-        id: 35,
+        id: "35",
         name: "Forced",
     },
     Genre {
-        id: 641,
+        id: "641",
         name: "Furry",
     },
     Genre {
-        id: 50,
+        id: "50",
         name: "Futanari",
     },
     Genre {
-        id: 55,
+        id: "55",
         name: "Gangbang",
     },
     Genre {
-        id: 70,
+        id: "70",
         name: "Gore",
     },
     Genre {
-        id: 687,
+        id: "687",
         name: "Gyaru",
     },
     Genre {
-        id: 681,
+        id: "681",
         name: "Handjob",
     },
     Genre {
-        id: 43,
+        id: "43",
         name: "Harem",
     },
     Genre {
-        id: 683,
+        id: "683",
         name: "Horror",
     },
     Genre {
-        id: 32,
+        id: "32",
         name: "Housewife",
     },
     Genre {
-        id: 678,
+        id: "678",
         name: "Humilation",
     },
     Genre {
-        id: 117,
+        id: "117",
         name: "Humiliation",
     },
     Genre {
-        id: 530,
+        id: "530",
         name: "Hypnotize",
     },
     Genre {
-        id: 46,
+        id: "46",
         name: "Incest",
     },
     Genre {
-        id: 532,
+        id: "532",
         name: "Intercrural",
     },
     Genre {
-        id: 679,
+        id: "679",
         name: "JAV",
     },
     Genre {
-        id: 255,
+        id: "255",
         name: "Lactation",
     },
     Genre {
-        id: 36,
+        id: "36",
         name: "Loli",
     },
     Genre {
-        id: 49,
+        id: "49",
         name: "Maid",
     },
     Genre {
-        id: 583,
+        id: "583",
         name: "Male Monster",
     },
     Genre {
-        id: 29,
+        id: "29",
         name: "Masturbation",
     },
     Genre {
-        id: 59,
+        id: "59",
         name: "Megane",
     },
     Genre {
-        id: 28,
+        id: "28",
         name: "MILF",
     },
     Genre {
-        id: 573,
+        id: "573",
         name: "Mind Control",
     },
     Genre {
-        id: 47,
+        id: "47",
         name: "Monster",
     },
     Genre {
-        id: 27,
+        id: "27",
         name: "Netorare",
     },
     Genre {
-        id: 71,
+        id: "71",
         name: "Nurse",
     },
     Genre {
-        id: 548,
+        id: "548",
         name: "Old man",
     },
     Genre {
-        id: 544,
+        id: "544",
         name: "Onee-san",
     },
     Genre {
-        id: 44,
+        id: "44",
         name: "Oral",
     },
     Genre {
-        id: 38,
+        id: "38",
         name: "Paizuri",
     },
     Genre {
-        id: 54,
+        id: "54",
         name: "Pantyhose",
     },
     Genre {
-        id: 67,
+        id: "67",
         name: "Pregnant",
     },
     Genre {
-        id: 675,
+        id: "675",
         name: "Prostitution",
     },
     Genre {
-        id: 51,
+        id: "51",
         name: "Rape",
     },
     Genre {
-        id: 41,
+        id: "41",
         name: "Romance",
     },
     Genre {
-        id: 615,
+        id: "615",
         name: "Saimin",
     },
     Genre {
-        id: 37,
+        id: "37",
         name: "Schoolgirl",
     },
     Genre {
-        id: 672,
+        id: "672",
         name: "Semi-Hentai",
     },
     Genre {
-        id: 674,
+        id: "674",
         name: "Sex Toys",
     },
     Genre {
-        id: 65,
+        id: "65",
         name: "Shibari",
     },
     Genre {
-        id: 212,
+        id: "212",
         name: "Shota",
     },
     Genre {
-        id: 62,
+        id: "62",
         name: "Stocking",
     },
     Genre {
-        id: 506,
+        id: "506",
         name: "Succubus",
     },
     Genre {
-        id: 60,
+        id: "60",
         name: "Supranatural",
     },
     Genre {
-        id: 66,
+        id: "66",
         name: "Swimsuit",
     },
     Genre {
-        id: 42,
+        id: "42",
         name: "Tentacles",
     },
     Genre {
-        id: 498,
+        id: "498",
         name: "Threesome",
     },
     Genre {
-        id: 53,
+        id: "53",
         name: "Tsundere",
     },
     Genre {
-        id: 685,
+        id: "685",
         name: "Ugly Bastard",
     },
     Genre {
-        id: 69,
+        id: "69",
         name: "Uncensored",
     },
     Genre {
-        id: 57,
+        id: "57",
         name: "Vanilla",
     },
     Genre {
-        id: 34,
+        id: "34",
         name: "Virgin",
     },
     Genre {
-        id: 180,
+        id: "180",
         name: "Yaoi",
     },
     Genre {
-        id: 45,
+        id: "45",
         name: "Yuri",
     },
 ];
