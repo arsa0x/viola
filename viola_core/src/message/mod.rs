@@ -4,7 +4,8 @@ pub mod reaction;
 pub mod text;
 
 use whatsapp_rust::{
-    anyhow,
+    SendResult,
+    anyhow::{self, anyhow},
     buffa::MessageField,
     waproto::whatsapp::{self, ContextInfo},
 };
@@ -34,12 +35,12 @@ pub struct MessageFactory<'a> {
 }
 
 impl<'a> MessageFactory<'a> {
-    pub async fn raw(&self, message: whatsapp::Message) -> anyhow::Result<()> {
+    pub async fn raw(&self, message: whatsapp::Message) -> anyhow::Result<SendResult> {
         self.ctx
             .wa_client
             .send_message(self.ctx.info.source.chat.clone(), message)
-            .await?;
-        Ok(())
+            .await
+            .map_err(|e| anyhow!(e))
     }
 
     pub fn text(&self, text: impl Into<String>) -> TextBuilder<'a> {
@@ -101,15 +102,15 @@ impl<'a> MessageFactory<'a> {
         }
     }
 
-    pub async fn success(self) -> anyhow::Result<()> {
+    pub async fn success(self) -> anyhow::Result<whatsapp_rust::SendResult> {
         self.reaction("✅").await
     }
 
-    pub async fn wait(self) -> anyhow::Result<()> {
+    pub async fn wait(self) -> anyhow::Result<whatsapp_rust::SendResult> {
         self.reaction("⏳").await
     }
 
-    pub async fn failed(self) -> anyhow::Result<()> {
+    pub async fn failed(self) -> anyhow::Result<whatsapp_rust::SendResult> {
         self.reaction("❌").await
     }
 
@@ -179,7 +180,7 @@ pub fn context_info_slot<T: ContextInfoSlot>(ctx: &Context, quoted: bool) -> T {
 macro_rules! sendable_builder {
     ($builder:ident) => {
         impl<'a> $builder<'a> {
-            pub async fn send(self) -> anyhow::Result<()> {
+            pub async fn send(self) -> anyhow::Result<whatsapp_rust::SendResult> {
                 let ctx = self.ctx;
                 let message = self.into_message().await?;
                 ctx.send().raw(message).await
@@ -187,9 +188,10 @@ macro_rules! sendable_builder {
         }
 
         impl<'a> IntoFuture for $builder<'a> {
-            type Output = anyhow::Result<()>;
-            type IntoFuture =
-                std::pin::Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'a>>;
+            type Output = anyhow::Result<whatsapp_rust::SendResult>;
+            type IntoFuture = std::pin::Pin<
+                Box<dyn Future<Output = anyhow::Result<whatsapp_rust::SendResult>> + Send + 'a>,
+            >;
             fn into_future(self) -> Self::IntoFuture {
                 Box::pin(self.send())
             }
