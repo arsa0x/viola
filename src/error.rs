@@ -38,6 +38,20 @@ pub enum VmError {
     StackUnderflow {
         line: u32,
     },
+
+    DivisionByZero {
+        line: u32,
+    },
+
+    ArithmeticOverflow {
+        line: u32,
+        op: &'static str,
+    },
+
+    Unsupported {
+        line: u32,
+        what: &'static str,
+    },
 }
 
 impl fmt::Display for VmError {
@@ -49,6 +63,15 @@ impl fmt::Display for VmError {
             }
             VmError::StackUnderflow { line } => {
                 write!(f, "line {line}: internal error: stack underflow")
+            }
+            VmError::DivisionByZero { line } => {
+                write!(f, "line {line}: division by zero")
+            }
+            VmError::ArithmeticOverflow { line, op } => {
+                write!(f, "line {line}: arithmetic overflow in `{op}`")
+            }
+            VmError::Unsupported { line, what } => {
+                write!(f, "line {line}: {what} is not supported yet")
             }
         }
     }
