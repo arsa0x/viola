@@ -243,6 +243,8 @@ impl<'a> Lexer<'a> {
         let token = match ident {
             "true" => Token::True,
             "false" => Token::False,
+            "and" => Token::And,
+            "or" => Token::Or,
             _ => Token::Ident(ident),
         };
 
@@ -384,6 +386,8 @@ impl<'a> Lexer<'a> {
         let token = match ident {
             "true" => Token::True,
             "false" => Token::False,
+            "and" => Token::And,
+            "or" => Token::Or,
             _ => Token::Ident(ident),
         };
 
