@@ -52,6 +52,27 @@ pub enum VmError {
         line: u32,
         what: &'static str,
     },
+
+    UnknownMethod {
+        line: u32,
+        receiver_type: &'static str,
+        method: String,
+    },
+
+    ArityMismatch {
+        line: u32,
+        method: String,
+        expected: usize,
+        got: usize,
+    },
+
+    MethodArgType {
+        line: u32,
+        method: String,
+        arg_index: usize,
+        expected: &'static str,
+        got: &'static str,
+    },
 }
 
 impl fmt::Display for VmError {
@@ -72,6 +93,39 @@ impl fmt::Display for VmError {
             }
             VmError::Unsupported { line, what } => {
                 write!(f, "line {line}: {what} is not supported yet")
+            }
+            VmError::UnknownMethod {
+                line,
+                receiver_type,
+                method,
+            } => {
+                write!(
+                    f,
+                    "line {line}: `{receiver_type}` has no method `.{method}()`"
+                )
+            }
+            VmError::ArityMismatch {
+                line,
+                method,
+                expected,
+                got,
+            } => {
+                write!(
+                    f,
+                    "line {line}: `.{method}()` expects {expected} argument(s), got {got}"
+                )
+            }
+            VmError::MethodArgType {
+                line,
+                method,
+                arg_index,
+                expected,
+                got,
+            } => {
+                write!(
+                    f,
+                    "line {line}: `.{method}()` argument {arg_index} should be {expected}, got {got}"
+                )
             }
         }
     }
