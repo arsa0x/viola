@@ -82,6 +82,12 @@ pub enum Expr {
         args: Vec<Expr>,
         line: u32,
     },
+    Logical {
+        op: LogicalOp,
+        lhs: Box<Expr>,
+        rhs: Box<Expr>,
+        line: u32,
+    },
 }
 
 impl Expr {
@@ -95,9 +101,16 @@ impl Expr {
             | Expr::Array { line, .. }
             | Expr::MethodCall { line, .. }
             | Expr::PropertyAccess { line, .. }
+            | Expr::Logical { line, .. }
             | Expr::Object { line, .. } => *line,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogicalOp {
+    And,
+    Or,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
