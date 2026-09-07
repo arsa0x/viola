@@ -72,6 +72,12 @@ pub enum Token<'a> {
     /// The boolean literal `false`.
     False,
 
+    /// The logical `and` operator.
+    And,
+
+    /// The logical `or` operator.
+    Or,
+
     /// Equality operator `==`.
     Eq,
 
