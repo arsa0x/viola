@@ -211,6 +211,13 @@ impl<'a> Parser<'a> {
 
             Token::Colon => self.parse_native_call(line),
 
+            Token::StrTemplateStart(_) | Token::StrTemplateMiddle(_) | Token::StrTemplateEnd(_) => {
+                Err(self.error(
+                    "string interpolation (\"...${expr}...\") is not supported yet — \
+                 use string concatenation with `+` instead",
+                ))
+            }
+
             other => Err(self.error(format!("invalid expression found {other:?}"))),
         }
     }

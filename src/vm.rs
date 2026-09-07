@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::{
     chunk::{Chunk, OpCode},
     error::{NativeError, VmError},
+    methods,
     native::{self, ExecContext, Host, NativeId, Value},
 };
 
@@ -194,11 +195,26 @@ impl<'a> Vm<'a> {
                         what: "property assignment",
                     });
                 }
-                OpCode::CallM { .. } => {
-                    return Err(VmError::Unsupported {
-                        line: self.line(),
-                        what: "method calls",
-                    });
+                OpCode::CallM { name_idx, argc } => {
+                    let line = self.line();
+                    let argc_usize = argc as usize;
+
+                    if self.stack.len() < argc_usize + 1 {
+                        return Err(VmError::StackUnderflow { line });
+                    }
+
+                    let method_name = match &self.chunk.constants[name_idx as usize] {
+                        Value::Str(name) => name.clone(),
+                        _ => unreachable!("method name must be string"),
+                    };
+
+                    let args_start = self.stack.len() - argc_usize;
+                    let args = self.stack.split_off(args_start);
+                    let receiver = self.pop()?;
+
+                    let result = methods::call_method(&receiver, &method_name, &args, line)?;
+
+                    self.stack.push(result);
                 }
                 OpCode::Pop => {
                     self.pop()?;
@@ -716,5 +732,130 @@ mod tests {
         .await;
 
         assert!(result.is_ok(), "{result:?}");
+    }
+
+    #[test]
+    fn unknown_method_fails_cleanly_at_runtime_not_a_panic() {
+        let chunk =
+            compile("x = {a: 1}\ny = x.a(1)").expect("should parse as a real MethodCall now");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        let result = block_on(vm.run(&ctx));
+        assert!(
+            matches!(result, Err(VmError::UnknownMethod { .. })),
+            "{result:?}"
+        );
+    }
+
+    #[test]
+    fn string_len_method_works() {
+        let chunk = compile(r#"x = "hello".len()"#).expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        block_on(vm.run(&ctx)).expect("should run without error");
+        assert!(
+            matches!(vm.get_var("x"), Some(Value::Int(5))),
+            "{:?}",
+            vm.get_var("x")
+        );
+    }
+
+    #[test]
+    fn string_upper_lower_trim_work() {
+        let chunk = compile(
+            r#"a = "  Halo  ".trim()
+    b = "halo".upper()
+    c = "HALO".lower()"#,
+        )
+        .expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        block_on(vm.run(&ctx)).expect("should run without error");
+        assert!(matches!(vm.get_var("a"), Some(Value::Str(s)) if s.as_ref() == "Halo"));
+        assert!(matches!(vm.get_var("b"), Some(Value::Str(s)) if s.as_ref() == "HALO"));
+        assert!(matches!(vm.get_var("c"), Some(Value::Str(s)) if s.as_ref() == "halo"));
+    }
+
+    #[test]
+    fn string_contains_works_for_wa_bot_style_keyword_matching() {
+        let chunk = compile(
+            r#"text = "Halo, apa kabar?"
+    x = text.lower().contains("halo")"#,
+        )
+        .expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        block_on(vm.run(&ctx)).expect("should run without error");
+        assert!(
+            matches!(vm.get_var("x"), Some(Value::Bool(true))),
+            "{:?}",
+            vm.get_var("x")
+        );
+    }
+
+    #[test]
+    fn array_len_and_contains_work() {
+        let chunk = compile(
+            r#"arr = [1, 2, 3]
+    n = arr.len()
+    has_two = arr.contains(2)
+    has_five = arr.contains(5)"#,
+        )
+        .expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        block_on(vm.run(&ctx)).expect("should run without error");
+        assert!(matches!(vm.get_var("n"), Some(Value::Int(3))));
+        assert!(matches!(vm.get_var("has_two"), Some(Value::Bool(true))));
+        assert!(matches!(vm.get_var("has_five"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn object_has_and_keys_work() {
+        let chunk = compile(
+            r#"obj = { a: 1, b: 2 }
+    x = obj.has("a")
+    y = obj.has("z")"#,
+        )
+        .expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        block_on(vm.run(&ctx)).expect("should run without error");
+        assert!(matches!(vm.get_var("x"), Some(Value::Bool(true))));
+        assert!(matches!(vm.get_var("y"), Some(Value::Bool(false))));
+    }
+
+    #[test]
+    fn method_call_wrong_argc_is_a_clean_error() {
+        let chunk = compile(r#"x = "hello".len(1)"#).expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        let result = block_on(vm.run(&ctx));
+        assert!(
+            matches!(result, Err(VmError::ArityMismatch { .. })),
+            "{result:?}"
+        );
+    }
+
+    #[test]
+    fn method_call_wrong_arg_type_is_a_clean_error() {
+        let chunk = compile(r#"x = "hello".contains(5)"#).expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        let result = block_on(vm.run(&ctx));
+        assert!(
+            matches!(result, Err(VmError::MethodArgType { .. })),
+            "{result:?}"
+        );
+    }
+
+    #[test]
+    fn string_interpolation_fails_with_a_clear_message_not_a_confusing_one() {
+        let err = compile(r#"x = "halo ${name}""#).unwrap_err();
+        assert!(
+            err.message.contains("not supported yet"),
+            "expected a clear 'not supported yet' message, got: {}",
+            err.message
+        );
     }
 }
