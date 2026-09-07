@@ -21,6 +21,11 @@ impl Emitter {
         e.chunk.name = script.name.as_deref().map(str::to_string);
         e.chunk.category = script.category.as_deref().map(str::to_string);
         e.chunk.triggers = script.triggers.iter().map(|s| s.to_string()).collect();
+        e.chunk.locals_by_name = script
+            .locals_by_name
+            .iter()
+            .map(|(n, s)| (n.to_string(), *s))
+            .collect();
 
         for stmt in &script.body {
             e.emit_stmt(stmt);

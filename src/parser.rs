@@ -269,7 +269,6 @@ impl<'a> Parser<'a> {
                 | Token::True
                 | Token::False
                 | Token::LParen
-                | Token::LBrace
                 | Token::LBracket
                 | Token::Colon
                 | Token::Bang
@@ -287,13 +286,44 @@ impl<'a> Parser<'a> {
 
                     self.advance();
 
-                    let property = self.expect_ident("property name")?;
+                    let name = self.expect_ident("property or method name")?;
 
-                    expr = Expr::PropertyAccess {
-                        object: Box::new(expr),
-                        property,
-                        line,
-                    };
+                    if matches!(self.peek(), Token::LParen) {
+                        self.advance();
+
+                        let mut args = Vec::new();
+
+                        if !matches!(self.peek(), Token::RParen) {
+                            loop {
+                                args.push(self.parse_expr()?);
+
+                                if !matches!(self.peek(), Token::Comma) {
+                                    break;
+                                }
+
+                                self.advance();
+
+                                if matches!(self.peek(), Token::RParen) {
+                                    break;
+                                }
+                            }
+                        }
+
+                        self.consume(&Token::RParen)?;
+
+                        expr = Expr::MethodCall {
+                            object: Box::new(expr),
+                            method: name,
+                            args,
+                            line,
+                        };
+                    } else {
+                        expr = Expr::PropertyAccess {
+                            object: Box::new(expr),
+                            property: name,
+                            line,
+                        };
+                    }
                 }
 
                 _ => break,
