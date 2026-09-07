@@ -3,6 +3,7 @@ pub mod chunk;
 pub mod emitter;
 pub mod error;
 pub mod lexer;
+pub mod methods;
 pub mod native;
 pub mod parser;
 pub mod resolver;
