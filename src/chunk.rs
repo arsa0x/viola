@@ -41,6 +41,7 @@ pub struct Chunk {
     pub constants: Vec<Value>,
     pub lines: Vec<u32>,
     pub local_count: u16,
+    pub locals_by_name: std::collections::HashMap<String, u16>,
     pub object_layouts: Vec<Box<[u16]>>,
 
     pub name: Option<String>,

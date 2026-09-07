@@ -20,6 +20,7 @@ pub struct Resolver {
 pub struct ResolvedScript {
     pub body: Vec<RStmt>,
     pub local_count: u16,
+    pub locals_by_name: HashMap<Rc<str>, u16>,
 
     pub name: Option<Rc<str>>,
     pub triggers: Vec<Rc<str>>,
@@ -124,9 +125,11 @@ impl Resolver {
     pub fn resolve(script: &Script) -> Result<ResolvedScript, CompileError> {
         let mut r = Resolver::new();
         let body = r.resolve_block(&script.body)?;
+        let locals_by_name = r.scopes[0].vars.clone();
 
         Ok(ResolvedScript {
             body,
+            locals_by_name,
             local_count: r.high_water,
             name: script.meta.name.clone(),
             category: script.meta.category.clone(),

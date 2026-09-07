@@ -50,11 +50,11 @@ impl<'a> Vm<'a> {
                     self.locals[slot as usize] = v;
                 }
 
-                OpCode::Add => self.binary_num_or_concat(|a, b| a + b, |a, b| a + b)?,
-                OpCode::Sub => self.binary_num(|a, b| a - b, |a, b| a - b, "sub")?,
+                OpCode::Add => self.binary_num_or_concat()?,
+                OpCode::Sub => self.binary_checked(i64::checked_sub, |a, b| a - b, "sub")?,
 
-                OpCode::Mul => self.binary_num(|a, b| a * b, |a, b| a * b, "mul")?,
-                OpCode::Div => self.binary_num(|a, b| a / b, |a, b| a / b, "div")?,
+                OpCode::Mul => self.binary_checked(i64::checked_mul, |a, b| a * b, "mul")?,
+                OpCode::Div => self.binary_checked(i64::checked_div, |a, b| a / b, "div")?,
 
                 OpCode::Eq => {
                     let b = self.pop()?;
@@ -82,7 +82,10 @@ impl<'a> Vm<'a> {
                     let v = self.pop()?;
                     let line = self.line();
                     let neg = match v {
-                        Value::Int(i) => Value::Int(-i),
+                        Value::Int(i) => match i.checked_neg() {
+                            Some(v) => Value::Int(v),
+                            None => return Err(VmError::ArithmeticOverflow { line, op: "neg" }),
+                        },
                         Value::Float(x) => Value::Float(-x),
                         other => {
                             return Err(VmError::TypeMismatch {
@@ -170,10 +173,16 @@ impl<'a> Vm<'a> {
                     }
                 }
                 OpCode::SetP(_n) => {
-                    unimplemented!("SetProperty not yet implemented")
+                    return Err(VmError::Unsupported {
+                        line: self.line(),
+                        what: "property assignment",
+                    });
                 }
                 OpCode::CallM { .. } => {
-                    unimplemented!("CallMethod not yet implemented")
+                    return Err(VmError::Unsupported {
+                        line: self.line(),
+                        what: "method calls",
+                    });
                 }
                 OpCode::Pop => {
                     self.pop()?;
@@ -181,6 +190,45 @@ impl<'a> Vm<'a> {
                 OpCode::Ret => return Ok(()),
             }
         }
+    }
+
+    fn binary_checked(
+        &mut self,
+        fi: fn(i64, i64) -> Option<i64>,
+        ff: fn(f64, f64) -> f64,
+        op_name: &'static str,
+    ) -> Result<(), VmError> {
+        let line = self.line();
+
+        let b = self.pop()?;
+        let a = self.pop()?;
+
+        let result = match (&a, &b) {
+            (Value::Int(x), Value::Int(y)) => match fi(*x, *y) {
+                Some(v) => Value::Int(v),
+                None => {
+                    if op_name == "div" && *y == 0 {
+                        return Err(VmError::DivisionByZero { line });
+                    }
+                    return Err(VmError::ArithmeticOverflow { line, op: op_name });
+                }
+            },
+            (Value::Float(x), Value::Float(y)) => Value::Float(ff(*x, *y)),
+            (Value::Int(x), Value::Float(y)) => Value::Float(ff(*x as f64, *y)),
+            (Value::Float(x), Value::Int(y)) => Value::Float(ff(*x, *y as f64)),
+            _ => {
+                return Err(VmError::TypeMismatch {
+                    line,
+                    op: op_name,
+                    lhs: a.type_name(),
+                    rhs: b.type_name(),
+                });
+            }
+        };
+
+        self.stack.push(result);
+
+        Ok(())
     }
 
     fn jump_target(&self, ip_after_fetch: usize, offset: i16) -> usize {
@@ -224,53 +272,23 @@ impl<'a> Vm<'a> {
         Ok(())
     }
 
-    fn binary_num(
-        &mut self,
-        fi: fn(i64, i64) -> i64,
-        ff: fn(f64, f64) -> f64,
-        op_name: &'static str,
-    ) -> Result<(), VmError> {
+    fn binary_num_or_concat(&mut self) -> Result<(), VmError> {
         let line = self.line();
 
         let b = self.pop()?;
         let a = self.pop()?;
 
         let result = match (&a, &b) {
-            (Value::Int(x), Value::Int(y)) => Value::Int(fi(*x, *y)),
-            (Value::Float(x), Value::Float(y)) => Value::Float(ff(*x, *y)),
-            (Value::Int(x), Value::Float(y)) => Value::Float(ff(*x as f64, *y)),
-            (Value::Float(x), Value::Int(y)) => Value::Float(ff(*x, *y as f64)),
-            _ => {
-                return Err(VmError::TypeMismatch {
-                    line,
-                    op: op_name,
-                    lhs: a.type_name(),
-                    rhs: b.type_name(),
-                });
-            }
-        };
+            (Value::Int(x), Value::Int(y)) => match x.checked_add(*y) {
+                Some(v) => Value::Int(v),
+                None => {
+                    return Err(VmError::ArithmeticOverflow { line, op: "add" });
+                }
+            },
+            (Value::Float(x), Value::Float(y)) => Value::Float(x + y),
 
-        self.stack.push(result);
-
-        Ok(())
-    }
-
-    fn binary_num_or_concat(
-        &mut self,
-        fi: fn(i64, i64) -> i64,
-        ff: fn(f64, f64) -> f64,
-    ) -> Result<(), VmError> {
-        let line = self.line();
-
-        let b = self.pop()?;
-        let a = self.pop()?;
-
-        let result = match (&a, &b) {
-            (Value::Int(x), Value::Int(y)) => Value::Int(fi(*x, *y)),
-            (Value::Float(x), Value::Float(y)) => Value::Float(ff(*x as f64, *y as f64)),
-
-            (Value::Int(x), Value::Float(y)) => Value::Float(ff(*x as f64, *y)),
-            (Value::Float(x), Value::Int(y)) => Value::Float(ff(*x, *y as f64)),
+            (Value::Int(x), Value::Float(y)) => Value::Float(*x as f64 + y),
+            (Value::Float(x), Value::Int(y)) => Value::Float(x + *y as f64),
 
             (Value::Str(x), Value::Str(y)) => {
                 let mut s = String::with_capacity(x.len() + y.len());
@@ -294,131 +312,280 @@ impl<'a> Vm<'a> {
         self.stack.push(result);
         Ok(())
     }
+
+    pub fn get_local(&self, slot: u16) -> Option<&Value> {
+        self.locals.get(slot as usize)
+    }
+
+    pub fn get_var(&self, name: &str) -> Option<&Value> {
+        let slot = *self.chunk.locals_by_name.get(name)?;
+        self.get_local(slot)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::emitter::Emitter;
-    use crate::lexer::Lexer;
-    use crate::parser::Parser;
-    use crate::resolver::Resolver;
+    use crate::compile;
 
     struct NullHost;
+
     impl Host for NullHost {
         async fn send_text(&self, _text: &str) -> Result<(), NativeError> {
             Ok(())
         }
     }
 
-    fn compile(src: &str) -> Chunk {
-        let tokens = Lexer::new(src).tokenize().unwrap();
-        let script = Parser::new(tokens).parse_script().unwrap();
-        let resolved = Resolver::resolve(&script).unwrap();
-        Emitter::emit_script(&resolved).unwrap()
+    fn block_on<F: std::future::Future>(mut fut: F) -> F::Output {
+        use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
+
+        fn noop(_: *const ()) {}
+        fn clone(_: *const ()) -> RawWaker {
+            RawWaker::new(std::ptr::null(), &VTABLE)
+        }
+        static VTABLE: RawWakerVTable = RawWakerVTable::new(clone, noop, noop, noop);
+
+        let raw = RawWaker::new(std::ptr::null(), &VTABLE);
+        let waker = unsafe { Waker::from_raw(raw) };
+        let mut cx = Context::from_waker(&waker);
+
+        let mut fut = unsafe { std::pin::Pin::new_unchecked(&mut fut) };
+
+        loop {
+            if let Poll::Ready(v) = fut.as_mut().poll(&mut cx) {
+                return v;
+            }
+        }
     }
 
-    async fn run(chunk: &Chunk) -> Vec<Value> {
+    async fn run(source: &str) -> Result<(), VmError> {
+        let chunk = compile(source).expect("script should compile");
+        let mut vm = Vm::new(&chunk);
         let ctx = ExecContext::new(vec![], NullHost);
-        let mut vm = Vm::new(chunk);
-        vm.run(&ctx).await.unwrap();
-        vm.stack
+
+        block_on(vm.run(&ctx))
+    }
+
+    async fn run_ok(source: &str) {
+        run(source)
+            .await
+            .unwrap_or_else(|err| panic!("script failed unexpectedly: {err:?}"));
     }
 
     #[tokio::test]
     async fn make_array_builds_correct_order() {
-        let chunk = compile("x = [1, 2, 3]\n:send .text \"done\"");
-        run(&chunk).await;
+        let result = run("x = [1, 2, 3]\n:send .text \"done\"").await;
+
+        assert!(result.is_ok());
     }
 
-    #[tokio::test]
-    async fn array_element_order_preserved() {
-        let chunk = compile("[10, 20, 30]");
-        let arr = Value::Array(std::sync::Arc::new(vec![
+    #[test]
+    fn array_literal_preserves_order() {
+        let arr = Value::Array(Arc::new(vec![
             Value::Int(10),
             Value::Int(20),
             Value::Int(30),
         ]));
         assert_eq!(arr.to_string(), "[10, 20, 30]");
+    }
 
-        run(&chunk).await;
+    #[test]
+    fn empty_array_has_zero_elements() {
+        let arr = Value::Array(Arc::new(vec![]));
+        assert_eq!(arr.to_string(), "[]");
     }
 
     #[tokio::test]
     async fn empty_array_runs_without_underflow() {
-        let chunk = compile("x = []");
-        run(&chunk).await;
+        let result = run("x = []").await;
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn nested_array_preserves_structure() {
+        let arr = Value::Array(Arc::new(vec![
+            Value::Array(Arc::new(vec![Value::Int(1), Value::Int(2)])),
+            Value::Array(Arc::new(vec![Value::Int(3), Value::Int(4)])),
+        ]));
+        assert_eq!(arr.to_string(), "[[1, 2], [3, 4]]");
+    }
+
+    #[test]
+    fn array_values_have_expected_types() {
+        let arr = Value::Array(Arc::new(vec![
+            Value::Int(1),
+            Value::Str("hello".into()),
+            Value::Bool(true),
+        ]));
+
+        let Value::Array(values) = arr else {
+            panic!("expected array");
+        };
+
+        assert_eq!(values.len(), 3);
+        assert!(matches!(values[0], Value::Int(1)));
+        assert!(matches!(&values[1], Value::Str(s) if s.as_ref() == *Arc::new("hello")));
+        assert!(matches!(values[2], Value::Bool(true)));
+    }
+
+    #[test]
+    fn nested_array_executes_successfully() {
+        block_on(run_ok("x = [[1, 2], [3, 4]]"));
+    }
+
+    #[test]
+    fn array_can_contain_native_call_result() {
+        block_on(run_ok(r#"x = [:send .text "hi"]"#));
+    }
+
+    #[test]
+    fn empty_object_executes_without_stack_underflow() {
+        block_on(run_ok("x = {}"));
+    }
+
+    #[test]
+    fn object_literal_executes_successfully() {
+        block_on(run_ok(r#"x = { a: 1, b: "hello", c: 3.14 }"#));
+    }
+
+    #[test]
+    fn object_with_nested_object_executes_successfully() {
+        block_on(run_ok(r#" data = { user: { id: 99, active: true } } "#));
+    }
+
+    #[test]
+    fn property_access_executes_successfully() {
+        block_on(run_ok(r#" obj = { name: "test", val: 42 } x = obj.val "#));
+    }
+
+    #[test]
+    fn nested_property_access_executes_successfully() {
+        block_on(run_ok(
+            r#" data = { user: { id: 99, active: true } } res = data.user.id "#,
+        ));
+    }
+
+    #[test]
+    fn property_access_from_array_of_objects_executes_successfully() {
+        block_on(run_ok(
+            r#" arr = [ { id: 1 }, { id: 2 } ] x = arr[0].id y = arr[1].id "#,
+        ));
     }
 
     #[tokio::test]
-    async fn nested_array_runs_correctly() {
-        let chunk = compile("x = [[1, 2], [3, 4]]");
-        run(&chunk).await;
-    }
-
-    #[tokio::test]
-    async fn array_with_native_call_element() {
-        let chunk = compile(r#"x = [:send .text "hi"]"#);
-        run(&chunk).await;
-    }
-
-    #[tokio::test]
-    async fn make_empty_object_runs_without_underflow() {
-        let chunk = compile("x = {}");
-        run(&chunk).await;
-    }
-
-    #[tokio::test]
-    async fn make_object_runs_correctly() {
-        let chunk = compile("x = { a: 1, b: \"hello\", c: 3.14 }");
-        run(&chunk).await;
-    }
-
-    // #[tokio::test]
-    // async fn get_property_runs_correctly() {
-    //     let chunk = compile(
-    //         r#"
-    //             obj = { name: "test", val: 42 }
-    //             x = obj.val
-    //         "#,
-    //     );
-    //     run(&chunk).await;
-    // }
-
-    // #[tokio::test]
-    // async fn get_missing_property_runs_without_panic() {
-    //     let chunk = compile(
-    //         r#"
-    //             obj = { a: 1 }
-    //             x = obj.missing_field
-    //         "#,
-    //     );
-    //     run(&chunk).await;
-    // }
-
-    // #[tokio::test]
-    // async fn nested_object_property_access() {
-    //     let chunk = compile(
-    //         r#"
-    //             data = {
-    //                 user: {
-    //                     id: 99,
-    //                     active: true
-    //                 }
-    //             }
-    //             res = data.user.id
-    //         "#,
-    //     );
-    //     run(&chunk).await;
-    // }
-
-    #[tokio::test]
-    async fn get_property_from_array_of_objects() {
+    async fn missing_property_returns_vm_error() {
         let chunk = compile(
             r#"
-                arr = [ {id: 1}, {id: 2} ]
+            obj = { a: 1 }
+            x = obj.missing_field
             "#,
+        )
+        .expect("script should compile");
+
+        let mut vm = Vm::new(&chunk);
+
+        let ctx = ExecContext::new(vec![], NullHost);
+
+        block_on(vm.run(&ctx)).expect("missing property should not fail the run");
+
+        assert!(
+            matches!(vm.get_var("x"), Some(Value::Nil)),
+            "expected `x` to read as Nil, got {:?}",
+            vm.get_var("x")
         );
-        run(&chunk).await;
+    }
+
+    #[tokio::test]
+    async fn division_by_zero_is_a_vmerror_not_a_panic() {
+        let result = run("x = 10 / 0").await;
+
+        assert!(
+            matches!(result, Err(VmError::DivisionByZero { .. })),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn i64_min_div_neg_one_is_overflow_error_not_panic() {
+        let result = run("x = (-9223372036854775807 - 1) / -1").await;
+
+        assert!(
+            matches!(result, Err(VmError::ArithmeticOverflow { op: "div", .. })),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn integer_overflow_add_is_a_vmerror_not_a_panic() {
+        let result = run("x = 9223372036854775807 + 1").await;
+
+        assert!(
+            matches!(result, Err(VmError::ArithmeticOverflow { op: "add", .. })),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn integer_overflow_mul_is_a_vmerror_not_a_panic() {
+        let result = run("x = 9223372036854775807 * 2").await;
+
+        assert!(
+            matches!(result, Err(VmError::ArithmeticOverflow { op: "mul", .. })),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn normal_arithmetic_still_works() {
+        let result = run("x = (1 + 2) * 3 - 4 / 2").await;
+
+        assert!(result.is_ok(), "{result:?}");
+    }
+
+    #[tokio::test]
+    async fn method_call_is_rejected_cleanly_at_runtime() {
+        let chunk = compile(
+            r#"
+            x = { a: 1 }
+            y = x.a(1)
+            "#,
+        )
+        .expect("method call should compile");
+
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+
+        let result = block_on(vm.run(&ctx));
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn plain_property_access_is_unaffected() {
+        let result = run(r#"x = {a: 1}
+    y = x.a"#)
+        .await;
+
+        assert!(result.is_ok(), "{result:?}");
+    }
+
+    #[test]
+    fn string_interpolation_is_rejected_at_compile_time() {
+        let result = compile(r#"x = "halo ${name}""#);
+
+        let err = result.expect_err("string interpolation should not compile");
+
+        assert!(
+            !err.message.is_empty(),
+            "compile error should contain a useful message"
+        );
+    }
+
+    #[tokio::test]
+    async fn string_concat_still_works() {
+        let result = run(r#"x = "hello " + "world""#).await;
+
+        assert!(result.is_ok(), "{result:?}");
     }
 }
