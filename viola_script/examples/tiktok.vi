@@ -1,0 +1,33 @@
+@name     tiktok
+@triggers tiktok|tik|tt
+@category downloader
+
+url = :args .at 1
+api = "https://www.tiktokdl.web.id/api/tiktok"
+
+if url == "" {
+  :message .text("harap sertakan url. contoh: .tiktok <url>").quoted().send()
+} else {
+  # call variable tanpa perlu "$"
+  response = :http
+    .get(api)
+    .query({
+        url: url
+    })
+    .header({
+        UserAgent: ua,
+        Accept: "application/json",
+    })
+    .send()
+
+  if response.status != 200 {
+    txt_msg_builder = :message .text("gagal memproses url").quoted()
+    txt_msg_builder.send()
+  } else {
+    json = response.json()
+
+    :message .video(json.result.url).quoted()
+    .caption("author: {json.result.author}\ncaption: {json.result.caption}")
+    .send()
+  }
+}
