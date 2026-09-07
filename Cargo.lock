@@ -2839,6 +2839,7 @@ dependencies = [
  "reqwest",
  "serde",
  "tokio",
+ "viola_script",
  "whatsapp-rust",
 ]
 
@@ -2850,6 +2851,10 @@ dependencies = [
  "quote",
  "syn 2.0.119",
 ]
+
+[[package]]
+name = "viola_script"
+version = "0.1.0"
 
 [[package]]
 name = "virtue"

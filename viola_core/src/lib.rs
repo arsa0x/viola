@@ -4,6 +4,7 @@ pub mod context;
 // pub mod http;
 pub mod args;
 pub mod message;
+pub mod plugin;
 pub mod session;
 
 pub use args::Args;
