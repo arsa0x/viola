@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
-    ast::{BinOp, Expr, Literal, Script, ScriptMeta, Stmt, UnOp},
+    ast::{BinOp, Expr, Literal, LogicalOp, Script, ScriptMeta, Stmt, UnOp},
     error::CompileError,
     token::Token,
 };
@@ -97,6 +97,32 @@ impl<'a> Parser<'a> {
     #[inline]
     fn error(&self, message: impl Into<String>) -> CompileError {
         CompileError::new(self.line(), message.into())
+    }
+
+    fn parse_paren_args(&mut self) -> Result<Vec<Expr>, CompileError> {
+        self.consume(&Token::LParen)?;
+
+        let mut args = Vec::new();
+
+        if !matches!(self.peek(), Token::RParen) {
+            loop {
+                args.push(self.parse_expr()?);
+
+                if !matches!(self.peek(), Token::Comma) {
+                    break;
+                }
+
+                self.advance();
+
+                if matches!(self.peek(), Token::RParen) {
+                    break;
+                }
+            }
+        }
+
+        self.consume(&Token::RParen)?;
+
+        Ok(args)
     }
 
     fn parse_meta(&mut self) -> Result<ScriptMeta, CompileError> {
@@ -217,25 +243,7 @@ impl<'a> Parser<'a> {
         let mut args = Vec::new();
 
         if matches!(self.peek(), Token::LParen) {
-            self.advance();
-
-            if !matches!(self.peek(), Token::RParen) {
-                loop {
-                    args.push(self.parse_expr()?);
-
-                    if !matches!(self.peek(), Token::Comma) {
-                        break;
-                    }
-
-                    self.advance();
-
-                    if matches!(self.peek(), Token::RParen) {
-                        break;
-                    }
-                }
-            }
-
-            self.consume(&Token::RParen)?;
+            args = self.parse_paren_args()?;
         } else if self.can_start_expr() {
             args.push(self.parse_expr()?);
 
@@ -472,7 +480,47 @@ impl<'a> Parser<'a> {
 
     #[inline]
     fn parse_expr(&mut self) -> Result<Expr, CompileError> {
-        self.parse_equality()
+        self.parse_logical_or()
+    }
+
+    fn parse_logical_and(&mut self) -> Result<Expr, CompileError> {
+        let mut lhs = self.parse_equality()?;
+
+        while matches!(self.peek(), Token::And) {
+            let line = self.line();
+            self.advance();
+
+            let rhs = self.parse_equality()?;
+
+            lhs = Expr::Logical {
+                op: LogicalOp::And,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+                line,
+            };
+        }
+
+        Ok(lhs)
+    }
+
+    fn parse_logical_or(&mut self) -> Result<Expr, CompileError> {
+        let mut lhs = self.parse_logical_and()?;
+
+        while matches!(self.peek(), Token::Or) {
+            let line = self.line();
+            self.advance();
+
+            let rhs = self.parse_logical_and()?;
+
+            lhs = Expr::Logical {
+                op: LogicalOp::Or,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+                line,
+            }
+        }
+
+        Ok(lhs)
     }
 
     fn parse_stmt(&mut self) -> Result<Stmt, CompileError> {

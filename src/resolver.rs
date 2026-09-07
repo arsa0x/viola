@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    ast::{BinOp, Expr, Literal, Script, Stmt, UnOp},
+    ast::{BinOp, Expr, Literal, LogicalOp, Script, Stmt, UnOp},
     error::CompileError,
     native::{self, NativeId},
 };
@@ -96,6 +96,13 @@ pub enum RExpr {
         object: Box<RExpr>,
         method: Rc<str>,
         args: Vec<RExpr>,
+        line: u32,
+    },
+
+    Logical {
+        op: LogicalOp,
+        lhs: Box<RExpr>,
+        rhs: Box<RExpr>,
         line: u32,
     },
 }
@@ -410,6 +417,13 @@ impl Resolver {
                     line: *line,
                 })
             }
+
+            Expr::Logical { op, lhs, rhs, line } => Ok(RExpr::Logical {
+                op: *op,
+                lhs: Box::new(self.resolve_expr(lhs)?),
+                rhs: Box::new(self.resolve_expr(rhs)?),
+                line: *line,
+            }),
         }
     }
 }

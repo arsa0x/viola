@@ -22,14 +22,32 @@ pub enum OpCode {
     Jmp(i16),
     JmpF(i16),
 
-    CallN { id: NativeId, argc: u8 },
+    /// Short-circuit jump for `and`: if the value now on top of the stack
+    /// is falsy, jump — *without* popping it, since that falsy value is
+    /// the result of the whole `and` expression. If truthy, falls through
+    /// to an explicit `Pop` (emitted right after) followed by the
+    /// right-hand side's code.
+    JmpFKeep(i16),
+
+    /// Short-circuit jump for `or`: mirror of `JmpFKeep` — jumps (keeping
+    /// the value) when the top of the stack is truthy, falls through to
+    /// `Pop` + the right-hand side otherwise.
+    JmpTKeep(i16),
+
+    CallN {
+        id: NativeId,
+        argc: u8,
+    },
 
     MkArr(u16),
 
     MkObj(u16),
     GetP(u16),
     SetP(u16),
-    CallM { name_idx: u16, argc: u8 },
+    CallM {
+        name_idx: u16,
+        argc: u8,
+    },
 
     Pop,
     Ret,
