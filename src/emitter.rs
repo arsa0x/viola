@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::ast::{BinOp, Literal, UnOp};
+use crate::ast::{BinOp, Literal, LogicalOp, UnOp};
 use crate::chunk::{Chunk, OpCode};
 use crate::error::CompileError;
 use crate::native::Value;
@@ -178,6 +178,23 @@ impl Emitter {
                     *line,
                 );
             }
+            RExpr::Logical { op, lhs, rhs, line } => {
+                self.emit_expr(lhs);
+
+                let jump_op = match op {
+                    LogicalOp::And => OpCode::JmpFKeep(0),
+                    LogicalOp::Or => OpCode::JmpTKeep(0),
+                };
+
+                let jump_pos = self.chunk.emit(jump_op, *line);
+
+                self.chunk.emit(OpCode::Pop, *line);
+                self.emit_expr(rhs);
+
+                let end = self.chunk.code.len();
+
+                self.chunk.patch_jump(jump_pos, end);
+            }
         }
     }
 }
@@ -208,6 +225,7 @@ fn stack_effect(chunk: &Chunk, op: &OpCode) -> i32 {
         | OpCode::Ge => -1,
         OpCode::Not | OpCode::Neg => 0,
         OpCode::Jmp(_) | OpCode::Ret => 0,
+        OpCode::JmpFKeep(_) | OpCode::JmpTKeep(_) => 0,
         OpCode::CallN { argc, .. } => 1 - (*argc as i32),
         OpCode::MkArr(n) => 1 - (*n as i32),
         OpCode::CallM { argc, .. } => -(*argc as i32),

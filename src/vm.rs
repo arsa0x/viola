@@ -108,6 +108,22 @@ impl<'a> Vm<'a> {
                         self.ip = self.jump_target(self.ip, offset);
                     }
                 }
+                OpCode::JmpFKeep(offset) => {
+                    let line = self.line();
+                    let cond = self.stack.last().ok_or(VmError::StackUnderflow { line })?;
+
+                    if !cond.is_truthy() {
+                        self.ip = self.jump_target(self.ip, offset);
+                    }
+                }
+                OpCode::JmpTKeep(offset) => {
+                    let line = self.line();
+                    let cond = self.stack.last().ok_or(VmError::StackUnderflow { line })?;
+
+                    if cond.is_truthy() {
+                        self.ip = self.jump_target(self.ip, offset);
+                    }
+                }
                 OpCode::CallN { id, argc } => {
                     let line = self.line();
                     let argc_usize = argc as usize;
