@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use tokio::task::JoinSet;
-use viola_core::{config, session};
+use viola_core::{Config, paths::AppDirs, plugin::PluginRegistry, session::SessionStore};
 use whatsapp_rust::{TokioRuntime, bot, transport::TokioWebSocketTransportFactory};
 
 use crate::{client::ReqwestClient, handler::event_handler, store::RedbStore};
@@ -64,19 +64,20 @@ async fn wait_for_tasks(tasks: &mut JoinSet<()>) {
 }
 
 async fn run_one(name: String) {
-    let dir = match session::ensure_session_dir(&name) {
-        Ok(dir) => dir,
+    let app_dirs = AppDirs::new().expect("Failed to initialize AppDirs");
+    app_dirs.ensure().expect("Failed to ensure AppDirs");
+
+    let sessions = SessionStore::new(&app_dirs);
+    let session = match sessions.get(&name) {
+        Ok(session) => session,
 
         Err(err) => {
-            log::error!("[{name}] failed to prepare session directory: {err}");
-
+            log::error!("[{name}] failed to open session: {err}");
             return;
         }
     };
 
-    let store_path = dir.join("store.redb");
-
-    let backend = match RedbStore::new(&store_path.to_string_lossy()) {
+    let backend = match RedbStore::new(&session.path.join("store.redb").to_string_lossy()) {
         Ok(backend) => backend,
 
         Err(err) => {
@@ -86,15 +87,7 @@ async fn run_one(name: String) {
         }
     };
 
-    let config = match config::load_for_session(&name) {
-        Ok(config) => Arc::new(config),
-
-        Err(err) => {
-            log::error!("[{name}] failed to load configuration: {err}");
-
-            return;
-        }
-    };
+    let config = Arc::new(Config::load(&session).expect("Failed to load Config"));
 
     let http_client = match reqwest::Client::builder().build() {
         Ok(client) => client,
@@ -119,6 +112,11 @@ async fn run_one(name: String) {
         }
     };
 
+    let plugin = Arc::new(
+        PluginRegistry::load(&app_dirs.plugins.to_string_lossy())
+            .expect("Failed to load PluinRegistry"),
+    );
+
     let session_name = name.clone();
 
     let bot = bot::Bot::builder()
@@ -135,6 +133,7 @@ async fn run_one(name: String) {
                 http_client.clone(),
                 http_client_no_redirect.clone(),
                 Arc::clone(&config),
+                Arc::clone(&plugin),
             )
         })
         .build()

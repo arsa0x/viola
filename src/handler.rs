@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use qrcode::render::unicode;
+use viola_core::plugin::{self, PluginRegistry};
 use whatsapp_rust::{Client, types::events::Event};
 
 use crate::{COMMAND_MAP, incoming, parser};
@@ -12,6 +13,7 @@ pub async fn event_handler(
     http_client: reqwest::Client,
     http_client_no_redirect: reqwest::Client,
     config: Arc<viola_core::Config>,
+    plugins: Arc<PluginRegistry>,
 ) {
     match &*event {
         Event::PairingQrCode(qr) => match qrcode::QrCode::new(&qr.code) {
@@ -62,9 +64,11 @@ pub async fn event_handler(
                 let cmd_text = &text[prefix.len_utf8()..];
                 let cmd_args = parser::parse(cmd_text);
 
-                if let Some(first) = cmd_args.first()
-                    && let Some(&cmd) = COMMAND_MAP.get(first.as_str())
-                {
+                let Some(trigger) = cmd_args.first() else {
+                    continue;
+                };
+
+                if let Some(&cmd) = COMMAND_MAP.get(trigger.as_str()) {
                     let ctx = viola_core::Context {
                         args: cmd_args,
                         http_client: http_client.clone(),
@@ -84,7 +88,30 @@ pub async fn event_handler(
                             );
                         };
                     });
+                    continue;
                 }
+
+                let Some(chunk) = plugins.find(trigger.as_str()) else {
+                    continue;
+                };
+
+                let trigger = trigger.clone();
+
+                let ctx = viola_core::Context {
+                    args: cmd_args,
+                    http_client: http_client.clone(),
+                    http_client_no_redirect: http_client_no_redirect.clone(),
+                    wa_client: wa_client.clone(),
+                    info: inb.info.clone(),
+                    message: inb.message.clone(),
+                    config: config.clone(),
+                };
+
+                tokio::spawn(async move {
+                    if let Err(err) = plugin::dispatch(ctx, &chunk).await {
+                        log::error!("failed to execute plugin trigger '{}': {err:?}", trigger);
+                    }
+                });
             }
         }
 

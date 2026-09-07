@@ -4,10 +4,9 @@ use std::{
     str::FromStr,
 };
 
-use directories::ProjectDirs;
 use whatsapp_rust::anyhow;
 
-use crate::session;
+use crate::session::Session;
 
 const TEMPLATE_CONFIG: &str = include_str!("../../config.template");
 
@@ -16,63 +15,9 @@ pub struct Config {
     pub prefixes: Vec<char>,
     pub owners: Vec<String>,
     pub mode: Mode,
+
+    /// Raw parsed key-value configuration.
     pub parsed: ParsedConfig,
-}
-
-#[derive(Debug)]
-pub struct ConfigDirs {
-    pub sessions: PathBuf,
-    pub downloads: PathBuf,
-    pub cache: PathBuf,
-}
-
-impl ConfigDirs {
-    fn load() -> anyhow::Result<Self> {
-        let project_dirs = ProjectDirs::from("", "", "viola")
-            .ok_or_else(|| anyhow::anyhow!("failed to determine application directory"))?;
-
-        let config_dir = project_dirs.config_dir();
-
-        Ok(Self {
-            sessions: config_dir.join("sessions"),
-            downloads: config_dir.join("downloads"),
-            cache: config_dir.join("cache"),
-        })
-    }
-
-    pub fn ensure(&self) -> anyhow::Result<()> {
-        std::fs::create_dir_all(&self.sessions)?;
-        std::fs::create_dir_all(&self.downloads)?;
-        std::fs::create_dir_all(&self.cache)?;
-        Ok(())
-    }
-}
-pub fn init() -> anyhow::Result<ConfigDirs> {
-    let dirs = ConfigDirs::load()?;
-    dirs.ensure()?;
-
-    Ok(dirs)
-}
-
-pub fn ensure_config_file(session_dir: &Path) -> anyhow::Result<PathBuf> {
-    std::fs::create_dir_all(session_dir)?;
-
-    let path = session_dir.join("config");
-
-    if !path.exists() {
-        std::fs::write(&path, TEMPLATE_CONFIG)?;
-    }
-
-    Ok(path)
-}
-
-pub fn load_for_session(name: &str) -> anyhow::Result<Config> {
-    let session_dir = session::ensure_session_dir(name)?;
-    let config_path = ensure_config_file(&session_dir)?;
-
-    let content = std::fs::read_to_string(config_path)?;
-
-    Ok(Config::parse(&content))
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -84,13 +29,20 @@ pub enum Mode {
 
 impl FromStr for Mode {
     type Err = ();
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.trim().to_ascii_lowercase().as_str() {
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_ascii_lowercase().as_str() {
             "public" => Ok(Self::Public),
             "group" => Ok(Self::Group),
             "owner" => Ok(Self::Owner),
             _ => Err(()),
         }
+    }
+}
+
+impl Default for Mode {
+    fn default() -> Self {
+        Self::Public
     }
 }
 
@@ -126,38 +78,36 @@ impl ParsedConfig {
 
     pub fn get_list(&self, key: &str) -> Vec<String> {
         self.get(key)
-            .unwrap_or("")
+            .unwrap_or_default()
             .split('|')
-            .map(|s| s.trim().to_owned())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
             .collect()
     }
 
     pub fn get_chars(&self, key: &str) -> Vec<char> {
         self.get(key)
-            .unwrap_or("")
+            .unwrap_or_default()
             .split('|')
-            .filter_map(|s| {
-                let s = s.trim();
-                (s.chars().count() == 1).then(|| s.chars().next().unwrap())
+            .filter_map(|value| {
+                let value = value.trim();
+
+                if value.chars().count() == 1 {
+                    value.chars().next()
+                } else {
+                    None
+                }
             })
             .collect()
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            prefixes: vec!['.'],
-            owners: Vec::new(),
-            mode: Mode::Public,
-            parsed: ParsedConfig::default(),
-        }
-    }
-}
-
 impl Config {
-    pub fn load() -> std::io::Result<Self> {
-        let content = std::fs::read_to_string("config")?;
+    pub fn load(session: &Session) -> anyhow::Result<Self> {
+        let path = ensure_config_file(&session.path)?;
+        let content = std::fs::read_to_string(path)?;
+
         Ok(Self::parse(&content))
     }
 
@@ -169,9 +119,32 @@ impl Config {
             owners: parsed.get_list("owners"),
             mode: parsed
                 .get("mode")
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(Mode::Public),
+                .and_then(|value| value.parse().ok())
+                .unwrap_or_default(),
             parsed,
         }
     }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            prefixes: vec!['.'],
+            owners: Vec::new(),
+            mode: Mode::default(),
+            parsed: ParsedConfig::default(),
+        }
+    }
+}
+
+pub fn ensure_config_file(session_dir: &Path) -> anyhow::Result<PathBuf> {
+    std::fs::create_dir_all(session_dir)?;
+
+    let path = session_dir.join("config");
+
+    if !path.exists() {
+        std::fs::write(&path, TEMPLATE_CONFIG)?;
+    }
+
+    Ok(path)
 }

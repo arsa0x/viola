@@ -1,5 +1,7 @@
 use std::io::{IsTerminal, Write};
 
+use viola_core::session::SessionStore;
+
 use crate::bot;
 
 #[derive(Debug)]
@@ -102,7 +104,12 @@ impl SessionCommand {
     }
 
     fn list_sessions() -> Result<(), String> {
-        let sessions = viola_core::session::list_sessions()
+        let dirs = viola_core::paths::AppDirs::new().map_err(|err| err.to_string())?;
+
+        let sessions = viola_core::session::SessionStore::new(&dirs);
+
+        let sessions = sessions
+            .list()
             .map_err(|err| format!("failed to read session directory: {err}"))?;
 
         if sessions.is_empty() {
@@ -124,26 +131,26 @@ impl SessionCommand {
     }
 
     fn create_session(name: &str) -> Result<(), String> {
-        let sessions = viola_core::session::list_sessions().map_err(|err| err.to_string())?;
+        let dirs = viola_core::paths::AppDirs::new().map_err(|err| err.to_string())?;
+        let sessions = SessionStore::new(&dirs);
 
-        if sessions.iter().any(|session| session == name) {
-            return Err(format!("session '{name}' already exists"));
-        }
-
-        let dir = viola_core::session::ensure_session_dir(name)
-            .map_err(|err| format!("failed to create session directory: {err}"))?;
-
-        viola_core::config::ensure_config_file(&dir)
-            .map_err(|err| format!("failed to create configuration file: {err}"))?;
+        let session = sessions
+            .create(name)
+            .map_err(|err| format!("failed to create session: {err}"))?;
 
         println!("Session '{name}' created.");
-        println!("Configuration: {}", dir.join("config").display());
+        println!("Configuration: {}", session.path.join("config").display());
 
         Ok(())
     }
 
     fn delete_session(name: &str) -> Result<(), String> {
-        viola_core::session::remove_session(name)
+        let dirs = viola_core::paths::AppDirs::new().map_err(|err| err.to_string())?;
+
+        let sessions = viola_core::session::SessionStore::new(&dirs);
+
+        sessions
+            .delete(name)
             .map_err(|err| format!("failed to delete session '{name}': {err}"))?;
 
         println!("Session '{name}' deleted.");
@@ -225,20 +232,23 @@ impl RunCommand {
     }
 
     async fn run_auto() -> Result<(), String> {
-        let sessions = viola_core::session::list_sessions().map_err(|err| err.to_string())?;
+        let dirs = viola_core::paths::AppDirs::new().map_err(|err| err.to_string())?;
 
-        match sessions.len() {
+        let sessions = viola_core::session::SessionStore::new(&dirs);
+        let names = sessions.list().map_err(|err| err.to_string())?;
+
+        match names.len() {
             0 => Err("no sessions found. \
                  Run `viola session new <name>` first."
                 .into()),
 
             1 => {
-                bot::run_sessions(sessions).await;
+                bot::run_sessions(names).await;
                 Ok(())
             }
 
             _ => {
-                let sessions = Self::prompt_session_selection(&sessions)
+                let sessions = Self::prompt_session_selection(&names)
                     .ok_or_else(|| "no session selected".to_owned())?;
 
                 bot::run_sessions(sessions).await;
@@ -249,14 +259,16 @@ impl RunCommand {
     }
 
     async fn run_named(name: &str) -> Result<(), String> {
-        let sessions = viola_core::session::list_sessions().map_err(|err| err.to_string())?;
+        let dirs = viola_core::paths::AppDirs::new().map_err(|err| err.to_string())?;
 
-        if !sessions.iter().any(|session| session == name) {
-            return Err(format!(
+        let sessions = viola_core::session::SessionStore::new(&dirs);
+
+        sessions.get(name).map_err(|_| {
+            format!(
                 "session '{name}' not found. \
                  Run `viola session new {name}` first."
-            ));
-        }
+            )
+        })?;
 
         bot::run_sessions(vec![name.to_owned()]).await;
 
@@ -264,15 +276,19 @@ impl RunCommand {
     }
 
     async fn run_all() -> Result<(), String> {
-        let sessions = viola_core::session::list_sessions().map_err(|err| err.to_string())?;
+        let dirs = viola_core::paths::AppDirs::new().map_err(|err| err.to_string())?;
 
-        if sessions.is_empty() {
+        let sessions = viola_core::session::SessionStore::new(&dirs);
+
+        let names = sessions.list().map_err(|err| err.to_string())?;
+
+        if names.is_empty() {
             return Err("no sessions found. \
                  Run `viola session new <name>` first."
                 .into());
         }
 
-        bot::run_sessions(sessions).await;
+        bot::run_sessions(names).await;
 
         Ok(())
     }

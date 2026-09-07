@@ -1,79 +1,110 @@
 use std::path::PathBuf;
 
-use directories::ProjectDirs;
 use whatsapp_rust::anyhow;
 
-fn sessions_root() -> anyhow::Result<PathBuf> {
-    let project_dirs = ProjectDirs::from("", "", "viola")
-        .ok_or_else(|| anyhow::anyhow!("failed to determine application directory"))?;
+use crate::config;
+use crate::paths::AppDirs;
 
-    let root = project_dirs.config_dir().join("sessions");
-
-    std::fs::create_dir_all(&root)?;
-
-    Ok(root)
+#[derive(Debug, Clone)]
+pub struct Session {
+    pub name: String,
+    pub path: PathBuf,
 }
 
-pub fn session_path(name: &str) -> anyhow::Result<PathBuf> {
-    validate_session_name(name)?;
-
-    Ok(sessions_root()?.join(name))
+pub struct SessionStore {
+    root: PathBuf,
 }
 
-pub fn list_sessions() -> anyhow::Result<Vec<String>> {
-    let root = sessions_root()?;
+impl SessionStore {
+    pub fn new(dirs: &AppDirs) -> Self {
+        Self {
+            root: dirs.sessions.clone(),
+        }
+    }
 
-    let mut sessions = Vec::new();
+    pub fn list(&self) -> anyhow::Result<Vec<String>> {
+        let mut sessions = Vec::new();
 
-    for entry in std::fs::read_dir(root)? {
-        let entry = entry?;
+        for entry in std::fs::read_dir(&self.root)? {
+            let entry = entry?;
 
-        if !entry.file_type()?.is_dir() {
-            continue;
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+
+            sessions.push(name);
         }
 
-        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
-            continue;
-        };
+        sessions.sort();
 
-        sessions.push(name);
+        Ok(sessions)
     }
 
-    sessions.sort();
-
-    Ok(sessions)
-}
-
-pub fn ensure_session_dir(name: &str) -> anyhow::Result<PathBuf> {
-    let dir = session_path(name)?;
-
-    std::fs::create_dir_all(&dir)?;
-
-    Ok(dir)
-}
-
-pub fn remove_session(name: &str) -> anyhow::Result<()> {
-    let dir = session_path(name)?;
-
-    if !dir.exists() {
-        return Err(anyhow::anyhow!("session '{name}' not found"));
+    pub fn exists(&self, name: &str) -> anyhow::Result<bool> {
+        Ok(self.path(name)?.is_dir())
     }
 
-    std::fs::remove_dir_all(dir)?;
+    pub fn create(&self, name: &str) -> anyhow::Result<Session> {
+        validate_name(name)?;
 
-    Ok(())
+        let path = self.path(name)?;
+
+        if path.exists() {
+            return Err(anyhow::anyhow!("session '{name}' already exists"));
+        }
+
+        std::fs::create_dir_all(&path)?;
+        config::ensure_config_file(&path)?;
+
+        Ok(Session {
+            name: name.to_owned(),
+            path,
+        })
+    }
+
+    pub fn get(&self, name: &str) -> anyhow::Result<Session> {
+        validate_name(name)?;
+
+        let path = self.path(name)?;
+
+        if !path.is_dir() {
+            return Err(anyhow::anyhow!("session '{name}' not found"));
+        }
+
+        Ok(Session {
+            name: name.to_owned(),
+            path,
+        })
+    }
+
+    pub fn delete(&self, name: &str) -> anyhow::Result<()> {
+        let session = self.get(name)?;
+
+        std::fs::remove_dir_all(session.path)?;
+
+        Ok(())
+    }
+
+    fn path(&self, name: &str) -> anyhow::Result<PathBuf> {
+        validate_name(name)?;
+        Ok(self.root.join(name))
+    }
 }
 
-fn validate_session_name(name: &str) -> anyhow::Result<()> {
+fn validate_name(name: &str) -> anyhow::Result<()> {
     if name.is_empty() {
         return Err(anyhow::anyhow!("session name cannot be empty"));
     }
 
-    if name == "." || name == ".." {
+    if matches!(name, "." | "..") {
         return Err(anyhow::anyhow!("invalid session name: '{name}'"));
     }
 
-    if name.contains('/') || name.contains('\\') {
+    if name.contains(['/', '\\']) {
         return Err(anyhow::anyhow!(
             "session name cannot contain path separators"
         ));

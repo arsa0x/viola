@@ -6,6 +6,7 @@ pub mod args;
 pub mod message;
 pub mod plugin;
 pub mod session;
+pub mod paths;
 
 pub use args::Args;
 pub use command::{COMMANDS, Command, Execute};
