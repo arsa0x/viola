@@ -18,7 +18,7 @@ Viola Script is a lightweight scripting language built with Rust. It is designed
   - Object
   - Nil
 - Variables
-- Arithmetic and comparison operators
+- Arithmetic, comparison and logical operators
 - Conditional execution
 - Async native function support
 
@@ -68,9 +68,6 @@ cargo bench
 Current benchmarks include:
 
 - Lexer
-- Parser
-- Compiler
-- Virtual Machine
 
 ## Goals
 
