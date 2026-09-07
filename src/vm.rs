@@ -604,4 +604,117 @@ mod tests {
 
         assert!(result.is_ok(), "{result:?}");
     }
+
+    #[test]
+    fn and_evaluates_normally() {
+        let chunk = compile("x = true and 5").expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        block_on(vm.run(&ctx)).expect("should run without error");
+        assert!(
+            matches!(vm.get_var("x"), Some(Value::Int(5))),
+            "{:?}",
+            vm.get_var("x")
+        );
+    }
+
+    #[test]
+    fn or_evaluates_normally() {
+        let chunk = compile("x = false or 5").expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        block_on(vm.run(&ctx)).expect("should run without error");
+        assert!(
+            matches!(vm.get_var("x"), Some(Value::Int(5))),
+            "{:?}",
+            vm.get_var("x")
+        );
+    }
+
+    #[test]
+    fn and_short_circuit_returns_the_falsy_lhs() {
+        let chunk = compile("x = false and (10 / 0)").expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        block_on(vm.run(&ctx)).expect("and did not short-circuit");
+        assert!(
+            matches!(vm.get_var("x"), Some(Value::Bool(false))),
+            "{:?}",
+            vm.get_var("x")
+        );
+    }
+
+    #[test]
+    fn or_short_circuit_returns_the_truthy_lhs() {
+        let chunk = compile("x = true or (10 / 0)").expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        block_on(vm.run(&ctx)).expect("or did not short-circuit");
+        assert!(
+            matches!(vm.get_var("x"), Some(Value::Bool(true))),
+            "{:?}",
+            vm.get_var("x")
+        );
+    }
+
+    #[tokio::test]
+    async fn and_short_circuits_and_does_not_evaluate_rhs() {
+        let result = run("x = false and (10 / 0)").await;
+        assert!(result.is_ok(), "and did not short-circuit: {result:?}");
+    }
+
+    #[tokio::test]
+    async fn or_short_circuits_and_does_not_evaluate_rhs() {
+        let result = run("x = true or (10 / 0)").await;
+        assert!(result.is_ok(), "or did not short-circuit: {result:?}");
+    }
+
+    #[tokio::test]
+    async fn and_does_not_short_circuit_when_it_should_not() {
+        let result = run("x = true and (10 / 0)").await;
+        assert!(
+            matches!(result, Err(VmError::DivisionByZero { .. })),
+            "expected the rhs to actually run and fail, got {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn or_does_not_short_circuit_when_it_should_not() {
+        let result = run("x = false or (10 / 0)").await;
+        assert!(
+            matches!(result, Err(VmError::DivisionByZero { .. })),
+            "expected the rhs to actually run and fail, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn and_or_precedence_matches_mainstream_languages() {
+        let chunk = compile("x = false and false or true").expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+
+        block_on(vm.run(&ctx)).expect("should run without error");
+
+        assert!(
+            matches!(vm.get_var("x"), Some(Value::Bool(true))),
+            "expected (false and false) or true == true, got {:?}",
+            vm.get_var("x")
+        );
+    }
+
+    #[tokio::test]
+    async fn and_works_inside_if_condition() {
+        let result = run(r#"
+            is_admin = true
+            has_permission = true
+            if is_admin and has_permission {
+                x = 1
+            } else {
+                x = 2
+            }
+        "#)
+        .await;
+
+        assert!(result.is_ok(), "{result:?}");
+    }
 }

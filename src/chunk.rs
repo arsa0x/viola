@@ -151,7 +151,9 @@ impl Chunk {
         );
 
         match &mut self.code[pos] {
-            OpCode::Jmp(j) | OpCode::JmpF(j) => *j = offset as i16,
+            OpCode::Jmp(j) | OpCode::JmpF(j) | OpCode::JmpFKeep(j) | OpCode::JmpTKeep(j) => {
+                *j = offset as i16
+            }
             other => panic!("patch_jump is called for non-jump instructions: {other:?}"),
         }
     }

@@ -293,4 +293,38 @@ mod tests {
     fn emit_nested_array_balances_stack() {
         let _ = compile("x = [[1, 2], [3, 4], []]");
     }
+
+    #[test]
+    fn emit_logical_and_short_circuits() {
+        let chunk = compile("x = true and false");
+
+        let and_jump = chunk
+            .code
+            .iter()
+            .position(|op| matches!(op, OpCode::JmpFKeep(_)))
+            .expect("expected JmpFKeep for `and`");
+
+        assert!(matches!(chunk.code[and_jump + 1], OpCode::Pop));
+        assert!(matches!(chunk.code[and_jump + 2], OpCode::Const(_)));
+    }
+
+    #[test]
+    fn emit_logical_or_short_circuits() {
+        let chunk = compile("x = false or true");
+
+        let or_jump = chunk
+            .code
+            .iter()
+            .position(|op| matches!(op, OpCode::JmpTKeep(_)))
+            .expect("expected JmpTKeep for `or`");
+
+        assert!(matches!(chunk.code[or_jump + 1], OpCode::Pop));
+        assert!(matches!(chunk.code[or_jump + 2], OpCode::Const(_)));
+    }
+
+    #[test]
+    fn emit_nested_logical_expression_balances_stack() {
+        let _ = compile("x = true and false or true");
+        let _ = compile("x = true or false and true");
+    }
 }
