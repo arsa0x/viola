@@ -60,6 +60,31 @@ pub fn call_method(
             Ok(Value::Bool(s.ends_with(needle.as_ref())))
         }
 
+        (Value::Str(s), "split") => {
+            expect_argc(method, args, 1, line)?;
+            let sep = expect_str_arg(args, 0, method, line)?;
+
+            let parts: Vec<Value> = if sep.is_empty() {
+                s.split("")
+                    .filter(|p| !p.is_empty())
+                    .map(|p| Value::Str(Arc::from(p)))
+                    .collect()
+            } else {
+                s.split(sep.as_ref())
+                    .map(|p| Value::Str(Arc::from(p)))
+                    .collect()
+            };
+
+            Ok(Value::Array(Arc::new(parts)))
+        }
+
+        (Value::Str(s), "replace") => {
+            expect_argc(method, args, 2, line)?;
+            let from = expect_str_arg(args, 0, method, line)?;
+            let to = expect_str_arg(args, 1, method, line)?;
+            Ok(Value::Str(Arc::from(s.replace(from.as_ref(), to.as_ref()))))
+        }
+
         (Value::Array(items), "len") => {
             expect_argc(method, args, 0, line)?;
             Ok(Value::Int(items.len() as i64))
@@ -68,6 +93,30 @@ pub fn call_method(
         (Value::Array(items), "contains") => {
             expect_argc(method, args, 1, line)?;
             Ok(Value::Bool(items.iter().any(|v| v == &args[0])))
+        }
+
+        (Value::Array(items), "join") => {
+            expect_argc(method, args, 1, line)?;
+            let sep = expect_str_arg(args, 0, method, line)?;
+
+            let joined = items
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<_>>()
+                .join(sep.as_ref());
+
+            Ok(Value::Str(Arc::from(joined)))
+        }
+
+        (Value::Array(items), "first") => {
+            expect_argc(method, args, 0, line)?;
+
+            Ok(items.first().cloned().unwrap_or(Value::Nil))
+        }
+
+        (Value::Array(items), "last") => {
+            expect_argc(method, args, 0, line)?;
+            Ok(items.last().cloned().unwrap_or(Value::Nil))
         }
 
         (Value::Object(fields), "has") => {

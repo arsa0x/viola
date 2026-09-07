@@ -850,6 +850,69 @@ mod tests {
     }
 
     #[test]
+    fn string_split_and_replace_work() {
+        let chunk = compile(
+            r#"parts = "a,b,c".split(",")
+    n = parts.len()
+    first_part = parts.first()
+    last_part = parts.last()
+    replaced = "halo dunia".replace("dunia", "budi")"#,
+        )
+        .expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        block_on(vm.run(&ctx)).expect("should run without error");
+        assert!(matches!(vm.get_var("n"), Some(Value::Int(3))));
+        assert!(matches!(vm.get_var("first_part"), Some(Value::Str(s)) if s.as_ref() == "a"));
+        assert!(matches!(vm.get_var("last_part"), Some(Value::Str(s)) if s.as_ref() == "c"));
+        assert!(matches!(vm.get_var("replaced"), Some(Value::Str(s)) if s.as_ref() == "halo budi"));
+    }
+
+    #[test]
+    fn array_join_stringifies_mixed_elements() {
+        let chunk = compile(r#"x = [1, "two", 3].join(", ")"#).expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        block_on(vm.run(&ctx)).expect("should run without error");
+        assert!(
+            matches!(vm.get_var("x"), Some(Value::Str(s)) if s.as_ref() == "1, two, 3"),
+            "{:?}",
+            vm.get_var("x")
+        );
+    }
+
+    #[test]
+    fn first_and_last_on_empty_array_are_nil_not_error() {
+        let chunk = compile(
+            r#"a = [].first()
+    b = [].last()"#,
+        )
+        .expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        block_on(vm.run(&ctx)).expect("should run without error");
+        assert!(matches!(vm.get_var("a"), Some(Value::Nil)));
+        assert!(matches!(vm.get_var("b"), Some(Value::Nil)));
+    }
+
+    #[test]
+    fn split_with_meaningful_empty_segments_is_preserved() {
+        let chunk = compile(
+            r#"parts = "a,,b".split(",")
+    n = parts.len()"#,
+        )
+        .expect("should compile");
+        let mut vm = Vm::new(&chunk);
+        let ctx = ExecContext::new(vec![], NullHost);
+        block_on(vm.run(&ctx)).expect("should run without error");
+        assert!(
+            matches!(vm.get_var("n"), Some(Value::Int(3))),
+            "{:?}",
+            vm.get_var("n")
+        );
+    }
+
+    #[test]
     fn string_interpolation_fails_with_a_clear_message_not_a_confusing_one() {
         let err = compile(r#"x = "halo ${name}""#).unwrap_err();
         assert!(
