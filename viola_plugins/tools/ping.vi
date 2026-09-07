@@ -1,0 +1,5 @@
+@name ping
+@category tools
+@triggers pp|pingplugin
+
+:send .text("Pong from Viola Script")
