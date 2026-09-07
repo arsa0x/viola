@@ -108,14 +108,9 @@ impl<'a> Parser<'a> {
             let key = self.expect_ident("metadata name")?;
 
             match key.as_ref() {
-                "name" => {
-                    meta.name = Some(self.expect_ident("script name")?);
-                }
-
-                "triggers" => {
-                    meta.triggers = self.parse_triggers()?;
-                }
-
+                "name" => meta.name = Some(self.expect_ident("script name")?),
+                "category" => meta.category = Some(self.expect_ident("command category")?),
+                "triggers" => meta.triggers = self.parse_triggers()?,
                 other => {
                     return Err(self.error(format!("unknown metadata: @{other}")));
                 }
@@ -814,12 +809,13 @@ mod tests {
         let script = parse(
             r#"@name TestScript
 @triggers hello|helo|hi
-
+@category general
 x = 1
 "#,
         );
 
         assert_eq!(script.meta.name, Some(Rc::from("TestScript")));
+        assert_eq!(script.meta.category, Some(Rc::from("general")));
         assert_eq!(script.meta.triggers.len(), 3);
         assert_eq!(script.meta.triggers[0].as_ref(), "hello");
         assert_eq!(script.meta.triggers[1].as_ref(), "helo");
