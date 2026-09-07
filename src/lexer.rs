@@ -546,6 +546,13 @@ mod tests {
     }
 
     #[test]
+    fn and_or_operator() {
+        let tokens = lex("and or");
+
+        assert_eq!(tokens, [(Token::And, 1), (Token::Or, 1), (Token::EOF, 1),]);
+    }
+
+    #[test]
     fn operators() {
         let tokens = lex("== != <= >= < > + - * / ! =");
 
