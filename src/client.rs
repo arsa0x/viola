@@ -1,14 +1,15 @@
 use std::io::Read;
 
 use bytes::Bytes;
-use futures_util::StreamExt;
 use whatsapp_rust::{
     HttpResourceReport, anyhow, async_trait,
     http::{HttpClient, HttpRequest, HttpResponse},
     wacore::net::{StreamingHttpResponse, UploadBody},
 };
 
-pub const DEFAULT_MAX_BODY_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+pub const DEFAULT_MAX_BODY_BYTES: u64 = 2 * 1024 * 1024 * 1024; // 2 GiB
+pub const ERROR_BODY_CAP: u64 = 64 * 1024;
+pub const UPLOAD_CHUNK_BYTES: usize = 64 * 1024;
 
 pub struct ReqwestClient {
     client: reqwest::Client,
@@ -53,6 +54,38 @@ impl ReqwestClient {
             max_body_bytes: DEFAULT_MAX_BODY_BYTES,
         }
     }
+
+    #[allow(unused)]
+    pub fn with_max_body_bytes(mut self, max_body_bytes: u64) -> Self {
+        self.max_body_bytes = max_body_bytes;
+        self
+    }
+}
+
+async fn read_body_capped(
+    mut res: reqwest::Response,
+    max_body_bytes: u64,
+) -> anyhow::Result<Vec<u8>> {
+    let is_success = res.status().is_success();
+    let cap = if is_success {
+        max_body_bytes
+    } else {
+        max_body_bytes.min(ERROR_BODY_CAP)
+    };
+
+    let mut body = Vec::new();
+
+    while let Some(chunk) = res.chunk().await? {
+        if body.len() as u64 + chunk.len() as u64 > cap {
+            if is_success {
+                anyhow::bail!("response body exceeds max_body_bytes cap");
+            }
+
+            break;
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
 }
 
 #[async_trait]
@@ -69,16 +102,8 @@ impl HttpClient for ReqwestClient {
         let res = req.send().await?;
         let status_code = res.status().as_u16();
 
-        let mut body = Vec::new();
-        let mut stream = res.bytes_stream();
+        let body = read_body_capped(res, self.max_body_bytes).await?;
 
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk?;
-            if body.len() as u64 + chunk.len() as u64 > self.max_body_bytes {
-                anyhow::bail!("response body exceeds max_body_bytes cap");
-            }
-            body.extend_from_slice(&chunk);
-        }
         Ok(HttpResponse { status_code, body })
     }
 
@@ -90,6 +115,10 @@ impl HttpClient for ReqwestClient {
     /// Synchronous streaming variant — returns a reader over the response body.
     /// Must be called from a blocking context.
     fn execute_streaming(&self, request: HttpRequest) -> anyhow::Result<StreamingHttpResponse> {
+        if request.method != "GET" {
+            anyhow::bail!("Streaming only supports GET, got: {}", request.method);
+        }
+
         let handle = tokio::runtime::Handle::current();
         let client = self.client.clone();
         let url = request.url.clone();
@@ -132,25 +161,61 @@ impl HttpClient for ReqwestClient {
         body: UploadBody,
         content_length: u64,
     ) -> anyhow::Result<HttpResponse> {
+        if request.method != "POST" {
+            anyhow::bail!(
+                "Upload streaming only supports POST, got: {}",
+                request.method
+            );
+        }
+
         let handle = tokio::runtime::Handle::current();
+
+        let (tx, rx) = tokio::sync::mpsc::channel::<std::io::Result<Bytes>>(4);
+        let mut reader = body;
+
+        let _reader_task = handle.spawn_blocking(move || {
+            let mut buf = vec![0u8; UPLOAD_CHUNK_BYTES];
+            loop {
+                match reader.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        if tx
+                            .blocking_send(Ok(Bytes::copy_from_slice(&buf[..n])))
+                            .is_err()
+                        {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        let _ = tx.blocking_send(Err(e));
+                        break;
+                    }
+                }
+            }
+        });
+
+        let stream = futures_util::stream::unfold(rx, |mut rx| async move {
+            rx.recv().await.map(|item| (item, rx))
+        });
+
+        let reqwest_body = reqwest::Body::wrap_stream(stream);
+
         let client = self.client.clone();
         let url = request.url.clone();
         let headers = request.headers.clone();
-        let max_body = self.max_body_bytes;
-
-        let mut buf = Vec::with_capacity(content_length.min(max_body) as usize);
-        let mut body = body;
-        std::io::Read::read_to_end(&mut body, &mut buf)?;
 
         handle.block_on(async move {
             let mut req = client.post(&url);
             for (k, v) in &headers {
                 req = req.header(k, v);
             }
-            req = req.body(reqwest::Body::from(buf));
+
+            req = req.header("content-length", content_length.to_string());
+            req = req.body(reqwest_body);
+
             let res = req.send().await?;
             let status_code = res.status().as_u16();
-            let body = res.bytes().await?.to_vec();
+            let body = read_body_capped(res, self.max_body_bytes).await?;
             Ok(HttpResponse { status_code, body })
         })
     }
