@@ -194,21 +194,31 @@ impl RedbStore {
     }
 
     /// Executes a read operation on a single table within a read transaction.
-    pub fn with_read_txn<K, V, F, R>(&self, definition: TableDefinition<K, V>, f: F) -> Result<R>
+    pub async fn with_read_txn<K, V, F, R>(
+        &self,
+        definition: TableDefinition<'static, K, V>,
+        f: F,
+    ) -> Result<R>
     where
         K: redb::Key + Send + 'static,
         V: redb::Value + Send + 'static,
-        F: FnOnce(&ReadOnlyTable<K, V>) -> Result<R>,
+        F: FnOnce(&ReadOnlyTable<K, V>) -> Result<R> + Send + 'static,
         R: Send + 'static,
     {
-        let read_txn = self
-            .connection
-            .begin_read()
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
+        let connection = Arc::clone(&self.connection);
 
-        let table = read_txn
-            .open_table(definition)
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
-        f(&table)
+        tokio::task::spawn_blocking(move || {
+            let read_txn = connection
+                .begin_read()
+                .map_err(|e| StoreError::Database(Box::new(e)))?;
+
+            let table = read_txn
+                .open_table(definition)
+                .map_err(|e| StoreError::Database(Box::new(e)))?;
+
+            f(&table)
+        })
+        .await
+        .map_err(|e| StoreError::Database(Box::new(e)))?
     }
 }
