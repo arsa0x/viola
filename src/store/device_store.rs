@@ -26,7 +26,7 @@ impl DeviceStore for RedbStore {
 
     /// Load device data.
     async fn load(&self) -> Result<Option<Device>> {
-        self.with_read_txn(DEVICE_TABLE, |table| {
+        self.with_read_txn(DEVICE_TABLE, move |table| {
             if let Some(data) = table
                 .get(DEVICE_ROW_ID)
                 .map_err(|e| StoreError::Database(Box::new(e)))?
@@ -37,17 +37,19 @@ impl DeviceStore for RedbStore {
                 Ok(None)
             }
         })
+        .await
     }
 
     /// Check if a device exists.
     async fn exists(&self) -> Result<bool> {
-        self.with_read_txn(DEVICE_TABLE, |table| {
+        self.with_read_txn(DEVICE_TABLE, move |table| {
             let has_key = table
                 .get(DEVICE_ROW_ID)
                 .map_err(|e| StoreError::Database(Box::new(e)))?
                 .is_some();
             Ok(has_key)
         })
+        .await
     }
 
     /// Create a new device row and return its generated device_id.

@@ -22,7 +22,10 @@ impl ProtocolStore for RedbStore {
     /// Returns `(device_jid_string, has_key)` pairs where `has_key` indicates
     /// whether the device has a valid sender key (`true`) or needs fresh SKDM (`false`).
     async fn get_sender_key_devices(&self, group_jid: &str) -> Result<Vec<(String, bool)>> {
-        self.with_read_txn(SENDER_KEY_DEVICES_TABLE, |table| {
+        let device_id = self.device_id;
+        let group_jid = group_jid.to_string();
+
+        self.with_read_txn(SENDER_KEY_DEVICES_TABLE, move |table| {
             let mut results = Vec::new();
             for result in table
                 .range::<(&str, u8, &str)>(..)
@@ -31,13 +34,14 @@ impl ProtocolStore for RedbStore {
                 let (k, v) = result.map_err(|e| StoreError::Database(Box::new(e)))?;
                 let (db_group, db_device_id, db_device_jid) = k.value();
 
-                if db_group == group_jid && db_device_id == self.device_id {
+                if db_group == group_jid.as_str() && db_device_id == device_id {
                     let has_key = v.value() == 1;
                     results.push((db_device_jid.to_string(), has_key));
                 }
             }
             Ok(results)
         })
+        .await
     }
 
     /// Set sender key status for devices. Called with `has_key=true` after successful
@@ -161,9 +165,12 @@ impl ProtocolStore for RedbStore {
 
     /// Get a mapping by LID.
     async fn get_lid_mapping(&self, lid: &str) -> Result<Option<LidPnMappingEntry>> {
-        self.with_read_txn(LID_PN_MAPPING_TABLE, |table| {
+        let device_id = self.device_id;
+        let lid = lid.to_string();
+
+        self.with_read_txn(LID_PN_MAPPING_TABLE, move |table| {
             if let Some(data) = table
-                .get((lid, self.device_id))
+                .get((lid.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 let decoded: LidPnMappingEntry = super::decode(data.value())?;
@@ -172,11 +179,15 @@ impl ProtocolStore for RedbStore {
                 Ok(None)
             }
         })
+        .await
     }
 
     /// Get a mapping by phone number (returns the most recent LID for that phone).
     async fn get_pn_mapping(&self, phone: &str) -> Result<Option<LidPnMappingEntry>> {
-        self.with_read_txn(LID_PN_MAPPING_TABLE, |table| {
+        let device_id = self.device_id;
+        let phone = phone.to_string();
+
+        self.with_read_txn(LID_PN_MAPPING_TABLE, move |table| {
             for result in table
                 .range::<(&str, u8)>(..)
                 .map_err(|e| StoreError::Database(Box::new(e)))?
@@ -184,7 +195,7 @@ impl ProtocolStore for RedbStore {
                 let (k, v) = result.map_err(|e| StoreError::Database(Box::new(e)))?;
                 let (_, db_device_id) = k.value();
 
-                if db_device_id == self.device_id {
+                if db_device_id == device_id {
                     let decoded: LidPnMappingEntry = super::decode(v.value())?;
                     if decoded.phone_number == phone {
                         return Ok(Some(decoded));
@@ -193,6 +204,7 @@ impl ProtocolStore for RedbStore {
             }
             Ok(None)
         })
+        .await
     }
 
     /// Store or update a LID-PN mapping.
@@ -239,7 +251,9 @@ impl ProtocolStore for RedbStore {
 
     /// Get all LID-PN mappings (for cache warm-up).
     async fn get_all_lid_mappings(&self) -> Result<Vec<LidPnMappingEntry>> {
-        self.with_read_txn(LID_PN_MAPPING_TABLE, |table| {
+        let device_id = self.device_id;
+
+        self.with_read_txn(LID_PN_MAPPING_TABLE, move |table| {
             let mut results = Vec::new();
             for result in table
                 .range::<(&str, u8)>(..)
@@ -248,13 +262,14 @@ impl ProtocolStore for RedbStore {
                 let (k, v) = result.map_err(|e| StoreError::Database(Box::new(e)))?;
                 let (_, db_device_id) = k.value();
 
-                if db_device_id == self.device_id {
+                if db_device_id == device_id {
                     let decoded: LidPnMappingEntry = super::decode(v.value())?;
                     results.push(decoded);
                 }
             }
             Ok(results)
         })
+        .await
     }
 
     // --- Base Key Collision Detection ---
@@ -289,9 +304,14 @@ impl ProtocolStore for RedbStore {
         message_id: &str,
         current_base_key: &[u8],
     ) -> Result<bool> {
-        self.with_read_txn(BASE_KEYS_TABLE, |table| {
+        let device_id = self.device_id;
+        let address = address.to_string();
+        let message_id = message_id.to_string();
+        let current_base_key = current_base_key.to_vec();
+
+        self.with_read_txn(BASE_KEYS_TABLE, move |table| {
             if let Some(data) = table
-                .get((address, message_id, self.device_id))
+                .get((address.as_str(), message_id.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 let decoded: BaseKeyRecord = super::decode(data.value())?;
@@ -300,6 +320,7 @@ impl ProtocolStore for RedbStore {
                 Ok(false)
             }
         })
+        .await
     }
 
     /// Delete a base key entry.
@@ -361,9 +382,12 @@ impl ProtocolStore for RedbStore {
 
     /// Get all known devices for a user.
     async fn get_devices(&self, user: &str) -> Result<Option<DeviceListRecord>> {
-        self.with_read_txn(DEVICE_REGISTRY_TABLE, |table| {
+        let device_id = self.device_id;
+        let user = user.to_string();
+
+        self.with_read_txn(DEVICE_REGISTRY_TABLE, move |table| {
             if let Some(data) = table
-                .get((user, self.device_id))
+                .get((user.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 let decoded: DeviceListRecord = super::decode(data.value())?;
@@ -372,6 +396,7 @@ impl ProtocolStore for RedbStore {
                 Ok(None)
             }
         })
+        .await
     }
 
     /// Delete a device list record, forcing a network re-fetch on next query.
@@ -394,9 +419,12 @@ impl ProtocolStore for RedbStore {
     /// The blob is a caller-serialized GroupInfo snapshot; backends without group
     /// persistence return `None` (the group is then re-queried in full).
     async fn get_group_metadata(&self, group_jid: &str) -> Result<Option<Vec<u8>>> {
-        self.with_read_txn(GROUP_METADATA_TABLE, |table| {
+        let device_id = self.device_id;
+        let group_jid = group_jid.to_string();
+
+        self.with_read_txn(GROUP_METADATA_TABLE, move |table| {
             if let Some(data) = table
-                .get((group_jid, self.device_id))
+                .get((group_jid.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Ok(Some(data.value().to_vec()))
@@ -404,6 +432,7 @@ impl ProtocolStore for RedbStore {
                 Ok(None)
             }
         })
+        .await
     }
 
     /// Persist (upsert) the serialized group metadata blob for `group_jid`.
@@ -442,9 +471,12 @@ impl ProtocolStore for RedbStore {
 
     /// Get a trusted contact token for a JID (stored under LID).
     async fn get_tc_token(&self, jid: &str) -> Result<Option<TcTokenEntry>> {
-        self.with_read_txn(TC_TOKENS_TABLE, |table| {
+        let device_id = self.device_id;
+        let jid = jid.to_string();
+
+        self.with_read_txn(TC_TOKENS_TABLE, move |table| {
             if let Some(data) = table
-                .get((jid, self.device_id))
+                .get((jid.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 let decoded: TcTokenEntry = super::decode(data.value())?;
@@ -453,6 +485,7 @@ impl ProtocolStore for RedbStore {
                 Ok(None)
             }
         })
+        .await
     }
 
     /// Store or update a trusted contact token for a JID.
@@ -486,7 +519,9 @@ impl ProtocolStore for RedbStore {
 
     /// Get all JIDs that have stored tc tokens.
     async fn get_all_tc_token_jids(&self) -> Result<Vec<String>> {
-        self.with_read_txn(TC_TOKENS_TABLE, |table| {
+        let device_id = self.device_id;
+
+        self.with_read_txn(TC_TOKENS_TABLE, move |table| {
             let mut jids = Vec::new();
             for result in table
                 .range::<(&str, u8)>(..)
@@ -495,12 +530,13 @@ impl ProtocolStore for RedbStore {
                 let (k, _) = result.map_err(|e| StoreError::Database(Box::new(e)))?;
                 let (db_jid, db_device_id) = k.value();
 
-                if db_device_id == self.device_id {
+                if db_device_id == device_id {
                     jids.push(db_jid.to_string());
                 }
             }
             Ok(jids)
         })
+        .await
     }
 
     /// Delete tc tokens that have no live state left. A row is removed only when
