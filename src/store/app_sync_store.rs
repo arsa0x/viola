@@ -16,9 +16,12 @@ use whatsapp_rust::{
 impl AppSyncStore for RedbStore {
     /// Get an app state sync key by ID.
     async fn get_sync_key(&self, key_id: &[u8]) -> Result<Option<AppStateSyncKey>> {
-        self.with_read_txn(APP_STATE_KEYS_TABLE, |table| {
+        let device_id = self.device_id;
+        let key_id = key_id.to_vec();
+
+        self.with_read_txn(APP_STATE_KEYS_TABLE, move |table| {
             match table
-                .get((key_id, self.device_id))
+                .get((key_id.as_slice(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => {
@@ -28,6 +31,7 @@ impl AppSyncStore for RedbStore {
                 None => Ok(None),
             }
         })
+        .await
     }
 
     /// Set an app state sync key.
@@ -47,9 +51,12 @@ impl AppSyncStore for RedbStore {
 
     /// Get the app state version for a collection.
     async fn get_version(&self, name: &str) -> Result<HashState> {
-        self.with_read_txn(APP_STATE_VERSIONS_TABLE, |table| {
+        let device_id = self.device_id;
+        let name = name.to_string();
+
+        self.with_read_txn(APP_STATE_VERSIONS_TABLE, move |table| {
             match table
-                .get((name, self.device_id))
+                .get((name.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => {
@@ -59,6 +66,7 @@ impl AppSyncStore for RedbStore {
                 None => Ok(HashState::default()),
             }
         })
+        .await
     }
 
     /// Set the app state version for a collection.
@@ -112,9 +120,13 @@ impl AppSyncStore for RedbStore {
 
     /// Get a mutation MAC by index.
     async fn get_mutation_mac(&self, name: &str, index_mac: &[u8]) -> Result<Option<Vec<u8>>> {
-        self.with_read_txn(APP_STATE_MUTATION_MACS_TABLE, |table| {
+        let device_id = self.device_id;
+        let name = name.to_string();
+        let index_mac = index_mac.to_vec();
+
+        self.with_read_txn(APP_STATE_MUTATION_MACS_TABLE, move |table| {
             match table
-                .get((name, self.device_id, index_mac))
+                .get((name.as_str(), device_id, index_mac.as_slice()))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => {
@@ -124,6 +136,7 @@ impl AppSyncStore for RedbStore {
                 None => Ok(None),
             }
         })
+        .await
     }
 
     /// Batch variant of [`get_mutation_mac`]: fetch many previous-MAC values in a
@@ -139,18 +152,15 @@ impl AppSyncStore for RedbStore {
         name: &str,
         index_macs: &[[u8; 32]],
     ) -> Result<std::collections::HashMap<[u8; 32], Vec<u8>>> {
-        // let mut out = std::collections::HashMap::with_capacity(index_macs.len());
-        // for index_mac in index_macs {
-        //     if let Some(mac) = self.get_mutation_mac(name, index_mac).await? {
-        //         out.insert(index_mac.clone(), mac);
-        //     }
-        // }
-        // Ok(out)
-        self.with_read_txn(APP_STATE_MUTATION_MACS_TABLE, |table| {
+        let device_id = self.device_id;
+        let name = name.to_string();
+        let index_macs = index_macs.to_vec();
+
+        self.with_read_txn(APP_STATE_MUTATION_MACS_TABLE, move |table| {
             let mut out = std::collections::HashMap::with_capacity(index_macs.len());
             for index_mac in index_macs {
                 if let Some(data) = table
-                    .get((name, self.device_id, index_mac.as_slice()))
+                    .get((name.as_str(), device_id, index_mac.as_slice()))
                     .map_err(|e| StoreError::Database(Box::new(e)))?
                 {
                     let decoded: AppStateMutationMacRecord = super::decode(data.value())?;
@@ -159,6 +169,7 @@ impl AppSyncStore for RedbStore {
             }
             Ok(out)
         })
+        .await
     }
 
     /// Delete mutation MACs by their index MACs.
@@ -215,7 +226,9 @@ impl AppSyncStore for RedbStore {
 
     /// Get the most recently stored app state sync key ID.
     async fn get_latest_sync_key_id(&self) -> Result<Option<Vec<u8>>> {
-        self.with_read_txn(APP_STATE_KEYS_TABLE, |table| {
+        let device_id = self.device_id;
+
+        self.with_read_txn(APP_STATE_KEYS_TABLE, move |table| {
             for result in table
                 .range::<(&[u8], u8)>(..)
                 .map_err(|e| StoreError::Database(Box::new(e)))?
@@ -223,13 +236,13 @@ impl AppSyncStore for RedbStore {
             {
                 let (k, v) = result.map_err(|e| StoreError::Database(Box::new(e)))?;
                 let (db_key_id, db_device_id) = k.value();
-                if db_device_id == self.device_id
-                    && super::decode::<AppStateSyncKey>(v.value()).is_ok()
+                if db_device_id == device_id && super::decode::<AppStateSyncKey>(v.value()).is_ok()
                 {
                     return Ok(Some(db_key_id.to_vec()));
                 }
             }
             Ok(None)
         })
+        .await
     }
 }
