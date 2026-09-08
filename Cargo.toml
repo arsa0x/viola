@@ -38,13 +38,13 @@ ahash.workspace = true
 bincode = { version = "2.0.1", features = ["serde"] }
 bytes.workspace = true
 env_logger = { version = "0.11.11", default-features = false }
-futures-util = "0.3.33"
 log.workspace = true
 qrcode = { version = "0.14.1", default-features = false }
 redb = { version = "4.1.0" }
 reqwest = { workspace = true, features = ["stream"] }
 serde.workspace = true
 tokio.workspace = true
+tokio-stream = "0.1.19"
 viola_command.workspace = true
 viola_core.workspace = true
 whatsapp-rust.workspace = true

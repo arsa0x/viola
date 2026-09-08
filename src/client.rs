@@ -10,6 +10,7 @@ use whatsapp_rust::{
 pub const DEFAULT_MAX_BODY_BYTES: u64 = 2 * 1024 * 1024 * 1024; // 2 GiB
 pub const ERROR_BODY_CAP: u64 = 64 * 1024;
 pub const UPLOAD_CHUNK_BYTES: usize = 64 * 1024;
+pub const UPLOAD_CHANNEL_CAPACITY: usize = 4;
 
 pub struct ReqwestClient {
     client: reqwest::Client,
@@ -170,53 +171,74 @@ impl HttpClient for ReqwestClient {
         }
 
         let handle = tokio::runtime::Handle::current();
-
-        let (tx, rx) = tokio::sync::mpsc::channel::<std::io::Result<Bytes>>(4);
-        let mut reader = body;
-
-        let _reader_task = handle.spawn_blocking(move || {
-            let mut buf = vec![0u8; UPLOAD_CHUNK_BYTES];
-            loop {
-                match reader.read(&mut buf) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        if tx
-                            .blocking_send(Ok(Bytes::copy_from_slice(&buf[..n])))
-                            .is_err()
-                        {
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        let _ = tx.blocking_send(Err(e));
-                        break;
-                    }
-                }
-            }
-        });
-
-        let stream = futures_util::stream::unfold(rx, |mut rx| async move {
-            rx.recv().await.map(|item| (item, rx))
-        });
-
-        let reqwest_body = reqwest::Body::wrap_stream(stream);
-
         let client = self.client.clone();
         let url = request.url.clone();
         let headers = request.headers.clone();
+        let max_body_bytes = self.max_body_bytes;
 
         handle.block_on(async move {
+            let (tx, rx) =
+                tokio::sync::mpsc::channel::<std::io::Result<Bytes>>(UPLOAD_CHANNEL_CAPACITY);
+
+            tokio::task::spawn_blocking(move || {
+                let mut reader = body;
+                let mut buf = vec![0u8; UPLOAD_CHUNK_BYTES];
+                let mut total_read = 0u64;
+
+                loop {
+                    let n = match reader.read(&mut buf) {
+                        Ok(0) => break,
+                        Ok(n) => n,
+                        Err(e) => {
+                            let _ = tx.blocking_send(Err(e));
+                            return;
+                        }
+                    };
+
+                    total_read += n as u64;
+
+                    if total_read > content_length {
+                        let _ = tx.blocking_send(Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "upload body exceeds declared Content-Length",
+                        )));
+                        return;
+                    }
+
+                    if tx
+                        .blocking_send(Ok(Bytes::copy_from_slice(&buf[..n])))
+                        .is_err()
+                    {
+                        return;
+                    }
+                }
+
+                if total_read != content_length {
+                    let _ = tx.blocking_send(Err(std::io::Error::new(
+                        std::io::ErrorKind::UnexpectedEof,
+                        format!(
+                            "upload body length mismatch: expected {}, got {}",
+                            content_length, total_read
+                        ),
+                    )));
+                }
+            });
+
+            let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+            let body = reqwest::Body::wrap_stream(stream);
             let mut req = client.post(&url);
-            for (k, v) in &headers {
-                req = req.header(k, v);
+
+            for (key, value) in &headers {
+                req = req.header(key, value);
             }
 
-            req = req.header("content-length", content_length.to_string());
-            req = req.body(reqwest_body);
+            req = req.header(reqwest::header::CONTENT_LENGTH, content_length);
+            req = req.body(body);
 
             let res = req.send().await?;
             let status_code = res.status().as_u16();
-            let body = read_body_capped(res, self.max_body_bytes).await?;
+            let body = read_body_capped(res, max_body_bytes).await?;
+
             Ok(HttpResponse { status_code, body })
         })
     }
