@@ -29,21 +29,26 @@ impl SignalStore for RedbStore {
 
     /// Load an identity key for a remote address
     async fn load_identity(&self, address: &str) -> Result<Option<[u8; 32]>> {
-        self.with_read_txn(IDENTITIES_TABLE, |table| {
+        let address = address.to_string();
+        let device_id = self.device_id;
+
+        self.with_read_txn(IDENTITIES_TABLE, move |table| {
             match table
-                .get((address, self.device_id))
+                .get((address.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => Ok(Some(*data.value())),
                 None => Ok(None),
             }
         })
+        .await
     }
 
     /// Delete an identity key
     async fn delete_identity(&self, address: &str) -> Result<()> {
         let address = address.to_string();
         let device_id = self.device_id;
+
         self.with_write_txn(IDENTITIES_TABLE, move |table| {
             table
                 .remove((address.as_str(), device_id))
@@ -55,15 +60,19 @@ impl SignalStore for RedbStore {
 
     /// Get an encrypted session for an address
     async fn get_session(&self, address: &str) -> Result<Option<Bytes>> {
-        self.with_read_txn(SESSIONS_TABLE, |table| {
+        let address = address.to_string();
+        let device_id = self.device_id;
+
+        self.with_read_txn(SESSIONS_TABLE, move |table| {
             match table
-                .get((address, self.device_id))
+                .get((address.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => Ok(Some(Bytes::copy_from_slice(data.value()))),
                 None => Ok(None),
             }
         })
+        .await
     }
 
     /// Store an encrypted session
@@ -152,9 +161,12 @@ impl SignalStore for RedbStore {
 
     /// Load a pre-key by ID
     async fn load_prekey(&self, id: u32) -> Result<Option<Bytes>> {
-        self.with_read_txn(PREKEYS_TABLE, |table| {
+        let id = id;
+        let device_id = self.device_id;
+
+        self.with_read_txn(PREKEYS_TABLE, move |table| {
             match table
-                .get((id, self.device_id))
+                .get((id, device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => {
@@ -164,24 +176,29 @@ impl SignalStore for RedbStore {
                 None => Ok(None),
             }
         })
+        .await
     }
 
     /// Load multiple pre-keys by ID in a single batch operation (default loops over load_prekey)
     async fn load_prekeys_batch(&self, ids: &[u32]) -> Result<Vec<(u32, Bytes)>> {
-        self.with_read_txn(PREKEYS_TABLE, |table| {
+        let ids = ids.to_vec();
+        let device_id = self.device_id;
+
+        self.with_read_txn(PREKEYS_TABLE, move |table| {
             let mut result: Vec<(u32, Bytes)> = Vec::with_capacity(ids.len());
 
             for id in ids {
                 if let Some(data) = table
-                    .get((*id, self.device_id))
+                    .get((id, device_id))
                     .map_err(|e| StoreError::Database(Box::new(e)))?
                 {
                     let decoded: PreKeyRecord = super::decode(data.value())?;
-                    result.push((*id, Bytes::from(decoded.key)));
+                    result.push((id, Bytes::from(decoded.key)));
                 }
             }
             Ok(result)
         })
+        .await
     }
 
     /// Mark already-stored pre-keys as uploaded WITHOUT inserting.
@@ -232,7 +249,9 @@ impl SignalStore for RedbStore {
 
     /// Get the highest pre-key ID currently stored
     async fn get_max_prekey_id(&self) -> Result<u32> {
-        self.with_read_txn(PREKEYS_TABLE, |table| {
+        let device_id = self.device_id;
+
+        self.with_read_txn(PREKEYS_TABLE, move |table| {
             let iter = table
                 .range::<(u32, u8)>(..)
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
@@ -240,12 +259,13 @@ impl SignalStore for RedbStore {
             for result in iter.rev() {
                 let (key_access, _) = result.map_err(|e| StoreError::Database(Box::new(e)))?;
                 let (id, db_device_id) = key_access.value();
-                if db_device_id == self.device_id {
+                if db_device_id == device_id {
                     return Ok(id);
                 }
             }
             Ok(0)
         })
+        .await
     }
 
     /// Store a signed pre-key
@@ -263,20 +283,26 @@ impl SignalStore for RedbStore {
 
     /// Load a signed pre-key by ID
     async fn load_signed_prekey(&self, id: u32) -> Result<Option<Vec<u8>>> {
-        self.with_read_txn(SIGNED_PREKEYS_TABLE, |table| {
+        let id = id;
+        let device_id = self.device_id;
+
+        self.with_read_txn(SIGNED_PREKEYS_TABLE, move |table| {
             match table
-                .get((id, self.device_id))
+                .get((id, device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => Ok(Some(data.value().to_vec())),
                 None => Ok(None),
             }
         })
+        .await
     }
 
     /// Load all signed pre-keys (returns id, record pairs)
     async fn load_all_signed_prekeys(&self) -> Result<Vec<(u32, Vec<u8>)>> {
-        self.with_read_txn(SIGNED_PREKEYS_TABLE, |table| {
+        let device_id = self.device_id;
+
+        self.with_read_txn(SIGNED_PREKEYS_TABLE, move |table| {
             let mut result: Vec<(u32, Vec<u8>)> = Vec::new();
 
             let iter = table
@@ -288,13 +314,14 @@ impl SignalStore for RedbStore {
                     item.map_err(|e| StoreError::Database(Box::new(e)))?;
                 let (id, db_device_id) = key_access.value();
 
-                if db_device_id == self.device_id {
+                if db_device_id == device_id {
                     result.push((id, value_access.value().to_vec()));
                 }
             }
 
             Ok(result)
         })
+        .await
     }
 
     /// Remove a signed pre-key
@@ -325,15 +352,19 @@ impl SignalStore for RedbStore {
 
     /// Get a sender key
     async fn get_sender_key(&self, address: &str) -> Result<Option<Vec<u8>>> {
-        self.with_read_txn(SENDER_KEYS_TABLE, |table| {
+        let device_id = self.device_id;
+        let address = address.to_string();
+
+        self.with_read_txn(SENDER_KEYS_TABLE, move |table| {
             match table
-                .get((address, self.device_id))
+                .get((address.as_str(), device_id))
                 .map_err(|e| StoreError::Database(Box::new(e)))?
             {
                 Some(data) => Ok(Some(data.value().to_vec())),
                 None => Ok(None),
             }
         })
+        .await
     }
 
     /// Delete a sender key
