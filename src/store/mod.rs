@@ -196,9 +196,10 @@ impl RedbStore {
     /// Executes a read operation on a single table within a read transaction.
     pub fn with_read_txn<K, V, F, R>(&self, definition: TableDefinition<K, V>, f: F) -> Result<R>
     where
-        K: redb::Key + 'static,
-        V: redb::Value + 'static,
+        K: redb::Key + Send + 'static,
+        V: redb::Value + Send + 'static,
         F: FnOnce(&ReadOnlyTable<K, V>) -> Result<R>,
+        R: Send + 'static,
     {
         let read_txn = self
             .connection
