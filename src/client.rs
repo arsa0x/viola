@@ -73,7 +73,8 @@ async fn read_body_capped(
         max_body_bytes.min(ERROR_BODY_CAP)
     };
 
-    let mut body = Vec::new();
+    let content_length = res.content_length().unwrap_or(0).min(cap) as usize;
+    let mut body = Vec::with_capacity(content_length);
 
     while let Some(chunk) = res.chunk().await? {
         if body.len() as u64 + chunk.len() as u64 > cap {
