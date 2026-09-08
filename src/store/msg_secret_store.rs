@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::{MSG_SECRETS_TABLE, MsgSecretRecord, RedbStore};
-use redb::ReadableTable;
+use redb::{ReadableDatabase, ReadableTable};
 use whatsapp_rust::{
     async_trait,
     store::{
@@ -52,66 +52,70 @@ impl MsgSecretStore for RedbStore {
             return Ok(0);
         }
 
-        let now = wacore::time::now_secs();
+        let connection = Arc::clone(&self.connection);
         let device_id = self.device_id;
 
-        let write_txn = self
-            .connection
-            .begin_write()
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
+        tokio::task::spawn_blocking(move || {
+            let now = wacore::time::now_secs();
 
-        {
-            let mut table = write_txn
-                .open_table(MSG_SECRETS_TABLE)
+            let write_txn = connection
+                .begin_write()
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
 
-            for entry in &entries {
-                let key = (
-                    entry.chat.as_ref(),
-                    entry.sender.as_ref(),
-                    entry.msg_id.as_ref(),
-                    device_id,
-                );
-
-                let record = match table
-                    .get(key)
-                    .map_err(|e| StoreError::Database(Box::new(e)))?
-                {
-                    Some(existing) => {
-                        let mut record: MsgSecretRecord = super::decode(existing.value())?;
-
-                        record.secret = entry.secret.to_vec();
-                        record.created_at = now;
-
-                        // expires_at logic sama seperti SQLite
-                        record.expires_at = match (record.expires_at, entry.expires_at) {
-                            (0, _) | (_, 0) => 0,
-                            (a, b) => a.max(b),
-                        };
-
-                        record.message_ts = record.message_ts.max(entry.message_ts);
-
-                        record
-                    }
-                    None => MsgSecretRecord {
-                        secret: entry.secret.to_vec(),
-                        created_at: now,
-                        expires_at: entry.expires_at,
-                        message_ts: entry.message_ts,
-                    },
-                };
-                let encoded = super::encode(&record)?;
-                table
-                    .insert(key, encoded.as_slice())
+            {
+                let mut table = write_txn
+                    .open_table(MSG_SECRETS_TABLE)
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
+
+                for entry in &entries {
+                    let key = (
+                        entry.chat.as_ref(),
+                        entry.sender.as_ref(),
+                        entry.msg_id.as_ref(),
+                        device_id,
+                    );
+
+                    let record = match table
+                        .get(key)
+                        .map_err(|e| StoreError::Database(Box::new(e)))?
+                    {
+                        Some(existing) => {
+                            let mut record: MsgSecretRecord = super::decode(existing.value())?;
+
+                            record.secret = entry.secret.to_vec();
+
+                            // expires_at logic sama seperti SQLite
+                            record.expires_at = match (record.expires_at, entry.expires_at) {
+                                (0, _) | (_, 0) => 0,
+                                (a, b) => a.max(b),
+                            };
+
+                            record.message_ts = record.message_ts.max(entry.message_ts);
+
+                            record
+                        }
+                        None => MsgSecretRecord {
+                            secret: entry.secret.to_vec(),
+                            created_at: now,
+                            expires_at: entry.expires_at,
+                            message_ts: entry.message_ts,
+                        },
+                    };
+                    let encoded = super::encode(&record)?;
+                    table
+                        .insert(key, encoded.as_slice())
+                        .map_err(|e| StoreError::Database(Box::new(e)))?;
+                }
             }
-        }
 
-        write_txn
-            .commit()
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
+            write_txn
+                .commit()
+                .map_err(|e| StoreError::Database(Box::new(e)))?;
 
-        Ok(entries.len())
+            Ok(entries.len())
+        })
+        .await
+        .map_err(|e| StoreError::Database(Box::new(e)))?
     }
 
     /// Fetch the persisted secret; returns `None` if absent.
@@ -123,14 +127,21 @@ impl MsgSecretStore for RedbStore {
     ) -> Result<Option<Vec<u8>>> {
         let device_id = self.device_id;
 
-        self.with_read_txn(MSG_SECRETS_TABLE, |table| {
-            let key = (chat, sender, msg_id, device_id);
+        let connection = Arc::clone(&self.connection);
+        let (chat, sender, msg_id) = (chat.to_owned(), sender.to_owned(), msg_id.to_owned());
 
-            let value = table
-                .get(key)
+        tokio::task::spawn_blocking(move || {
+            let read_txn = connection
+                .begin_read()
+                .map_err(|e| StoreError::Database(Box::new(e)))?;
+            let table = read_txn
+                .open_table(MSG_SECRETS_TABLE)
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
 
-            match value {
+            match table
+                .get((chat.as_str(), sender.as_str(), msg_id.as_str(), device_id))
+                .map_err(|e| StoreError::Database(Box::new(e)))?
+            {
                 Some(v) => {
                     let record: MsgSecretRecord = super::decode(v.value())?;
                     Ok(Some(record.secret))
@@ -138,6 +149,8 @@ impl MsgSecretStore for RedbStore {
                 None => Ok(None),
             }
         })
+        .await
+        .map_err(|e| StoreError::Database(Box::new(e)))?
     }
 
     /// Fetch the secret together with the parent message's event time
@@ -151,15 +164,21 @@ impl MsgSecretStore for RedbStore {
         msg_id: &str,
     ) -> Result<Option<(Vec<u8>, i64)>> {
         let device_id = self.device_id;
+        let connection = Arc::clone(&self.connection);
+        let (chat, sender, msg_id) = (chat.to_owned(), sender.to_owned(), msg_id.to_owned());
 
-        self.with_read_txn(MSG_SECRETS_TABLE, |table| {
-            let key = (chat, sender, msg_id, device_id);
-
-            let value = table
-                .get(key)
+        tokio::task::spawn_blocking(move || {
+            let read_txn = connection
+                .begin_read()
+                .map_err(|e| StoreError::Database(Box::new(e)))?;
+            let table = read_txn
+                .open_table(MSG_SECRETS_TABLE)
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
 
-            match value {
+            match table
+                .get((chat.as_str(), sender.as_str(), msg_id.as_str(), device_id))
+                .map_err(|e| StoreError::Database(Box::new(e)))?
+            {
                 Some(v) => {
                     let record: MsgSecretRecord = super::decode(v.value())?;
 
@@ -168,6 +187,8 @@ impl MsgSecretStore for RedbStore {
                 None => Ok(None),
             }
         })
+        .await
+        .map_err(|e| StoreError::Database(Box::new(e)))?
     }
 
     /// Delete rows whose non-zero `expires_at` is at or before
@@ -176,61 +197,61 @@ impl MsgSecretStore for RedbStore {
     /// the keepalive cleanup can log/throttle.
     async fn delete_expired_msg_secrets(&self, cutoff_timestamp: i64) -> Result<u32> {
         let device_id = self.device_id;
+        let connection = Arc::clone(&self.connection);
 
-        let write_txn = self
-            .connection
-            .begin_write()
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
-
-        let mut deleted = 0u32;
-
-        let mut to_delete: Vec<(String, String, String, u8)> = Vec::new();
-
-        {
-            let table = write_txn
-                .open_table(MSG_SECRETS_TABLE)
+        tokio::task::spawn_blocking(move || {
+            let write_txn = connection
+                .begin_write()
                 .map_err(|e| StoreError::Database(Box::new(e)))?;
 
-            let iter = table
-                .iter()
-                .map_err(|e| StoreError::Database(Box::new(e)))?;
+            let mut deleted = 0u32;
 
-            for item in iter {
-                let (key, value) = item.map_err(|e| StoreError::Database(Box::new(e)))?;
-
-                let (chat, sender, msg_id, dev) = key.value();
-
-                if dev != device_id {
-                    continue;
-                }
-
-                let record: MsgSecretRecord = super::decode(value.value())?;
-
-                // expires_at == 0 => never expire
-                if record.expires_at != 0 && record.expires_at <= cutoff_timestamp {
-                    to_delete.push((chat.to_owned(), sender.to_owned(), msg_id.to_owned(), dev));
-                }
-            }
-        }
-
-        if !to_delete.is_empty() {
-            let mut table = write_txn
-                .open_table(MSG_SECRETS_TABLE)
-                .map_err(|e| StoreError::Database(Box::new(e)))?;
-
-            for (chat, sender, msg_id, dev) in to_delete {
-                table
-                    .remove((chat.as_str(), sender.as_str(), msg_id.as_str(), dev))
+            let to_delete: Vec<(String, String, String, u8)> = {
+                let table = write_txn
+                    .open_table(MSG_SECRETS_TABLE)
                     .map_err(|e| StoreError::Database(Box::new(e)))?;
 
-                deleted += 1;
+                let mut keys = Vec::new();
+                for item in table
+                    .iter()
+                    .map_err(|e| StoreError::Database(Box::new(e)))?
+                {
+                    let (key, value) = item.map_err(|e| StoreError::Database(Box::new(e)))?;
+                    let (chat, sender, msg_id, dev) = key.value();
+
+                    if dev != device_id {
+                        continue;
+                    }
+
+                    let record: MsgSecretRecord = super::decode(value.value())?;
+                    if record.expires_at != 0 && record.expires_at <= cutoff_timestamp {
+                        keys.push((chat.to_owned(), sender.to_owned(), msg_id.to_owned(), dev));
+                    }
+                }
+                keys
+            };
+
+            if !to_delete.is_empty() {
+                let mut table = write_txn
+                    .open_table(MSG_SECRETS_TABLE)
+                    .map_err(|e| StoreError::Database(Box::new(e)))?;
+
+                for (chat, sender, msg_id, dev) in to_delete {
+                    table
+                        .remove((chat.as_str(), sender.as_str(), msg_id.as_str(), dev))
+                        .map_err(|e| StoreError::Database(Box::new(e)))?;
+
+                    deleted += 1;
+                }
             }
-        }
 
-        write_txn
-            .commit()
-            .map_err(|e| StoreError::Database(Box::new(e)))?;
+            write_txn
+                .commit()
+                .map_err(|e| StoreError::Database(Box::new(e)))?;
 
-        Ok(deleted)
+            Ok(deleted)
+        })
+        .await
+        .map_err(|e| StoreError::Database(Box::new(e)))?
     }
 }
