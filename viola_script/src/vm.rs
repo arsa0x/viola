@@ -274,7 +274,15 @@ impl<'a> Vm<'a> {
         ctx: &ExecContext<H>,
     ) -> Result<Value, NativeError> {
         match id {
-            NativeId::SendText => native::send_text(args, ctx).await,
+            NativeId::SendText => native::send::send_text(args, ctx).await,
+            NativeId::SendSingleSelect => native::send::send_single_select(args, ctx).await,
+            NativeId::SendReaction => native::send::send_reaction(args, ctx).await,
+            NativeId::ArgsAll => Ok(native::message::args_all(ctx)),
+            NativeId::ArgsCount => Ok(native::message::args_count(ctx)),
+            NativeId::ArgsGet => native::message::args_get(args, ctx),
+            NativeId::MessageIsGroup => Ok(native::message::message_is_group(ctx)),
+            NativeId::MessageSender => Ok(native::message::message_sender(ctx)),
+            NativeId::MessageText => Ok(native::message::message_text(ctx)),
         }
     }
 
@@ -358,13 +366,28 @@ impl<'a> Vm<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::compile;
+    use crate::{compile, native::specs::SingleSelectSpec};
 
     struct NullHost;
 
     impl Host for NullHost {
-        async fn send_text(&self, _text: &str) -> Result<(), NativeError> {
+        async fn send_text(&self, _: &str, _: bool) -> Result<(), NativeError> {
             Ok(())
+        }
+        async fn send_reaction(&self, _: &str) -> Result<(), NativeError> {
+            Ok(())
+        }
+        async fn send_single_select(&self, _: SingleSelectSpec<'_>) -> Result<(), NativeError> {
+            Ok(())
+        }
+        fn is_group(&self) -> bool {
+            false
+        }
+        fn message_text(&self) -> Option<&str> {
+            None
+        }
+        fn sender(&self) -> &str {
+            ""
         }
     }
 

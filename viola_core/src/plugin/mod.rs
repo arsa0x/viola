@@ -51,9 +51,12 @@ impl PluginRegistry {
                         path.display()
                     );
                 }
-
-                log::info!("loaded plugin trigger '{trigger}' from {}", path.display());
             }
+            log::info!(
+                "loaded plugin: '{}' from {}",
+                chunk.name.as_deref().unwrap_or("<unnamed>"),
+                path.display()
+            );
         }
 
         Ok(Self { triggers })
@@ -73,13 +76,37 @@ impl PluginRegistry {
 }
 
 impl Host for PluginHost {
-    async fn send_text(&self, text: &str) -> Result<(), NativeError> {
-        _ = self.ctx.send().text(text).await.map_err(|e| NativeError {
+    async fn send_text(&self, text: &str, quoted: bool) -> Result<(), NativeError> {
+        let mut builder = self.ctx.send().text(text);
+
+        builder.quoted = quoted;
+
+        _ = builder.await.map_err(|e| NativeError {
             kind: NativeErrorKind::HostRejected,
             detail: e.to_string(),
         });
 
         Ok(())
+    }
+    async fn send_reaction(&self, _: &str) -> Result<(), NativeError> {
+        Ok(())
+    }
+
+    async fn send_single_select(
+        &self,
+        _: viola_script::native::specs::SingleSelectSpec<'_>,
+    ) -> Result<(), NativeError> {
+        Ok(())
+    }
+
+    fn is_group(&self) -> bool {
+        false
+    }
+    fn message_text(&self) -> Option<&str> {
+        None
+    }
+    fn sender(&self) -> &str {
+        ""
     }
 }
 

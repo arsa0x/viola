@@ -30,7 +30,7 @@ mod tests {
 
     use crate::{
         error::NativeError,
-        native::{ExecContext, Host, Value, send_text},
+        native::{self, ExecContext, Host, Value, specs::SingleSelectSpec},
     };
 
     struct TestHost {
@@ -38,9 +38,24 @@ mod tests {
     }
 
     impl Host for TestHost {
-        async fn send_text(&self, text: &str) -> Result<(), NativeError> {
+        async fn send_text(&self, text: &str, _: bool) -> Result<(), NativeError> {
             self.calls.lock().unwrap().push(text.to_owned());
             Ok(())
+        }
+        async fn send_reaction(&self, _: &str) -> Result<(), NativeError> {
+            Ok(())
+        }
+        async fn send_single_select(&self, _: SingleSelectSpec<'_>) -> Result<(), NativeError> {
+            Ok(())
+        }
+        fn is_group(&self) -> bool {
+            false
+        }
+        fn message_text(&self) -> Option<&str> {
+            None
+        }
+        fn sender(&self) -> &str {
+            ""
         }
     }
 
@@ -54,7 +69,7 @@ mod tests {
 
         let ctx = ExecContext::new(Vec::new(), host);
 
-        let result = send_text(&[Value::Str("hello".into())], &ctx)
+        let result = native::send::send_text(&[Value::Str("hello".into())], &ctx)
             .await
             .unwrap();
 
@@ -70,7 +85,9 @@ mod tests {
 
         let ctx = ExecContext::new(Vec::new(), host);
 
-        let err = send_text(&[Value::Nil], &ctx).await.unwrap_err();
+        let err = native::send::send_text(&[Value::Nil], &ctx)
+            .await
+            .unwrap_err();
 
         assert!(err.to_string().contains("need str"));
     }

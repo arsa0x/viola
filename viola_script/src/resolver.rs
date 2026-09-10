@@ -296,25 +296,27 @@ impl Resolver {
                 args,
                 line,
             } => {
-                let sig = native::lookup_native(command, method.as_deref()).ok_or_else(|| {
-                    let full = match method {
-                        Some(method) => {
-                            format!(":{command} .{method}")
-                        }
-                        None => {
-                            format!(":{command}")
-                        }
-                    };
+                let sig =
+                    native::lookup::lookup_native(command, method.as_deref()).ok_or_else(|| {
+                        let full = match method {
+                            Some(method) => {
+                                format!(":{command} .{method}")
+                            }
+                            None => {
+                                format!(":{command}")
+                            }
+                        };
 
-                    CompileError::new(*line, format!("unknown command: `{full}`"))
-                })?;
+                        CompileError::new(*line, format!("unknown command: `{full}`"))
+                    })?;
 
-                if args.len() != sig.expected_argc as usize {
+                if args.len() < sig.min_argc as usize || args.len() > sig.max_argc as usize {
                     return Err(CompileError::new(
                         *line,
                         format!(
-                            "command `:{command}` takes {} arguments, found {}",
-                            sig.expected_argc,
+                            "command `:{command}` takes {}-{} arguments, found {}",
+                            sig.min_argc,
+                            sig.max_argc,
                             args.len()
                         ),
                     ));

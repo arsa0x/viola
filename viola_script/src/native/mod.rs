@@ -1,16 +1,49 @@
+pub mod lookup;
+pub mod message;
+pub mod send;
+pub mod specs;
+pub mod utils;
+
 use std::{fmt, sync::Arc};
 
-use crate::error::NativeError;
+use crate::{error::NativeError, native::specs::SingleSelectSpec};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
 pub enum NativeId {
     SendText,
+    SendSingleSelect,
+    SendReaction,
+    ArgsGet,
+    ArgsAll,
+    ArgsCount,
+    MessageText,
+    MessageSender,
+    MessageIsGroup,
 }
 
 pub struct NativeSig {
     pub id: NativeId,
-    pub expected_argc: u8,
+    pub min_argc: u8,
+    pub max_argc: u8,
+}
+
+impl NativeSig {
+    pub fn fixed(id: NativeId, argc: u8) -> Self {
+        Self {
+            id,
+            min_argc: argc,
+            max_argc: argc,
+        }
+    }
+
+    pub fn with_optional(id: NativeId, required: u8, optional: u8) -> Self {
+        Self {
+            id,
+            min_argc: required,
+            max_argc: required + optional,
+        }
+    }
 }
 
 pub struct ExecContext<H: Host> {
@@ -20,7 +53,17 @@ pub struct ExecContext<H: Host> {
 
 #[allow(async_fn_in_trait)]
 pub trait Host {
-    async fn send_text(&self, text: &str) -> Result<(), NativeError>;
+    // basic message sender
+    async fn send_text(&self, text: &str, quoted: bool) -> Result<(), NativeError>;
+    async fn send_reaction(&self, emoji: &str) -> Result<(), NativeError>;
+
+    // interactive message sender
+    async fn send_single_select(&self, spec: SingleSelectSpec<'_>) -> Result<(), NativeError>;
+
+    // information
+    fn message_text(&self) -> Option<&str>;
+    fn sender(&self) -> &str;
+    fn is_group(&self) -> bool;
 }
 
 #[derive(Clone, Debug)]
@@ -115,42 +158,10 @@ impl<H: Host> ExecContext<H> {
     }
 }
 
-pub fn lookup_native(command: &str, method: Option<&str>) -> Option<NativeSig> {
-    match (command, method) {
-        ("send", Some("text")) => Some(NativeSig {
-            id: NativeId::SendText,
-            expected_argc: 1,
-        }),
-        _ => None,
-    }
-}
-
-pub async fn send_text<H: Host>(
-    args: &[Value],
-    ctx: &ExecContext<H>,
-) -> Result<Value, NativeError> {
-    let text = match args.first() {
-        Some(Value::Str(s)) => s.clone(),
-        Some(v) => {
-            return Err(NativeError::invalid_arg(format!(
-                "`:send .text` need str, get {}",
-                v.type_name()
-            )));
-        }
-        None => {
-            return Err(NativeError::invalid_arg(
-                "`:send .text` requires 1 argument",
-            ));
-        }
-    };
-
-    ctx.host.send_text(&text).await?;
-
-    Ok(Value::Nil)
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::native::lookup::lookup_native;
+
     use super::*;
 
     #[test]
@@ -207,7 +218,7 @@ mod tests {
         let sig = lookup_native("send", Some("text")).unwrap();
 
         assert_eq!(sig.id, NativeId::SendText);
-        assert_eq!(sig.expected_argc, 1);
+        assert_eq!(sig.min_argc, 1);
     }
 
     #[test]
