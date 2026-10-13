@@ -5,23 +5,31 @@ use whatsapp_rust::{Client, types::events::Event};
 
 use crate::{COMMAND_MAP, incoming, parser};
 
-/// Resolve the best available sender identifier for owner checks.
+/// Return a phone-number identity only for PN JIDs.
 ///
-/// WhatsApp may provide a phone-number JID as `sender_alt` when the primary
-/// sender JID is a LID. The configured `owners` list contains phone numbers
-/// without a leading plus sign. If the alternate identity is absent, fall
-/// back to the primary sender identifier; an empty identifier is unknown.
+/// Owner IDs in the config are phone numbers, not LIDs. In particular, never
+/// compare a numeric LID with the configured phone-number allowlist.
+fn phone_number_identity(jid: &whatsapp_rust::types::jid::Jid) -> Option<String> {
+    if !jid.to_string().ends_with("@s.whatsapp.net") {
+        return None;
+    }
+
+    let user = jid.user.to_string();
+    (!user.trim().is_empty()).then_some(user)
+}
+
+/// Resolve the best available phone-number identity for owner checks.
+///
+/// For LID-addressed messages WhatsApp can provide the phone-number JID in
+/// `sender_alt`. If neither JID is a phone-number JID, identity is unknown.
 fn sender_id(info: &whatsapp_rust::types::message::MessageInfo) -> Option<String> {
     let source = &info.source;
 
     source
         .sender_alt
         .as_ref()
-        .map(|sender| sender.user.to_string())
-        .or_else(|| {
-            let sender = source.sender.user.to_string();
-            (!sender.trim().is_empty()).then_some(sender)
-        })
+        .and_then(phone_number_identity)
+        .or_else(|| phone_number_identity(&source.sender))
 }
 
 pub async fn event_handler(
@@ -117,5 +125,42 @@ pub async fn event_handler(
         Event::LoggedOut(_) => log::info!("[{session}] Bot was logged out!"),
 
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sender_id;
+    use whatsapp_rust::types::message::MessageInfo;
+
+    fn info_with_sender(sender: &str, sender_alt: Option<&str>) -> MessageInfo {
+        let mut info = MessageInfo::default();
+        info.source.sender = sender.parse().expect("valid sender JID");
+        info.source.sender_alt = sender_alt.map(|jid| jid.parse().expect("valid alternate JID"));
+        info
+    }
+
+    #[test]
+    fn sender_id_uses_phone_number_alternate_for_lid_sender() {
+        let info = info_with_sender(
+            "203040904720543@lid",
+            Some("628123456789@s.whatsapp.net"),
+        );
+
+        assert_eq!(sender_id(&info).as_deref(), Some("628123456789"));
+    }
+
+    #[test]
+    fn sender_id_rejects_lid_when_phone_number_is_unavailable() {
+        let info = info_with_sender("203040904720543@lid", None);
+
+        assert_eq!(sender_id(&info), None);
+    }
+
+    #[test]
+    fn sender_id_accepts_phone_number_sender_without_alternate() {
+        let info = info_with_sender("628123456789@s.whatsapp.net", None);
+
+        assert_eq!(sender_id(&info).as_deref(), Some("628123456789"));
     }
 }
