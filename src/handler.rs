@@ -9,13 +9,12 @@ use crate::{COMMAND_MAP, incoming, parser};
 ///
 /// Owner IDs in the config are phone numbers, not LIDs. In particular, never
 /// compare a numeric LID with the configured phone-number allowlist.
-fn phone_number_identity(jid: &whatsapp_rust::types::jid::Jid) -> Option<String> {
-    if !jid.to_string().ends_with("@s.whatsapp.net") {
+fn phone_number_identity(jid: &str, user: &str) -> Option<String> {
+    if !jid.ends_with("@s.whatsapp.net") || user.trim().is_empty() {
         return None;
     }
 
-    let user = jid.user.to_string();
-    (!user.trim().is_empty()).then_some(user)
+    Some(user.to_owned())
 }
 
 /// Resolve the best available phone-number identity for owner checks.
@@ -28,8 +27,10 @@ fn sender_id(info: &whatsapp_rust::types::message::MessageInfo) -> Option<String
     source
         .sender_alt
         .as_ref()
-        .and_then(phone_number_identity)
-        .or_else(|| phone_number_identity(&source.sender))
+        .and_then(|jid| phone_number_identity(&jid.to_string(), &jid.user.to_string()))
+        .or_else(|| {
+            phone_number_identity(&source.sender.to_string(), &source.sender.user.to_string())
+        })
 }
 
 pub async fn event_handler(
