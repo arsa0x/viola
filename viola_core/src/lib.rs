@@ -1,3 +1,4 @@
+pub mod authorization;
 pub mod command;
 pub mod config;
 pub mod context;
